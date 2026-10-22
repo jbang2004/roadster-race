@@ -27,3 +27,4 @@ python3 -m pip install --quiet numpy 2>/dev/null || python3 -m pip install --qui
 
 "$BDIR/blender" --version | head -1
 echo "export BLENDER=\"$BDIR/blender\""
+echo "export LD_LIBRARY_PATH=\"$BDIR/lib\"   # meshopt (compressed GLB export)"

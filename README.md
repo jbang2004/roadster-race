@@ -62,11 +62,12 @@ node tools/shot_route.mjs --scene showroom ...
 ```bash
 bash cloud-setup.sh
 export BLENDER="$HOME/blender/blender"
+export LD_LIBRARY_PATH="$HOME/blender/lib"   # 压缩导出（meshopt）要用 Blender 自带的 libmeshoptimizer.so
 ```
 
 这个脚本会安装 Blender 5.2、npm 依赖、Chromium 和 numpy。云环境的网络权限需要放行 download.blender.org、npm、Playwright CDN 和 PyPI。容器里没有 GPU，Cycles 用 CPU 渲染，会慢一些。
 
 ## 当前状态（2026-10-22）
 
-- 主线车模是 c10b 车身加 q8 车头，测试全部通过。
+- 主线车模是 c10b 车身加 q8 车头，外加 q12 光顺（尾肩面横折、A 柱根前上面波纹），测试全部通过。
 - 正在做的是前轮上方肩部：上棱保持利棱，去掉轮拱边折角。见 `wip/c11b-h5/`。
