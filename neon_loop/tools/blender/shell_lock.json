@@ -2,7 +2,7 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "3f0ea3137de6ab2c",
+   "sha": "336dfb5e13b8a9aa",
    "verts": 7515,
    "faces": 7293
   },
@@ -17,17 +17,17 @@
    "faces": 4440
   },
   "pillar": {
-   "sha": "da76318c042f13d1",
+   "sha": "722646a0811a2d54",
    "verts": 354,
    "faces": 234
   },
   "door_glass": {
-   "sha": "4d56606c60716708",
+   "sha": "9eea1d1545cb374e",
    "verts": 3434,
    "faces": 3312
   },
   "rail_band": {
-   "sha": "e6d9da3f6f25930e",
+   "sha": "4d902734d9d3ef96",
    "verts": 165,
    "faces": 136
   },
@@ -52,17 +52,17 @@
    "faces": 792
   },
   "rear_shoulder": {
-   "sha": "3c3ec633d121c3c0",
+   "sha": "7909aff0be05a21a",
    "verts": 2960,
-   "faces": 2869
+   "faces": 2871
   },
   "glass": {
-   "sha": "ee2925797c168f91",
+   "sha": "372c09a8e5c3c026",
    "verts": 8953,
    "faces": 8756
   },
   "ridge_inner": {
-   "sha": "69055c5672914f48",
+   "sha": "b17ff178225743cf",
    "verts": 1136,
    "faces": 1016
   },
