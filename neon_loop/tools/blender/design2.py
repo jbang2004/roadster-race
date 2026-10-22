@@ -1899,12 +1899,6 @@ def build_all():
     sd = Spline1D([p[0] for p in DY_K], [p[1] for p in DY_K])
     HW = lambda x: np.where(np.asarray(x) < 0.15, 0.0, np.where(np.asarray(x) > 2.38, 0.0, np.maximum(sh(np.maximum(x, 0.15)), 0.0)))
     DY = lambda x: np.where(np.asarray(x) < 0.15, 0.0, np.where(np.asarray(x) > 2.38, 0.0, np.maximum(sd(np.maximum(x, 0.15)), 0.0)))
-    if QF_GE_FAIR:
-        # q12 (review 2026-10-22, glass edge): the wall height / width rose from 0 at x 0.15 WITH a slope, a kink in the glass edge there (curvature spike -0.8 side, -0.4 plan); they now ease in
-        # over 0.15 .. 0.45 (C2 smoothstep factor), unchanged from 0.45 on
-        _HW0, _DY0 = HW, DY
-        HW = lambda x: _HW0(x) * sstep(0.15, 0.45, x)
-        DY = lambda x: _DY0(x) * sstep(0.15, 0.45, x)
     # the rail: cowl diagonal (straight), A-pillar line (straight), a G1 round-over of the 19 degree bend at the roof header over 0.44 m (radius ~1.2 m), the roof rail (fitted B-spline)
     from curves2 import herm3, SubCurve
     pil = CURVES['pillar_in']
