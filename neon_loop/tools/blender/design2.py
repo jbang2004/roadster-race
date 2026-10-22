@@ -490,6 +490,10 @@ def quint1(x, x0, f0, d0, c0, x1, f1, d1, c1):
     return h0 * f0 + h1 * h * d0 + h2 * h * h * c0 + (1 - h0) * f1 + h4 * h * d1 + h5 * h * h * c1
 
 
+QF_WT_LAM = float(os.environ.get('QF_WT_LAM', '2e-5'))     # q12d: fairness weight of the window line refit, B pillar .. QF_WT_X1 (0 = off)
+QF_WT_X1 = float(os.environ.get('QF_WT_X1', '1.17'))
+QF_RT_LAM = float(os.environ.get('QF_RT_LAM', '2e-5'))     # q12d: fairness weight of the roof rail refit, XB1 .. window tip (0 = off)
+QF_AP_STRAIGHT = os.environ.get('QF_AP_STRAIGHT', '1') == '1'     # q12d: the A pillar's outer edge near-straight from the foot to the header (see design_curves)
 QF_UB_X1 = float(os.environ.get('QF_UB_X1', '1.12'))      # q12 item 4: the U crease softens into the fold over X_FOLD0 .. this x (<= X_FOLD0: off)
 QF_GE_FAIR = os.environ.get('QF_GE_FAIR', '1') == '1'     # q12: glass edge / window line fairing (see design_curves)
 QF_GE_X0 = float(os.environ.get('QF_GE_X0', '0.85'))
@@ -1924,6 +1928,40 @@ def build_all():
         _ey = lambda x: np.where(np.asarray(x, float) <= E_TARGET[0], C0[1] + (E_TARGET[1] - C0[1]) * _ex(x), E_TARGET[1] + (E_TARGET[1] - QR_C0_OLD[1]) / (E_TARGET[0] - X_TIP) * (np.asarray(x, float) - E_TARGET[0]))
         _ez = lambda x: np.where(np.asarray(x, float) <= E_TARGET[0], C0[2] + (E_TARGET[2] - C0[2]) * _ex(x), E_TARGET[2] + (E_TARGET[2] - QR_C0_OLD[2]) / (E_TARGET[0] - X_TIP) * (np.asarray(x, float) - E_TARGET[0]))
         crest = reg(Fn(X_TIP, 2.41, _ey, _ez, 'crest'))
+    if QF_RT_LAM > 0.0:
+        # q12d (review 2026-10-22, the beam; user: "都同意"): the roof rail from the header end XB1 to the window tip rolled in curvature (0.28 / 0.15 / 0.28 / 0.15 / 0.52 /m, a torsion spike at x 0.40 where
+        # the q4r quintic starts).  It is refitted here: G2 with the header at XB1 and with the straight crest at the tip (ends, slopes, curvatures kept), in between a least-squares fit to the old
+        # rail with a penalty on the third derivative (fairness, weight QF_RT_LAM): max move 5.6 mm (out / up at x 0.5 - 0.6); the 0.40 dip and its twist go, one shallow trough (0.13) at x 0.7
+        # remains before the turn into the tip (removing it moves the rail 13+ mm).  The window line follows (it is the rail + the strip offset).
+        _rt0 = CURVES['roof_tail']
+        _xa, _xb = XB1, X_TIP
+        _xs = np.linspace(_xa, _xb, 600)
+        _t = (_xs - _xa) / (_xb - _xa)
+        _h = _xb - _xa
+        _e = 2e-3
+        _P = np.asarray(_rt0.at(_xs), float)
+        _pa = np.asarray(_rt0.at(_xa), float)
+        _da = (np.asarray(_rt0.at(_xa + _e), float) - np.asarray(_rt0.at(_xa), float)) / _e
+        _ca = (np.asarray(_rt0.at(_xa + 2 * _e), float) - 2 * np.asarray(_rt0.at(_xa + _e), float) + _pa) / _e ** 2
+        _pb = np.asarray(crest.at(_xb), float)
+        _db = (np.asarray(crest.at(_xb + 0.01), float) - _pb) / 0.01
+        _h0 = 1 - 10 * _t ** 3 + 15 * _t ** 4 - 6 * _t ** 5
+        _h1 = _t - 6 * _t ** 3 + 8 * _t ** 4 - 3 * _t ** 5
+        _h2 = 0.5 * _t ** 2 - 1.5 * _t ** 3 + 1.5 * _t ** 4 - 0.5 * _t ** 5
+        _h4 = -4 * _t ** 3 + 7 * _t ** 4 - 3 * _t ** 5
+        _Bm = np.stack([_t ** 3 * (1 - _t) ** 3 * _t ** j for j in range(10)], 1)          # zero value / slope / curvature at both ends
+        _rt_d3 = lambda f: np.gradient(np.gradient(np.gradient(f, _xs, axis=0), _xs, axis=0), _xs, axis=0)
+        _B3 = _rt_d3(_Bm)
+        _fit = {}
+        for _k in (1, 2):
+            _b0 = _h0 * _pa[_k] + _h1 * _h * _da[_k] + _h2 * _h * _h * _ca[_k] + (1 - _h0) * _pb[_k] + _h4 * _h * _db[_k]
+            _A = np.vstack([_Bm, math.sqrt(QF_RT_LAM) * _B3])
+            _y = np.r_[_P[:, _k] - _b0, -math.sqrt(QF_RT_LAM) * _rt_d3(_b0)]
+            _c = np.linalg.lstsq(_A, _y, rcond=None)[0]
+            _fit[_k] = _b0 + _Bm @ _c
+        _fy, _fz = _fit[1], _fit[2]
+        CURVES['roof_tail'] = Fn(_xa, _xb, lambda x: np.interp(np.asarray(x, float), _xs, _fy), lambda x: np.interp(np.asarray(x, float), _xs, _fz), 'roof_tail')
+        rail_r1c = Composite([CURVES['cowl_diag'], CURVES['pillar_lo'], CURVES['header'], CURVES['roof_tail'], SubCurve(rail_roof, X_TIP, 2.41, 'roof_tail_r1c')], 'rail_r1c')   # the glass edge (= the rail where the ridge wall is 0) follows
     rail = Composite([CURVES['cowl_diag'], CURVES['pillar_lo'], CURVES['header'], CURVES['roof_tail'], crest], 'rail'); CURVES['rail'] = rail
     rail_r1c_lk = Composite([CURVES['cowl_diag'], CURVES['pillar_lo'], CURVES['header'], SubCurve(rail_roof_lk, XB1, 2.41, 'roof_tail_r1c')], 'rail_r1c')
     gedge_r1c = Fn(-1.625, 2.41, lambda x: rail_r1c_lk.at(x)[..., 1] - DY(x), lambda x: rail_r1c_lk.at(x)[..., 2] - HW(x), 'gedge_r1c')          # the R1c edge (rebuilds the R1c glass fit)
@@ -1997,6 +2035,24 @@ def build_all():
     e0 = np.array(A_OUT, float) - rail.at(A_OUT[0]) - np.array([0.0, PILL_W, dz0])           # the foot is a skew rung (A_IN is 1.6 cm ahead of A_OUT): this small offset fades out within 0.4 m
     fade = lambda x: 1.0 - sstep(A_OUT[0], A_OUT[0] + 0.40, x)
     wl_main = Fn(A_OUT[0], X_B, lambda x: rail.at(x)[..., 1] + PILL_W + e0[1] * fade(x), lambda x: rail.at(x)[..., 2] + off_z(x) + e0[2] * fade(x), 'wl_main')
+    if QF_AP_STRAIGHT:
+        # q12d (review 2026-10-22, the beam; user: "都同意"): the pillar strip's height ramp (a linear wedge rounded over +-8 cm at x -1.03) and the 0.4 m smoothstep fade of the foot offset bent the OUTER
+        # edge of the A pillar (curvature bumps 0.2 / 0.6 /m at x -1.34 / -1.03, a knee at the pillar foot in a grazing view) while the inner edge is straight.  From the foot to the header start XB0
+        # the outer edge is now one near-straight quintic: the foot point A_OUT kept, leaving it along the chord with zero curvature, G2 with the old edge at XB0 (the strip's height then grows
+        # evenly instead of reaching its full 25 mm at -1.03: side view "equal width" is relaxed there, approved).
+        _wl0 = wl_main
+        _xa, _xb = float(A_OUT[0]), XB0
+        _pa, _pb = np.asarray(_wl0.at(_xa), float), np.asarray(_wl0.at(_xb), float)
+        _ch = (_pb - _pa) / (_xb - _xa)
+        _e = 2e-3
+        _db = (np.asarray(_wl0.at(_xb + _e), float) - np.asarray(_wl0.at(_xb - _e), float)) / (2 * _e)
+        _cb = (np.asarray(_wl0.at(_xb + _e), float) - 2 * _pb + np.asarray(_wl0.at(_xb - _e), float)) / _e ** 2
+
+        def _wl_ap(x, k):
+            x = np.asarray(x, float)
+            q = quint1(x, _xa, _pa[k], _ch[k], 0.0, _xb, _pb[k], _db[k], _cb[k])
+            return np.where(x < _xb, q, _wl0.at(x)[..., k])
+        wl_main = Fn(A_OUT[0], X_B, lambda x: _wl_ap(x, 1), lambda x: _wl_ap(x, 2), 'wl_main')
     b_out = wl_main.at(X_B)
     # B pillar -> window tip: a Hermite arc, tangent to the lens edge at B and leaving along the chord at the tip (a smooth, slightly convex end of the side window)
     from curves2 import _Herm1D
@@ -2027,6 +2083,39 @@ def build_all():
             return w0 + np.asarray(b)[..., None] * (u + np.asarray(wd)[..., None] * e - w0)
         wl_tip = Fn(X_B, tip[0], lambda x: _wl_c(x)[..., 0], lambda x: _wl_c(x)[..., 1], 'wl_tip')
     wl = Composite([wl_main, wl_tip], 'wl'); CURVES['wl'] = wl
+    if QF_WT_LAM > 0.0:
+        # q12d (review 2026-10-22, the beam): the door glass' upper edge from the B pillar to the tip had a curvature hump (0.83 /m at x 0.79) and a spike (1.7 - 2.2 /m at x 1.14, the q4r end blend
+        # over 7 cm).  X_B .. QF_WT_X1 is refitted like the roof rail: G2 with the old line at both ends (the last 3 cm to the tip, which align the tip rows, are kept), a least-squares fit with a
+        # third-derivative penalty in between
+        _wwl0_ = wl
+        _wxa_, _wxb_ = X_B, QF_WT_X1
+        _wxs_ = np.linspace(_wxa_, _wxb_, 500)
+        _wt_ = (_wxs_ - _wxa_) / (_wxb_ - _wxa_)
+        _wh_ = _wxb_ - _wxa_
+        _we_ = 2e-3
+        _wP_ = np.asarray(_wwl0_.at(_wxs_), float)
+        _wpa_, _wpb_ = np.asarray(_wwl0_.at(_wxa_), float), np.asarray(_wwl0_.at(_wxb_), float)
+        _wda_ = (np.asarray(_wwl0_.at(_wxa_ + _we_), float) - _wpa_) / _we_
+        _wca_ = (np.asarray(_wwl0_.at(_wxa_ + 2 * _we_), float) - 2 * np.asarray(_wwl0_.at(_wxa_ + _we_), float) + _wpa_) / _we_ ** 2
+        _wdb_ = (np.asarray(_wwl0_.at(_wxb_ + _we_), float) - np.asarray(_wwl0_.at(_wxb_ - _we_), float)) / (2 * _we_)
+        _wcb_ = (np.asarray(_wwl0_.at(_wxb_ + _we_), float) - 2 * _wpb_ + np.asarray(_wwl0_.at(_wxb_ - _we_), float)) / _we_ ** 2
+        _wh0_ = 1 - 10 * _wt_ ** 3 + 15 * _wt_ ** 4 - 6 * _wt_ ** 5
+        _wh1_ = _wt_ - 6 * _wt_ ** 3 + 8 * _wt_ ** 4 - 3 * _wt_ ** 5
+        _wh2_ = 0.5 * _wt_ ** 2 - 1.5 * _wt_ ** 3 + 1.5 * _wt_ ** 4 - 0.5 * _wt_ ** 5
+        _wh4_ = -4 * _wt_ ** 3 + 7 * _wt_ ** 4 - 3 * _wt_ ** 5
+        _wh5_ = 0.5 * _wt_ ** 3 - _wt_ ** 4 + 0.5 * _wt_ ** 5
+        _wBm_ = np.stack([_wt_ ** 3 * (1 - _wt_) ** 3 * _wt_ ** j for j in range(10)], 1)
+        _wt_d3 = lambda f: np.gradient(np.gradient(np.gradient(f, _wxs_, axis=0), _wxs_, axis=0), _wxs_, axis=0)
+        _wB3_ = _wt_d3(_wBm_)
+        _wfit_ = {}
+        for _wk_ in (1, 2):
+            _wb0_ = _wh0_ * _wpa_[_wk_] + _wh1_ * _wh_ * _wda_[_wk_] + _wh2_ * _wh_ * _wh_ * _wca_[_wk_] + (1 - _wh0_) * _wpb_[_wk_] + _wh4_ * _wh_ * _wdb_[_wk_] + _wh5_ * _wh_ * _wh_ * _wcb_[_wk_]
+            _wA_ = np.vstack([_wBm_, math.sqrt(QF_WT_LAM) * _wB3_])
+            _wy_ = np.r_[_wP_[:, _wk_] - _wb0_, -math.sqrt(QF_WT_LAM) * _wt_d3(_wb0_)]
+            _wfit_[_wk_] = _wb0_ + _wBm_ @ np.linalg.lstsq(_wA_, _wy_, rcond=None)[0]
+        _wgy_, _wgz_ = _wfit_[1], _wfit_[2]
+        _wfit = Fn(_wxa_, _wxb_, lambda x: np.interp(np.asarray(x, float), _wxs_, _wgy_), lambda x: np.interp(np.asarray(x, float), _wxs_, _wgz_), 'wl_fair')
+        wl = Composite([wl_main, _wfit, SubCurve(_wwl0_, _wxb_, tip[0], 'wl_end')], 'wl'); CURVES['wl'] = wl
     # centre line of the glass: the windscreen plane, the dome, then (rear window) the glass edge + crown (-> 0 at the wing seam), then the flat deck (= the glass edge level)
     xs = np.linspace(-1.625, X_SEAM, 80)
     zt = np.array([pchip([(p[0], p[2]) for p in TOP_K], x) for x in xs])
