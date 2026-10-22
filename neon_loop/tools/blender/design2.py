@@ -90,7 +90,8 @@ QR_PB_Y = tuple(None if v == 'None' else float(v) for v in os.environ.get('QR_PB
 QR_P1_DY = float(os.environ.get('QR_P1_DY', '0.003'))      # glass edge: how far outboard of the locked position its P1 may be (the crest start moved out by 29 mm there; high / r81 readings allow about 10)
 QR_P1_X0 = float(os.environ.get('QR_P1_X0', '1.0'))
 QR_DG_M = int(os.environ.get('QR_DG_M', '23'))             # door glass: the locked number of divisions across the strip
-QR_ROOF_X0 = float(os.environ.get('QR_ROOF_X0', '0.65'))  # roof rail: quintic from here to the window tip
+QR_ROOF_X0 = float(os.environ.get('QR_ROOF_X0', '0.40'))  # roof rail: quintic from here to the window tip.  q12 (review 2026-10-22, roof rail; user: "都同意"): 0.65 -> 0.40.  From 0.65 the quintic had to swing out to the
+#   q4r crest start C0 within 55 cm: an S in plan with 6 sign changes of y'' (-0.75 .. +0.57).  From 0.40: one smooth inflection (-0.42 .. +0.29); the rail moves out <= 13 mm at x 0.81 (wl 10.5 mm).
 QR_SC_D = float(os.environ.get('QR_SC_D', '0.002'))      # fold: the roll's centre sc(x) moves toward L by this much over the first rows (the chord L -> U is 6-11 mm shorter than the locked one behind the new window line start: the inclined leg would vanish and th spike to 37 deg in the first fold row; 2 mm is enough), fading out between QR_SC_X1 and QR_SC_X2
 QR_SC_X1, QR_SC_X2 = float(os.environ.get('QR_SC_X1', '0.90')), float(os.environ.get('QR_SC_X2', '0.94'))
 QR_WL_B0, QR_WL_B1 = float(os.environ.get('QR_WL_B0', '1.10')), float(os.environ.get('QR_WL_B1', '1.17'))      # window line: its end (the glass sliver's upper edge) bends by < 1 mm so that the chord U -> wl is the direction of the rail rung (U -> rail) from QR_WL_B1 on (blend from QR_WL_B0): the shoulder's end direction and the tip rows then agree (G1 at the window tip)
@@ -477,6 +478,26 @@ ARC_K = [(0.88, None, None), (1.20, 0.725, 1.060), (1.55, 0.660, 1.075), (2.15, 
 REAR = {}
 
 
+def quint1(x, x0, f0, d0, c0, x1, f1, d1, c1):
+    """quintic Hermite in x (vectorised, clamped): value / slope / second derivative at both ends"""
+    h = x1 - x0
+    t = np.clip((np.asarray(x, float) - x0) / h, 0.0, 1.0)
+    h0 = 1 - 10 * t ** 3 + 15 * t ** 4 - 6 * t ** 5
+    h1 = t - 6 * t ** 3 + 8 * t ** 4 - 3 * t ** 5
+    h2 = 0.5 * t ** 2 - 1.5 * t ** 3 + 1.5 * t ** 4 - 0.5 * t ** 5
+    h4 = -4 * t ** 3 + 7 * t ** 4 - 3 * t ** 5
+    h5 = 0.5 * t ** 3 - t ** 4 + 0.5 * t ** 5
+    return h0 * f0 + h1 * h * d0 + h2 * h * h * c0 + (1 - h0) * f1 + h4 * h * d1 + h5 * h * h * c1
+
+
+QF_UB_X1 = float(os.environ.get('QF_UB_X1', '1.12'))      # q12 item 4: the U crease softens into the fold over X_FOLD0 .. this x (<= X_FOLD0: off)
+QF_GE_FAIR = os.environ.get('QF_GE_FAIR', '1') == '1'     # q12: glass edge / window line fairing (see design_curves)
+QF_GE_X0 = float(os.environ.get('QF_GE_X0', '0.85'))
+QF_HDR_G2 = os.environ.get('QF_HDR_G2', '1') == '1'       # q12: the roof header as a G2 quintic (see build_all)
+QF_TOP_FAIR = os.environ.get('QF_TOP_FAIR', '1') == '1'     # q12: the centre line / glass edge behind the B seam with one smooth curvature step (see design_curves)
+QF_TOP_X = tuple(float(v) for v in os.environ.get('QF_TOP_X', '0.65,0.85').split(','))     # where the centre line's curvature steps from the roof's to the constant rear value
+
+
 def herm1(x, x0, f0, d0, x1, f1, d1):
     """cubic Hermite in x (vectorised, clamped to [x0, x1]): value f0 / slope d0 at x0, f1 / d1 at x1"""
     h = x1 - x0
@@ -515,7 +536,12 @@ T_AFT_CUT, X_T_AFT = float(os.environ.get('T_AFT_CUT', '0.5')), 0.45      # rear
 FOLD_NOBARREL = os.environ.get('FOLD_NOBARREL', '1') == '1'
 X_KEEP, X_NB, X_NB_AFT = float(os.environ.get('X_KEEP', '0.874')), float(os.environ.get('X_NB', '0.0205')), 0.30      # round 4: no barrel from the first fold row on (x_keep = X_FOLD0; the old rows' barrel left inflection lines = the concentric arcs)
 X_NB_SLOPE = float(os.environ.get('X_NB_SLOPE', '0.05' if QR_ON else '0.15'))      # (q4r: the aft th continues the tip rate for 5 cm instead of 15: the roll dips < 0.1 deg below flat behind the tip, not 0.4)
-FOLD_NET = [(1.2, 0.0), (1.4, 2.2), (1.6, 3.4), (1.8, 2.8), (2.0, 1.6), (2.2, 0.7), (2.382, 0.0)]     # th (degrees) of the roll aft of the window tip (blended in from the tip's own value and rate over X_NB_AFT): a slightly concave face
+FOLD_NET_OLD = [(1.2, 0.0), (1.4, 2.2), (1.6, 3.4), (1.8, 2.8), (2.0, 1.6), (2.2, 0.7), (2.382, 0.0)]     # th (degrees) of the roll aft of the window tip (blended in from the tip's own value and rate over X_NB_AFT): a slightly concave face
+# q12 (review 2026-10-22, R-6 face; user: "都同意", the face behind the window slightly concave and smooth): the old table fell off as a flattening tail (2.8 -> 1.6 -> 0.7 -> 0, positive second
+# derivative), which lifts the middle of the face along x: lengthwise convex (-0.3 .. -0.4 /m) at x 1.8 - 2.1, a saddle over 76 % of the face.  An arch th = TH 4u(1 - u) over the same span (even
+# negative second derivative) keeps the face concave across AND slightly concave along.  QF_R6_TH = 0 restores the old table.
+QF_R6_TH = float(os.environ.get('QF_R6_TH', '3.4'))
+FOLD_NET = [(x, QF_R6_TH * 4.0 * u * (1.0 - u)) for x, u in ((x, (x - 1.2) / (2.382 - 1.2)) for x in np.linspace(1.2, 2.382, 13))] if QF_R6_TH > 0 else FOLD_NET_OLD
 FOLD_SC_D = float(os.environ.get('FOLD_SC_D', '0.0'))            # extra slope (m/m) of the roll's centre sc(x) at the window tip, a smooth bump of half width X_SC_W (a free parameter for the G1 across tip_lo)
 X_SC_W = 0.25
 # rearcrease round 4: the roll's BIRTH.  Behind the window the roll peels off U with a radius of 1-6 cm over x 0.9 - 1.05 and its mirror image is a family of fine concentric arcs (p018 v) and a closed oval (p016 h).  The roll
@@ -791,6 +817,13 @@ def fold_row(a, c, M, u0=None, w=0.0):
     a, c = np.asarray(a, float), np.asarray(c, float)
     x = 0.5 * (a[0] + c[0])
     phir = fold_end_dir(x) if x <= X_TIP + 1e-9 else None
+    if phir is not None and QF_UB_X1 > X_FOLD0 and x < QF_UB_X1:
+        # q12 (review 2026-10-22, item 4, user: approach A): the rows up to X_FOLD0 meet the door glass at U with the 25 deg crease; the first fold row arrived TANGENT to the glass (crease 0) and put the
+        # whole turn into a 2 mm roll right beside U (radius 1 -> 30 mm over 8 cm: a second line along U).  Over X_FOLD0 .. QF_UB_X1 the end direction now goes smoothly from the row's chord (the
+        # ruled row: the crease at U, no roll) to the glass strip's: the crease at U softens while the roll grows from nothing
+        ch = c[1:] - a[1:]
+        wcr = 1.0 - float(sstep(X_FOLD0, QF_UB_X1, x))
+        phir = phir + wcr * (math.atan2(ch[1], -ch[0]) - phir)
     wb = float(sstep(X_KEEP, X_KEEP + X_NB, x)) if FOLD_NOBARREL else 0.0
     sol = fold_solve(x, a[1:], c[1:], phir=phir) if wb < 1.0 else fold_solve_nb(x, a[1:], c[1:], phir=phir)
     sj = fold_nodes(sol, M)
@@ -1161,6 +1194,167 @@ QF_CF_ON = os.environ.get('QF_CF_ON', '1') == '1'
 QF_CF_DL = float(os.environ.get('QF_CF_DL', '0.30'))
 QF_CF_DS = float(os.environ.get('QF_CF_DS', '0.25'))
 _CF_PRE = {}
+
+# ----------------------------------------------------------------------------- c11: a rounder shoulder over the front wheel, smooth creases, lower edge outboard (coordinator + user, 2026-10-21/22)
+# (a) over the wheel the shoulder's lower end (the rim of the wheel opening) is pinned by the tyre: every mm of inboard pull of the rim costs ~0.5 mm of clearance at full lock, and the budget is zero (+12.7 mm steered, +19.6 mm static
+#     as in c10b).  What c11 does instead: the c9c fade band that softens L into one surface starts earlier (QF_C11_FDX: from x -2.25 instead of -1.95; the tangent length QF_C11_FDA stays 45 mm: 60 mm raised the turning of the paint rim in p016 at phi 119 from 8.7 to 12.9 deg), so the
+#     crease angle decreases gradually over 45 cm before the arch mouth (no step, no notch: the band is the same G2 band); L itself is faired (QF_C11_LP: the curvature that rose 10-fold within 10 cm at the arch mouth is smoothed, <= 3.7 mm).
+#     c11b (coordinator: the front-view outline from U down to the widest point is ONE convex arc; USER RULING 2026-10-22, SPEC U-1: over the front wheel the upper crease is softened into a round shoulder, dihedral <= 10 deg,
+#     the nose segment keeps the crisp crease): QF_C11_FA = 1 (c11: 0) blends the outer boundary y(z) of the wall + shoulder section into a swept convex ARC (shell2.qf_soft_target: quintic Hermite from the wall line
+#     QF_C11_SD = 5 cm below the wall top Lm, tangent AND curvature 0 there = G2 with the wall, to U, where it arrives QF_C11_UD = 5 deg to the measured top face (the mesh reads 6 - 9 deg); QF_C11_SOFT=0 gives the old Bezier
+#     target with QF_C11_DA).  The arc lies OUTSIDE the old straight chamfer above the rim, so the rim, the tyre clearance and the plan outline do not move inboard; U, the lip's skin edge, the Trim flange and the side-view
+#     height are untouched.  The weight is the quintic ramp QF_C11_FX = -2.30 .. -1.45 raised to the power QF_C11_FP = 2 (delayed: the y-blend is front-loaded, a weight of 0.1 already flattens a 55 deg ruling to 30 deg), so the
+#     dihedral at U falls as ONE monotone curve: 69 deg at x -2.10 (= c10b, crisp), 52 at -1.98, 33 at -1.90, 24 at -1.85, 18 at -1.80, 12 at -1.70, 7 at -1.60 (<= 14 deg per 5 cm), and the nose-side surface moves by at most
+#     0.2 of slope (a steeper ramp, -1.90 .. -1.75 etc., tilts the surface 20 deg toward the nose and folds the reflection map: closed rings / bull's eyes in reflect_v at x -1.7 .. -1.8, tested with 12 variants).  Measured
+#     (orthographic front outline, x <= -1.15): minimum radius 1.2 cm at z .759 (c10b / c11) -> 7.9 cm, no sign change of the curvature from U to the widest point.  CHORD THEOREM: with the old U tangent of ~52 deg the convex arc
+#     cannot reach the lip with a tangent below ~40 deg unless U softens too (lip tangent + U tangent = 2 x chord angle = ~93 deg): the rounded shoulder IS the softened U.  Reflection: no ring in reflect_v; reflect_h shows the nested
+#     turn-backs of a round-over (the el ridge of a section whose normal sweeps 0 .. 90 deg), open to the nose, not islands.  QF_C11_FA=0: the straight face of c11.
+#     OPTION (default off): QF_C11_BA > 0 repeats the band aft of the arch.
+# (b) [c11b: OFF by default, QF_C11_DU=0.007 gives c11] the crest U moves inboard (QF_C11_DU, one C2 bump over x -1.975 .. -1.43: U ahead of -1.975 (the flap's seam row, station 33) and at A_OUT x -1.43 (a key point) is exactly the old one, its z(x) is untouched).  The cap is
+#     the one-signed curvature of the plan (the bump's curvature must stay below the old curvature of U): 7 mm at x -1.70 (9 mm is the limit, the curvature steps grow with it).
+# (c) every crease is a smooth line: L's height has no dent (QF_C11_LZ: the slope dz/dx is made monotone up to its maximum at x -1.95 (<= 2.6 mm) and faired (QF_C11_LZP)), L / l3 plans are faired (QF_C11_LP / L3P: no step of the
+#     curvature where the line dips into the wheel opening); check.py smooth (crease_smooth.py) lists the turning angle per 5 cm along every crease.
+# (d) the bottom edge of the lower face (l3) is moved outboard by QF_C11_DL3 between the front corner and the wheel arch (C stands more vertical; the front face and the lip centre are unchanged).
+# QF_C11_ON=0 gives c10b.
+QF_C11_ON = os.environ.get('QF_C11_ON', '1') == '1'
+QF_C11_DU = float(os.environ.get('QF_C11_DU', '0.0'))                            # inboard shift of U (m) at its maximum.  c11b: DEFAULT 0 (the 7 mm local move bent the reflect_h stripes at x -1.70 and gave no p016 gain, G-5); 0.007 gives c11
+QF_C11_UX = tuple(float(v) for v in os.environ.get('QF_C11_UX', '-1.975,-1.70,-1.70,-1.43').split(','))   # start of the shift (U fixed ahead), full shift reached, begins to return, end (U old aft of it)
+QF_C11_LZ = os.environ.get('QF_C11_LZ', '1') == '1'
+QF_C11_DL3 = float(os.environ.get('QF_C11_DL3', '0.010'))                        # l3 (the bottom edge of the lower face) outboard
+QF_C11_L3X = tuple(float(v) for v in os.environ.get('QF_C11_L3X', '-2.40,-2.15,-1.75,-1.25').split(','))
+QF_C11_FDX = tuple(float(v) for v in os.environ.get('QF_C11_FDX', '-2.25,-1.80,-1.74,-1.58').split(','))   # c9c fade band weight (QF_FD_X) under c11: starts at -2.25 (was -1.95)
+QF_C11_FDA = float(os.environ.get('QF_C11_FDA', '0.045'))                          # c9c band tangent length (QF_FD_A) under c11 (unchanged; 0.06 gives a 12.9 deg turn of the paint rim in p016)
+if QF_C11_ON:
+    QF_FD_X, QF_FD_A = QF_C11_FDX, QF_C11_FDA
+# the optional round section (used by shell2.qf_f_target): cubic Bezier from the wall line at height ZF (tangent: the wall direction leaned outward by LAM degrees) to U (arrival: the old chord direction + DA degrees flatter)
+QF_C11_ZF = float(os.environ.get('QF_C11_ZF', '0.65'))                            # height (m) at which the round target section leaves the wall line (0 = at the foot l3)
+QF_C11_LAM = float(os.environ.get('QF_C11_LAM', '2.0'))
+QF_C11_K0 = float(os.environ.get('QF_C11_K0', '0.5'))
+QF_C11_K1 = float(os.environ.get('QF_C11_K1', '0.5'))
+QF_C11_DA = float(os.environ.get('QF_C11_DA', '20.0'))
+QF_C11_AZD = float(os.environ.get('QF_C11_AZD', '0.3'))                            # mm: the paint edge of the front arch at the 163 deg knot of shell2.QF_AZ_K is 'this much' LESS far below the circle (rim moves away from the tyre)
+QF_C11_SOFT = os.environ.get('QF_C11_SOFT', '0') == '1'                              # c11b (user ruling 2026-10-22): the target section over the wheel is the swept convex arc: G2 with the wall at the lip, dihedral QF_C11_UD at U (0 = the old Bezier target with QF_C11_DA)
+QF_C11_UD = float(os.environ.get('QF_C11_UD', '5.0'))                                # deg: the dihedral between the top face and the shoulder at U over the wheel (the user: <= 10)
+QF_C11_SD = float(os.environ.get('QF_C11_SD', '0.05'))                              # m: the arc leaves the wall line this far BELOW the wall top Lm (tangent, curvature 0)
+QF_C11_SK = float(os.environ.get('QF_C11_SK', '1.2'))                                # speed of the quintic Hermite arc at both ends, as a multiple of the chord Lm -> U
+QF_C11_SC1 = float(os.environ.get('QF_C11_SC1', '0.0'))                              # curvature of the arc at U, as a multiple of the circle through the same chord and turn (0 at the lip: G2 with the wall)
+QF_C11_FA = float(os.environ.get('QF_C11_FA', '1.0'))                              # amplitude of the round fill (0 = off: the old straight face = c11; 1 = the target section = c11b)
+QF_C11_FX = tuple(float(v) for v in os.environ.get('QF_C11_FX', '-1.82,-1.35,-1.00,-0.20').split(','))   # fill weight: 0 at [0], 1 at [1] .. [2], 0 at [3] (quintic; the ramp-in raised to QF_C11_FP).  h5: -1.82,-1.35,-1.25,-0.45.
+#   q12 (review 2026-10-22, item 2; user: "都同意", criterion: no valley along x, monotone lean): the h5 fill retreated from x -1.25 while the untouched door (c10b) only widens from -1.05 on: a 13-14 mm
+#   valley in y at z .78 - .84 ahead of the door gap (the c11c soft shadow).  Held to -1.00 and retreating to -0.20 (where the door has caught up), the valley is 1.6 - 3.7 mm (z .86: 9.9 mm, the
+#   waist of U's plan, c10b 12.7); the door's plan width is L's and does not change.
+QF_C11_FP = float(os.environ.get('QF_C11_FP', '1.0'))                                # c11b: exponent of the ramp-in (w = sstep ** FP): > 1 delays the fill so the dihedral at U falls as one monotone curve (the y-blend is front-loaded: a small weight already flattens the ruling a lot); 1 = plain quintic
+QF_C11_LB = tuple(float(v) for v in os.environ.get('QF_C11_LB', '2.0,-2.46,-1.90').split(','))      # c11b: L's height gets one C2 bump (amplitude mm, window start, end; zero value / slope / curvature at both ends) so that the front-view turning of L rises in a bell (no step > 45 % of the peak at x -2.28); 0 = off
+QF_C11_BA = float(os.environ.get('QF_C11_BA', '0.0'))                                # tangent length (m) of the c9c fade band aft of the wheel opening (0 = none)
+QF_C11_BX = tuple(float(v) for v in os.environ.get('QF_C11_BX', '-1.34,-1.22,-0.95,-0.55').split(','))   # its weight: 0 at [0], 1 at [1] .. [2], 0 at [3]
+QF_C11_LP = tuple(float(v) for v in os.environ.get('QF_C11_LP', '-2.25,-1.25,0.035').split(','))    # L plan fairing: window start, window end (L is straight aft of it), sigma (m) of the curvature smoothing; sigma 0 = off
+QF_C11_LZP = tuple(float(v) for v in os.environ.get('QF_C11_LZP', '-2.40,-1.75,0.08').split(','))    # L height fairing (after the monotone slope fit): window start, end, sigma
+QF_C11_L3P = tuple(float(v) for v in os.environ.get('QF_C11_L3P', '-2.15,-1.55,0.08').split(','))    # l3 plan fairing: window start, end, sigma (0 = off)
+QF_C11_INFO = {}
+
+
+def qf_c11_u_dy(Ufy, xN):
+    """plan correction (new - old) of the crest U: -QF_C11_DU * one C2 bump (quintic smoothstep up from QF_C11_UX[0] to [1], down from [2] to [3]); exactly zero ahead of [0] (the flap's seam row) and aft of [3] (A_OUT), with
+    zero slope and curvature at both ends.  The bump's curvature (<= 76 * DU 1/m) stays below the one of U's plan (0.7 .. 1.0 1/m over the wheel): U stays concave (one-signed curvature) for DU <= 0.009."""
+    xs, x1, x2, xe = QF_C11_UX
+    prof = lambda x: sstep(xs, x1, x) * (1.0 - sstep(x2, xe, x))
+
+    def dy(x):
+        return -QF_C11_DU * prof(np.asarray(x, float))
+    dy.fit = None
+    return dy
+
+
+def qf_c11_fair(fn, xa, xb, sig, xlo=None, mono=False, bumps=None):
+    """c11 fairing of a crease line: correction (new - old) of the function fn(x) (plan y or height z of a crease): the second derivative of fn is smoothed (Gaussian, sigma sig) on [xa, xb], two raised-cosine bumps of the second
+    derivative restore the old slope and the old value at xb, so the correction and its slope vanish at both ends (G2 join: the line is as it was ahead of xa and aft of xb) and its size is a few mm.  Removes the step where a
+    bend starts (a curvature that rises 10-fold within 5 cm) and the small notches of the second derivative."""
+    h = 0.0005
+    xg = np.arange(xa - 0.3, xb + 0.3 + 1e-9, h)
+    if sig <= 0:
+        z = lambda x: np.zeros_like(np.asarray(x, float))
+        z.info = dict(max_mm=0.0)
+        return z
+    y = np.asarray(fn(xg if xlo is None else np.maximum(xg, xlo)), float)
+    k = np.zeros_like(y)
+    k[1:-1] = (y[2:] - 2 * y[1:-1] + y[:-2]) / h ** 2
+    m0 = int(4 * 0.004 / h)                                    # the second difference at 0.5 mm of the old curve carries its rounding noise: a light smoothing (4 mm) keeps that noise out of the correction
+    k0 = np.exp(-0.5 * (np.arange(-m0, m0 + 1) * h / 0.004) ** 2)
+    k = np.convolve(np.pad(k, m0, mode='edge'), k0 / k0.sum(), mode='valid')
+    m = int(4 * sig / h)
+    kern = np.exp(-0.5 * (np.arange(-m, m + 1) * h / sig) ** 2)
+    kern /= kern.sum()
+    ks = np.convolve(np.pad(k, m, mode='edge'), kern, mode='valid')
+    sel = (xg >= xa) & (xg <= xb)
+    if mono:                                   # the curvature falls monotonically aft of its peak (one curvature peak: check.py plan): isotonic fit of |k| aft of the peak
+        from fitlib import pav_increasing
+        sg = np.sign(ks[sel][np.argmax(np.abs(ks[sel]))])
+        a_ = np.abs(ks)
+        ipk = int(np.argmax(np.where(sel, a_, -1.0)))
+        iend = int(np.searchsorted(xg, xb))
+        a_[ipk:iend + 1] = -pav_increasing(-a_[ipk:iend + 1])
+        ks = np.where(np.arange(len(xg)) >= ipk, sg * a_, ks)
+    dk = sstep(xa, xa + 0.12, xg) * (1 - sstep(xb - 0.10, xb, xg)) * (ks - k)
+    bump = lambda c, w: 0.5 * (1 + np.cos(np.pi * np.clip((xg - c) / w, -1, 1)))
+    c1, c2 = bumps if bumps else (xa + 0.12 + 0.25 * (xb - xa - 0.22), xa + 0.12 + 0.75 * (xb - xa - 0.22))
+    b1, b2 = bump(c1, 0.10), bump(c2, 0.10)
+    A = np.array([[(b1 * sel).sum() * h, (b2 * sel).sum() * h], [((xb - xg) * b1 * sel).sum() * h, ((xb - xg) * b2 * sel).sum() * h]])
+    r = -np.array([(dk * sel).sum() * h, ((xb - xg) * dk * sel).sum() * h])
+    a = np.linalg.solve(A, r)
+    dkk = (dk + a[0] * b1 + a[1] * b2) * sel
+    ctr = lambda f: np.concatenate([[0.0], np.cumsum(0.5 * (f[1:] + f[:-1])) * h])         # cumulative trapezoid
+    d1 = ctr(dkk)
+    d0 = ctr(d1)
+    ie = int(np.searchsorted(xg, xb))
+    d0 = d0 - d0[ie]                                           # exactly zero at the end of the window (the numerical residual is below 1e-9 m)
+    d0 = np.where(xg >= xb, 0.0, d0)
+    d1 = np.where(xg >= xb, 0.0, d1)
+    d2 = np.where(xg >= xb, 0.0, dkk)
+
+    def dyf(x):                                                # quintic Hermite through the nodes (value, slope, curvature): no ripple in the second derivative
+        x = np.asarray(x, float)
+        i = np.clip(np.floor((x - xg[0]) / h).astype(int), 0, len(xg) - 2)
+        t = (x - xg[i]) / h
+        t3, t4, t5 = t ** 3, t ** 4, t ** 5
+        v = ((1 - 10 * t3 + 15 * t4 - 6 * t5) * d0[i] + (t - 6 * t3 + 8 * t4 - 3 * t5) * h * d1[i] + (0.5 * t * t - 1.5 * t3 + 1.5 * t4 - 0.5 * t5) * h * h * d2[i]
+             + (10 * t3 - 15 * t4 + 6 * t5) * d0[i + 1] + (-4 * t3 + 7 * t4 - 3 * t5) * h * d1[i + 1] + (0.5 * t3 - t4 + 0.5 * t5) * h * h * d2[i + 1])
+        return np.where((x > xa) & (x < xb), v, 0.0)
+    dyf.info = dict(max_mm=float(1000 * np.abs(d0).max()))
+    return dyf
+
+
+def qf_c11_dy_L(Lfy, xN):
+    """plan correction of L: the curvature rises from 0.3 to 3.9 1/m within 0.1 m at the arch mouth (a kink of the line where it dips into the wheel opening): qf_c11_fair on QF_C11_LP"""
+    xa, xb, sig = QF_C11_LP
+    return qf_c11_fair(Lfy, xa, xb, sig, mono=True, bumps=(xa + 0.10, xa + 0.28))
+
+
+def qf_c11_dz_L(Lfz, xN):
+    """height correction (new - old) of L: the slope dz/dx between N and its first maximum is made monotone (isotonic fit: the same height at the maximum), so the dent of the slope near x -2.3 goes"""
+    from fitlib import pav_increasing
+    h = 0.005
+    xg = np.arange(xN, -1.60 + 1e-9, h)
+    z = np.asarray(Lfz(xg), float)
+    dz = np.gradient(z, xg)
+    ipk = int(np.argmax(dz[: int((-1.80 - xN) / h)]))
+    dzn = dz.copy()
+    dzn[: ipk + 1] = pav_increasing(dz[: ipk + 1])
+    zn = z[0] + np.concatenate([[0.0], np.cumsum(0.5 * (dzn[1:] + dzn[:-1]) * h)])
+    corr = np.where(np.arange(len(xg)) <= ipk, zn - z, 0.0)
+    corr[ipk:] = corr[ipk]
+    corr = np.where(np.arange(len(xg)) <= ipk, corr, 0.0)
+    xp = xg[ipk]
+
+    def dzp(x):
+        x = np.asarray(x, float)
+        return np.where(x < xp, np.interp(x, xg, corr), 0.0)
+    xa, xb, sig = QF_C11_LZP
+    fair = qf_c11_fair(lambda x: np.asarray(Lfz(x), float) + dzp(x), xa, xb, sig)
+
+    def dzf(x):
+        return dzp(x) + fair(x)
+    dzf.info = dict(x_peak=float(xp), max_mm=float(1000 * np.abs(corr).max()), fair_mm=fair.info['max_mm'])
+    return dzf
 QF_CF_XJ3 = float(os.environ.get('QF_CF_XJ3', '-2.00'))      # the l3 / sill plan starts at the generator and joins the old curve (value, slope, curvature) here
 QF_CF_XJS = float(os.environ.get('QF_CF_XJS', '-2.00'))
 
@@ -1641,9 +1835,23 @@ def build_all():
         _l3a, _sla = _CF_PRE['l3'], _CF_PRE['sill']
         _dyl3, _dzl3 = _l3a.dy, _l3a.dz
         _ez3 = _zl3 - float(_l3a.fz(_xR))
-        _ey3, _cfi3 = qf_cf_start(_l3a.fy, _xR, float(N[1]), QF_CF_XJ3, 'l3')
+        if QF_C11_ON:                                         # c11: the bottom edge of the lower face moves outboard (a smooth bump, C stands more vertical)
+            _a3, _b3, _c3, _d3 = QF_C11_L3X
+            _h3 = lambda x: QF_C11_DL3 * sstep(_a3, _b3, np.asarray(x, float)) * (1.0 - sstep(_c3, _d3, np.asarray(x, float)))
+            _l3tgt = lambda x: np.asarray(_l3a.fy(x), float) + _h3(x)
+        else:
+            _h3 = lambda x: 0.0 * np.asarray(x, float)
+            _l3tgt = _l3a.fy
+        _ey3, _cfi3 = qf_cf_start(_l3tgt, _xR, float(N[1]), QF_CF_XJ3, 'l3')
         _g3 = lambda x: 1.0 - sstep(_xR, QF_CF_XJ3, x)
-        CURVES['l3'] = PlanMod(l30, l30.x0, lambda x: _dyl3(x) + _ey3(x), lambda x: _dzl3(x) + _ez3 * _g3(x), 'l3')
+        _dy3a = lambda x: _dyl3(x) + _h3(x) + _ey3(x)
+        if QF_C11_ON:                                         # c11: the bend where l3 dips into the wheel opening starts without a step (qf_c11_fair)
+            _f3 = qf_c11_fair(lambda x: np.asarray(l30.fy(x), float) + _dy3a(x), *QF_C11_L3P, xlo=float(l30.x0))
+            QF_C11_INFO['l3_fair'] = _f3.info
+            _dy3 = lambda x: _dy3a(x) + _f3(x)
+        else:
+            _dy3 = _dy3a
+        CURVES['l3'] = PlanMod(l30, l30.x0, _dy3, lambda x: _dzl3(x) + _ez3 * _g3(x), 'l3')
         _CF_PRE['info_l3'] = _cfi3
         _CF_PRE['xR'] = _xR
         _CF_PRE['zl3'] = _zl3
@@ -1662,6 +1870,24 @@ def build_all():
         _dyLb = _dyLw
         _dzLb = (lambda x: zfix(L0)(x) + dzR(x) + _dzGL(x)) if QF_G_ON else (lambda x: zfix(L0)(x) + dzR(x))
         CURVES['L'] = PlanMod(L0, xN, lambda x: _dyLb(x) + _qf_p_shift(x), _dzLb, 'L')
+    if QF_C11_ON:                                             # c11: U inboard (smooth, single-signed), L's height without the dent
+        _Ubase = CURVES['U']
+        _dyUc = qf_c11_u_dy(_Ubase.fy, xN)
+        CURVES['U'] = PlanMod(_Ubase, xN, _dyUc, zero, 'U')
+        QF_C11_INFO['U_fit'] = _dyUc.fit
+        _Lbase = CURVES['L']
+        _dzLc = qf_c11_dz_L(_Lbase.fz, xN) if QF_C11_LZ else zero
+        if QF_C11_LB[0] != 0.0:                                 # c11b: the front-view bell of L (see QF_C11_LB)
+            _dzLc0 = _dzLc
+
+            def _dzLc(x, _f=_dzLc0, _A=QF_C11_LB[0], _xa=max(xN, QF_C11_LB[1]), _xb=QF_C11_LB[2]):
+                t = np.clip((np.asarray(x, float) - _xa) / (_xb - _xa), 0.0, 1.0)
+                return np.asarray(_f(x), float) + 1e-3 * _A * 64.0 * (t * (1.0 - t)) ** 3
+            _dzLc.info = getattr(_dzLc0, 'info', None)
+        _dyLc = qf_c11_dy_L(_Lbase.fy, xN)
+        CURVES['L'] = PlanMod(_Lbase, xN, _dyLc, _dzLc, 'L')
+        QF_C11_INFO['L_dz'] = getattr(_dzLc, 'info', None)
+        QF_C11_INFO['L_dy'] = getattr(_dyLc, 'info', None)
     NOSE_FIT.clear(); NOSE_FIT.update(L=infoL, U=infoU, dyL=dyL, dyU=dyU, fyL=fyL, fyU=fyU, xjU=xjU)
     reg(line3(N, W, 'L5'))
     reg(line3(W, A_IN, 'cowl_diag'))
@@ -1673,11 +1899,28 @@ def build_all():
     sd = Spline1D([p[0] for p in DY_K], [p[1] for p in DY_K])
     HW = lambda x: np.where(np.asarray(x) < 0.15, 0.0, np.where(np.asarray(x) > 2.38, 0.0, np.maximum(sh(np.maximum(x, 0.15)), 0.0)))
     DY = lambda x: np.where(np.asarray(x) < 0.15, 0.0, np.where(np.asarray(x) > 2.38, 0.0, np.maximum(sd(np.maximum(x, 0.15)), 0.0)))
+    if QF_GE_FAIR:
+        # q12 (review 2026-10-22, glass edge): the wall height / width rose from 0 at x 0.15 WITH a slope, a kink in the glass edge there (curvature spike -0.8 side, -0.4 plan); they now ease in
+        # over 0.15 .. 0.45 (C2 smoothstep factor), unchanged from 0.45 on
+        _HW0, _DY0 = HW, DY
+        HW = lambda x: _HW0(x) * sstep(0.15, 0.45, x)
+        DY = lambda x: _DY0(x) * sstep(0.15, 0.45, x)
     # the rail: cowl diagonal (straight), A-pillar line (straight), a G1 round-over of the 19 degree bend at the roof header over 0.44 m (radius ~1.2 m), the roof rail (fitted B-spline)
     from curves2 import herm3, SubCurve
     pil = CURVES['pillar_in']
     reg(line3(A_IN_L, tuple(pil.at(XB0)), 'pillar_lo'))
-    reg(herm3(pil, XB0, rail_roof, XB1, 'header'))
+    if QF_HDR_G2:
+        # q12 (review 2026-10-22, roof rail): the header was a cubic Hermite (G1): its curvature stepped from the straight A pillar's 0 to ~0.29 / -0.6 at XB0 and back at XB1 (the rail's
+        # highlight kinked at the A-pillar top and at x -0.2).  A quintic Hermite matches the curvature at both ends (G2): 0 on the pillar line, the roof rail's own at XB1.
+        def _c2(c, x, e=2e-3):
+            return (np.asarray(c.at(x + e), float) - 2.0 * np.asarray(c.at(x), float) + np.asarray(c.at(x - e), float)) / (e * e)
+        p0, p1 = np.asarray(pil.at(XB0), float), np.asarray(rail_roof.at(XB1), float)
+        t0, t1 = np.asarray(pil.tan(XB0), float), np.asarray(rail_roof.tan(XB1), float)
+        a1 = _c2(rail_roof, XB1)
+        reg(Fn(XB0, XB1, lambda x: quint1(x, XB0, p0[1], t0[1], 0.0, XB1, p1[1], t1[1], a1[1]),
+               lambda x: quint1(x, XB0, p0[2], t0[2], 0.0, XB1, p1[2], t1[2], a1[2]), 'header'))
+    else:
+        reg(herm3(pil, XB0, rail_roof, XB1, 'header'))
     reg(SubCurve(rail_roof, XB1, X_TIP, 'roof_tail'))                                    # the roof rail up to the window tip (the locked rail band ends there)
     rail_r1c = Composite([CURVES['cowl_diag'], CURVES['pillar_lo'], CURVES['header'], SubCurve(rail_roof, XB1, 2.41, 'roof_tail_r1c')], 'rail_r1c')       # the R1c rail (smooth reference)
     C0 = np.asarray(rail_roof.at(X_TIP), float)
@@ -1722,9 +1965,24 @@ def build_all():
         z = np.where(x <= X_SEAM, z, z3 + s_g * (x - X_SEAM) + 0.5 * k_d * (x - X_SEAM) ** 2)
         return np.where(x >= X_E, rz(x), z)
 
+    def ge_y0(x):
+        x = np.asarray(x, float)
+        return ry_o(x) - np.where(x < X_BL0, DY(x), dy_b(x)) - qr_y * sstep(QR_P1_X0, X_P1, x)
+    if QF_GE_FAIR:
+        # q12 (review 2026-10-22, glass edge): before P1 the edge was the rail minus a cubic offset minus a smoothstep correction, then at P1 the straight edge to P3 with another slope: in plan
+        # its curvature swung -1.6 / +1.1 over x 0.9 .. 1.35 and kinked at P1.  Over QF_GE_X0 .. P1 it is now a quintic: G2 with the old edge at QF_GE_X0, at P1 the straight edge's slope and zero
+        # curvature (G2 with it); P1, P3 and the straight edge (R-4) do not move
+        _e = 2e-3
+        _v0 = float(ge_y0(QF_GE_X0)); _d0 = (float(ge_y0(QF_GE_X0 + _e)) - float(ge_y0(QF_GE_X0 - _e))) / (2 * _e)
+        _c0 = (float(ge_y0(QF_GE_X0 + _e)) - 2 * _v0 + float(ge_y0(QF_GE_X0 - _e))) / _e ** 2
+        _sl1 = (Y_P3 - y_p1) / (X_SEAM - X_P1)
+        ge_y_mid = lambda x: quint1(x, QF_GE_X0, _v0, _d0, _c0, X_P1, y_p1, _sl1, 0.0)
+
     def ge_y(x):
         x = np.asarray(x, float)
-        a = ry_o(x) - np.where(x < X_BL0, DY(x), dy_b(x)) - qr_y * sstep(QR_P1_X0, X_P1, x)
+        a = ge_y0(x)
+        if QF_GE_FAIR:
+            a = np.where(x >= QF_GE_X0, ge_y_mid(x), a)
         l1 = y_p1 + (Y_P3 - y_p1) * (x - X_P1) / (X_SEAM - X_P1)
         l2 = Y_P3 + (float(ry(X_E)) - Y_P3) * (x - X_SEAM) / (X_E - X_SEAM)
         return np.where(x < X_P1, a, np.where(x < X_SEAM, l1, np.where(x < X_E, l2, ry(x))))
@@ -1753,6 +2011,15 @@ def build_all():
     dyb, dzb = sl(wl_main.fy_, X_B), sl(wl_main.fz_, X_B)
     dyc, dzc = (tip[1] - b_out[1]) / (tip[0] - b_out[0]), (tip[2] - b_out[2]) / (tip[0] - b_out[0])
     wl_tip = XCurve(X_B, tip[0], _Herm1D(X_B, b_out[1], dyb, tip[0], tip[1], dyc), _Herm1D(X_B, b_out[2], dzb, tip[0], tip[2], dzc), 'wl_tip')
+    if QF_GE_FAIR:
+        # q12 (review 2026-10-22, window line): the cubic arc B -> tip stepped in curvature at B (side 0 -> -0.7, plan +0.45); a quintic with the window line's own curvature at B and the cubic's at the
+        # tip (the tip and its slope do not change)
+        _c2 = lambda f, x, e=2e-3: float((f(x + e) - 2.0 * f(x) + f(x - e)) / (e * e))
+        _hy, _hz = _Herm1D(X_B, b_out[1], dyb, tip[0], tip[1], dyc), _Herm1D(X_B, b_out[2], dzb, tip[0], tip[2], dzc)
+        _cyB, _czB = _c2(wl_main.fy_, X_B - 3e-3), _c2(wl_main.fz_, X_B - 3e-3)
+        _cyT, _czT = _c2(_hy, tip[0] - 3e-3), _c2(_hz, tip[0] - 3e-3)
+        wl_tip = Fn(X_B, tip[0], lambda x: quint1(x, X_B, b_out[1], dyb, _cyB, tip[0], tip[1], dyc, _cyT),
+                    lambda x: quint1(x, X_B, b_out[2], dzb, _czB, tip[0], tip[2], dzc, _czT), 'wl_tip')
     if QR_ON and QR_WL_B1 > QR_WL_B0:
         _wt0, _Uc, _rl = wl_tip, CURVES['U'], rail
 
@@ -1777,7 +2044,47 @@ def build_all():
     zT0, zG0 = float(top1.at(0.65)[2]), float(gedge.at(0.65)[2])
     dc0 = _s(lambda x: top1.at(x)[2], 0.65) - _s(ge_z, 0.65)                     # the crown leaves the B seam with the R1c slope of the centre line
     top_front = SubCurve(top1, top1.x0, 0.65, 'top_front')
-    top_mid = Fn(0.65, X_SEAM, lambda x: 0.0 * np.asarray(x), lambda x: ge_z(x) + herm1(x, 0.65, zT0 - zG0, dc0, X_CR, 0.0, 0.0), 'top_mid')
+    crown_mid = lambda x: herm1(x, 0.65, zT0 - zG0, dc0, X_CR, 0.0, 0.0)
+    if QF_TOP_FAIR:
+        # q12 (review 2026-10-22, fastback; user: "都同意"): the centre line behind the B seam was the glass edge level (itself a smoothstep blend of the R1c curve into the P1 -> seam line, plus the
+        # q4r offset qr_dz (1 - sstep)) + the dying crown: its side curvature changed sign 5 times (convex humps at x 1.20-1.36 and 1.76-2.00 between concave dips).  A monotone-curvature least-squares
+        # fit (NNLS over smooth curvature steps) used ONE step: the curvature goes from the old value just aft of the B seam (G1 there: it is the roof glass' transverse seam) to a constant slight concavity over QF_TOP_X and stays there.  Glass and
+        # deck are now that one curve from the B seam to E (E's height kept, the step height solved for it; the seam P3 follows the curve, G2 across it); the glass edge is centre - crown, the crown
+        # dying out by the window tip as a quintic (zero curvature there).  In plan nothing moves.  Up to ~14 mm lower at the window tip (the old hump); the side silhouette aft of x 0.9 is the
+        # R-1 ridge, which does not change.
+        xa, xs_ = 0.65, QF_TOP_X
+        za = float(top1.at(xa)[2])
+        da_ = _s(lambda x: top1.at(x)[2], xa)
+        # the start curvature is the OLD rear centre line's (one-sided, aft of 0.65): x 0.65 is the transverse seam of the roof glass (0.64), where the old curves already stepped in curvature;
+        # G1 there keeps the change minimal (taking the roof's own -0.33 would lower the window tip by ~21 mm instead of ~14)
+        f_old = lambda x: float(ge_z(x) + crown_mid(x))
+        e_ = 5e-3
+        ca = (f_old(xa + 2 * e_) - 2.0 * f_old(xa + e_) + f_old(xa)) / e_ ** 2
+        zE = float(ge_z(X_E))
+        xg = np.linspace(xa, X_E, 1801)
+        stp = sstep(xs_[0], xs_[1], xg)
+        dxg = np.diff(xg)
+        cint = lambda f: np.r_[0.0, np.cumsum(0.5 * (f[1:] + f[:-1]) * dxg)]
+        s2 = cint(cint(stp))                                                    # height contributed by a unit curvature step
+        t_ = xg - xa
+        z_base = za + da_ * t_ + 0.5 * ca * t_ * t_
+        dc = (zE - z_base[-1]) / s2[-1]                                         # glass and deck: one curve from the B seam to E (E's height kept; the seam height follows)
+        zg_ = z_base + dc * s2
+        zc_mid = lambda x: np.interp(np.asarray(x, float), xg, zg_)
+        z3 = float(zc_mid(X_SEAM))
+        # the crown (centre above the edge) dies out by the window tip with zero curvature there (a cubic left a curvature step on the glass edge at x 1.2)
+        c0_cr = 6.0 * (0.0 - (zT0 - zG0)) / (X_CR - 0.65) ** 2 - 2.0 * (2.0 * dc0 + 0.0) / (X_CR - 0.65)      # the cubic's own second derivative at 0.65 (kept)
+        crown_mid = lambda x: quint1(x, 0.65, zT0 - zG0, dc0, c0_cr, X_CR, 0.0, 0.0, 0.0)
+        ge_z_old = ge_z
+
+        def ge_z(x):
+            x = np.asarray(x, float)
+            z = np.where(x < 0.65, ge_z_old(x), zc_mid(x) - crown_mid(x))
+            return np.where(x >= X_E, ge_z_old(x), z)
+        gedge = Fn(-1.625, 2.41, ge_y, ge_z, 'gedge'); CURVES['gedge'] = gedge
+        top_mid = Fn(0.65, X_SEAM, lambda x: 0.0 * np.asarray(x), zc_mid, 'top_mid')
+    else:
+        top_mid = Fn(0.65, X_SEAM, lambda x: 0.0 * np.asarray(x), lambda x: ge_z(x) + crown_mid(x), 'top_mid')
     top2 = Fn(X_SEAM, 2.41, lambda x: 0.0 * np.asarray(x), ge_z, 'top2')
     CURVES['top'] = Composite([top_front, top_mid, top2], 'top')
     # ---- the READING of the soft arc (x-graph, fair B-spline through ARC_K) and the named rear curves

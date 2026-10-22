@@ -175,6 +175,10 @@ def facet_plane(R, tl):
     return (n if n[1] > 0 else -n), l3[-1]
 
 
+QF_LB_LEN = float(os.environ.get('QF_LB_LEN', '0.20'))      # m: L turns into the facet's straight segment over this length before S, in plan (q12 item 3; 0 = the old 10 deg turn at S)
+QF_LB_LENZ = float(os.environ.get('QF_LB_LENZ', '0.50'))    # m: ... and in height (side view: L crests before it falls to the tail; a longer bend keeps that crest soft)
+
+
 def facet_L(R, P):
     """aft of the sample I_FS the character line L runs on a STRAIGHT line S' -> TL that lies in the facet's plane (S' = L[I_FS] moved into the plane: < 1 mm); samples keep their x"""
     P = P.copy()
@@ -184,6 +188,27 @@ def facet_L(R, P):
     t = (x - x[0]) / (x[-1] - x[0])
     P[I_FS:] = s[None, :] + (P[-1] - s)[None, :] * t[:, None]
     P[I_FS] = s
+    if QF_LB_LEN > 0.0:
+        # q12 (review 2026-10-22, item 3; user: "同意" L bends before S): L turned 10 deg AT S (the facet apex), and the rear shoulder, sheared onto L, had to fold there (x 1.972, full width) or, smoothed,
+        # bulge round S.  L now turns over the QF_LB_LEN before S: a quintic offset d(t), t = (x - xb) / (xS - xb), with d = d' = d'' = 0 at xb (G2 with the old L), d = 0 at S (S does not move),
+        # d' = the slope change to the straight segment and d'' = - the old curvature at S (so L arrives at S straight: G2 with the segment).  S being fixed, L swells OUT before it (max 8.9 mm in y at x 1.89 over 0.20 m) and UP (bent over QF_LB_LENZ); the segment, S and the facet do not move.
+        xS = float(s[0])
+        x = P[:I_FS + 1, 0]
+        m = (P[I_FS + 1] - P[I_FS]) / (P[I_FS + 1, 0] - P[I_FS, 0])             # slope (per unit x) of the straight segment
+        q = P[I_FS - 2:I_FS + 1]
+        xo = q[:, 0]
+        d1 = (q[2] - q[1]) / (xo[2] - xo[1])
+        d0 = (q[1] - q[0]) / (xo[1] - xo[0])
+        dd = (d1 - d0) / (0.5 * (xo[2] - xo[0]))                                  # the old curvature vector (second derivative in x) at S
+        A = np.array([[1.0, 1.0, 1.0], [3.0, 4.0, 5.0], [6.0, 12.0, 20.0]])
+        for ax, ln in ((1, QF_LB_LEN), (2, QF_LB_LENZ)):                          # plan (y) and height (z) are bent over their own lengths
+            xb = xS - ln
+            M, Cv = (m[ax] - d1[ax]) * ln, -dd[ax] * ln * ln
+            a_, b_, e_ = np.linalg.solve(A, np.array([0.0, M, Cv]))                # d(t) = a t^3 + b t^4 + e t^5
+            sel = x > xb
+            tt = (x[sel] - xb) / ln
+            P[:I_FS + 1, ax][sel] += a_ * tt ** 3 + b_ * tt ** 4 + e_ * tt ** 5
+        P[I_FS] = s
     return P
 
 
@@ -696,6 +721,8 @@ def lens_amp(x):
 # the horizon, at x ~ -1.83: whenever the fill is already substantial there the stripes converge to a point.  A rise starting at -2.30 gives a minimum polar angle of the reflection vector of 1.7 deg (star), -1.90 gives 18-19 deg.
 # Defaults = the accepted values (K0 0.55, K1 0.7, DA 25: hub arch-top |y| 1.056, every section convex, 5 stripe boundaries per 5 cm at most).  QF_F_ON=0 gives the old sections.
 QF_F_ON = os.environ.get('QF_F_ON', '0') == '1'      # q5: the rounded fill is OFF (the user's reading: the ridge stays sharp); the hump QF_H_* below replaces it
+if D.QF_C11_ON:         # c11: the optional round fill (design2.QF_C11_FA > 0; 0 = no-op) acts through the machinery below
+    QF_F_ON = True
 QF_F_X = tuple(float(v) for v in os.environ.get('QF_F_X', '-1.90,-1.45,-1.30,-0.45').split(','))
 QF_F_D = float(os.environ.get('QF_F_D', '0.03'))
 QF_F_K0 = float(os.environ.get('QF_F_K0', '0.55'))
@@ -704,11 +731,56 @@ QF_F_DA = float(os.environ.get('QF_F_DA', '25'))
 
 
 def qf_f_w(x):
-    a, b, c, d = QF_F_X
-    return float(D.sstep(a, b, x) * (1.0 - D.sstep(c, d, x)))
+    a, b, c, d = D.QF_C11_FX if D.QF_C11_ON else QF_F_X
+    return (D.QF_C11_FA if D.QF_C11_ON else 1.0) * float((D.sstep(a, b, x) ** (D.QF_C11_FP if D.QF_C11_ON else 1.0)) * (1.0 - D.sstep(c, d, x)))
 
 
 _QF_F_CACHE = {}
+
+
+def _hermite5(P0, T0, A0, P1, T1, A1, n=400):
+    u = np.linspace(0.0, 1.0, n)[:, None]
+    h0 = 1 - 10 * u ** 3 + 15 * u ** 4 - 6 * u ** 5
+    h1 = u - 6 * u ** 3 + 8 * u ** 4 - 3 * u ** 5
+    h2 = 0.5 * u ** 2 - 1.5 * u ** 3 + 1.5 * u ** 4 - 0.5 * u ** 5
+    h3 = 1.0 - h0
+    h4 = -4 * u ** 3 + 7 * u ** 4 - 3 * u ** 5
+    h5 = 0.5 * u ** 3 - u ** 4 + 0.5 * u ** 5
+    return h0 * P0 + h1 * T0 + h2 * A0 + h3 * P1 + h4 * T1 + h5 * A1
+
+
+_QF_TOP_TILT = [(-2.30, 7.2), (-2.10, 6.8), (-1.95, 6.6), (-1.90, 5.7), (-1.85, 4.3), (-1.80, 3.0), (-1.70, 1.5), (-1.65, 0.8), (-1.60, 0.7), (-1.55, 0.7), (-1.50, 2.0), (-1.45, 3.5)]
+
+
+def qf_top_tilt(x):
+    """angle (deg, outward-up +) of the top face (fender_top, locked) at the crest U: its tangent over the last 3 cm before U, read from exact plane sections of the c10b mesh (the face is a ruled, slightly convex surface:
+    7 deg at the nose end, 0.7 deg at x -1.6, 3.5 deg at the pillar foot); held at the pillar foot's value aft of it"""
+    return float(np.interp(float(x), [a for a, b in _QF_TOP_TILT], [b for a, b in _QF_TOP_TILT]))
+
+
+def qf_soft_target(x, L, K, U):
+    """c11b: (zs, ys) of the target section above the wall top Lm: a quintic Hermite arc, tangent to the wall at Lm with ZERO curvature there (G2), arriving at U with the dihedral QF_C11_UD to the top face, the curvature at U
+    QF_C11_SC1 times that of the circle through the same chord and turn.  The wall top Lm = L raised by the hump (qf_h).  The arc lies outside the old straight face (convex target; the weights blend y(z) linearly, so every
+    blended section stays convex)."""
+    Lm = L + np.array([0.0, qf_h(float(x))])
+    uw = (Lm - K) / np.linalg.norm(Lm - K)                         # the wall's direction at Lm (up, along the wall)
+    P0 = Lm - D.QF_C11_SD * uw                                      # where the arc leaves the wall line
+    alpha = max(1.0, D.QF_C11_UD - qf_top_tilt(x))                  # the shoulder just below U: degrees below the horizontal, outward
+    v = np.array([-math.cos(math.radians(alpha)), math.sin(math.radians(alpha))])      # arrival direction (inboard, up)
+    ch = U - P0
+    lc = float(np.linalg.norm(ch))
+    psi = math.acos(float(np.clip(uw @ v, -1, 1)))                  # the turn from the wall to the arrival direction
+    kc = 2.0 * math.sin(0.5 * psi) / lc if psi > 1e-3 else 0.0       # circle through the chord with that turn
+    s0 = D.QF_C11_SK * lc
+    n1 = np.array([-v[1], v[0]])
+    T0, T1 = uw * s0, v * s0
+    A0 = np.zeros(2)
+    A1 = D.QF_C11_SC1 * kc * s0 * s0 * n1
+    c = _hermite5(P0, T0, A0, U, T1, A1)
+    zs, ys = c[:, 1], c[:, 0]
+    if np.any(np.diff(zs) <= 0):
+        return None
+    return (zs, ys)
 
 
 def qf_f_target(x):
@@ -717,6 +789,28 @@ def qf_f_target(x):
     if key in _QF_F_CACHE:
         return _QF_F_CACHE[key]
     L, K, U = (np.asarray(D.CURVES[n].at(x), float)[1:] for n in ('L', 'l3', 'U'))
+    if D.QF_C11_ON and D.QF_C11_SOFT:                # c11b: the swept convex arc from the wall top Lm (G2 with the wall) to U, dihedral QF_C11_UD with the top face at U
+        res = qf_soft_target(x, L, K, U)
+        _QF_F_CACHE[key] = res
+        return res
+    if D.QF_C11_ON:                                  # c11: one round section from the foot K (G1 with the wall, leaned outward by QF_C11_LAM so that the widest point lies at lamp height) up to U
+        uw = (L - K) / np.linalg.norm(L - K)
+        if D.QF_C11_ZF > K[1] + 1e-6:                  # the target starts on the wall line at this height (not at the foot): the widest point does not grow below it
+            K = K + uw * (min(D.QF_C11_ZF, float(L[1])) - K[1]) / max(uw[1], 1e-6)
+        a0 = math.atan2(uw[1], uw[0]) - math.radians(D.QF_C11_LAM)
+        e0 = np.array([math.cos(a0), math.sin(a0)])
+        lc = float(np.linalg.norm(U - K))
+        cl = U - L
+        ang = math.atan2(cl[1], cl[0]) + math.radians(D.QF_C11_DA)
+        v = np.array([math.cos(ang), math.sin(ang)])
+        P1 = K + D.QF_C11_K0 * lc * e0
+        P2 = U - D.QF_C11_K1 * lc * v
+        t = np.linspace(0.0, 1.0, 400)[:, None]
+        c = (1 - t) ** 3 * K + 3 * (1 - t) ** 2 * t * P1 + 3 * (1 - t) * t ** 2 * P2 + t ** 3 * U
+        zs, ys = c[:, 1], c[:, 0]
+        res = None if np.any(np.diff(zs) <= 0) else (zs, ys)
+        _QF_F_CACHE[key] = res
+        return res
     uw = (L - K) / np.linalg.norm(L - K)
     P0 = L - QF_F_D * uw
     ch = U - P0
@@ -800,7 +894,13 @@ def g2_band(U, L, K, ts, tw, ls, lw, phi):
     n = len(L)
     x = L[:, 0]
     w = (D.sstep(D.QF_FD_X[0], D.QF_FD_X[1], x) ** D.QF_FD_WP) * (1.0 - D.sstep(D.QF_FD_X[2], D.QF_FD_X[3], x))
-    a = np.minimum(D.QF_FD_A, 0.4 * np.minimum(ls, lw))
+    aa = np.full(len(x), D.QF_FD_A)
+    if D.QF_C11_ON and D.QF_C11_BA > 0.0:         # c11: the same fade band again aft of the wheel opening (the shoulder is one round over the wheel: the corner behind the arch is no longer a crease at once)
+        b0, b1, b2, b3 = D.QF_C11_BX
+        w2 = D.sstep(b0, b1, x) * (1.0 - D.sstep(b2, b3, x))
+        w = np.maximum(w, w2)
+        aa = aa + (D.QF_C11_BA - D.QF_FD_A) * w2
+    a = np.minimum(aa, 0.4 * np.minimum(ls, lw))
     N = D.QF_FD_N
     u1 = np.linspace(0.0, 0.5, N + 1)
     u2 = np.linspace(0.5, 1.0, N + 1)
@@ -1117,12 +1217,6 @@ def tip_row_up(R):
     return _lin(tip, rail, max(1, int(round(np.linalg.norm(rail - tip) / HC['band']))))
 
 
-QF_RS_ON = os.environ.get('QF_RS_ON', '1') == '1'
-QF_RS_SIG = float(os.environ.get('QF_RS_SIG', '0.10'))     # m: x-width of the shear smoothing inside the row
-QF_RS_U1 = float(os.environ.get('QF_RS_U1', '0.3'))        # share of the row (from L) over which the width grows from 0
-QF_RS_X1, QF_RS_X2 = (float(v) for v in os.environ.get('QF_RS_X', '2.18,2.30').split(','))
-
-
 def p_rear_shoulder(R):
     """R1d2: the soft arc.  Rows aft of the window tip: the fold's cross-section (design2.fold_row: L -> shoulder leg -> ROLL -> inclined leg -> crest, G2), whose nodes start as those of the tip row
     (the pinned first row) and move over X_NODE to the standard distribution (dense across the roll)."""
@@ -1132,23 +1226,6 @@ def p_rear_shoulder(R):
     cs /= cs[-1]
 
     L_old = R.cache['L_old'][I_TIP:]
-    # q12 (review 2026-10-22, item 3): the shear da (straightened L - old L) is 0 forward of S and grows at ~0.19 mm/mm aft of it, so its x-slope jumps at S and every row's shear carried that jump
-    # across the whole shoulder: a transverse fold at x 1.972 (2.9 .. 6.1 deg, full width).  The shear is now smoothed along x inside the row: exact at the row start (on L: L, the facet and S do
-    # not move), the Gaussian width grows over the first QF_RS_U1 of the row to QF_RS_SIG, and the smoothing is faded out before the tail (x QF_RS_X1 .. QF_RS_X2) so the pinned last row is untouched.
-    DA = np.asarray(A, float) - L_old
-    XA = np.asarray(A, float)[:, 0]
-    hx = 1.0 - D.sstep(QF_RS_X1, QF_RS_X2, XA)
-
-    def da_at(i, s):
-        sig = QF_RS_SIG * D.sstep(0.0, QF_RS_U1, s)
-        out = np.repeat(DA[i][None, :], len(s), axis=0)
-        if not QF_RS_ON:
-            return out
-        for k in np.nonzero(sig > 1e-4)[0]:
-            w = np.exp(-0.5 * ((XA - XA[i]) / sig[k]) ** 2)
-            out[k] = DA[i] + hx[i] * ((w @ DA) / w.sum() - DA[i])
-        return out
-
     def rf(i, a, c, m):
         x = 0.5 * (a[0] + c[0])
         w = float(D.sstep(D.X_TIP, D.X_TIP + D.X_NODE, x))
@@ -1156,10 +1233,10 @@ def p_rear_shoulder(R):
         # rearcrease: the fold (the soft arc R-6, the crown) is solved from the OLD character line, so that it stays where it was accepted; only the row's start moves onto the new (straightened) L,
         # the displacement dies out over the first half of the row (smoothstep along the chord): the facet's top edge moves, the soft arc does not
         P = D.fold_row(L_old[i], c, m, u0=u0, w=w)[0]
-        if np.abs(DA).max() > 1e-9:
-            s = chord_s(P)
-            g = 1.0 - s                                # a SHEAR (linear in the arclength): the straight legs stay straight, the roll's curvature does not change (a smoothstep here made an S near L)
-            P = P + g[:, None] * da_at(i, s)
+        da = a - L_old[i]
+        if np.linalg.norm(da) > 1e-9:
+            g = 1.0 - chord_s(P)                       # a SHEAR (linear in the arclength): the straight legs stay straight, the roll's curvature does not change (a smoothstep here made an S near L)
+            P = P + g[:, None] * da[None, :]
         P[0], P[-1] = a, c
         return P
     return strip('rear_shoulder', PAINT, A, B, HC['rear'], pin0=pin0, pinN=R.edge('tail_a'), row_fn=rf, quads=True)
@@ -1535,6 +1612,8 @@ def _pchip(xs, ys):
     return f
 
 
+if D.QF_C11_ON and D.QF_C11_AZD != 0.0:    # c11: the wider c9c fade band pulls the wall in front of the arch ~0.4 mm inboard at the tyre's tightest steered point (phi 165); the rim moves back by this (QF_C11_AZD mm at the 163 deg knot)
+    QF_AZ_K = tuple((a, d - D.QF_C11_AZD) if a == 163.0 else (a, d) for a, d in QF_AZ_K)
 _AZ_F = _pchip([k[0] for k in QF_AZ_K], [k[1] for k in QF_AZ_K])
 
 
