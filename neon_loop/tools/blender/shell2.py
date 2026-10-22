@@ -1117,6 +1117,12 @@ def tip_row_up(R):
     return _lin(tip, rail, max(1, int(round(np.linalg.norm(rail - tip) / HC['band']))))
 
 
+QF_RS_ON = os.environ.get('QF_RS_ON', '1') == '1'
+QF_RS_SIG = float(os.environ.get('QF_RS_SIG', '0.10'))     # m: x-width of the shear smoothing inside the row
+QF_RS_U1 = float(os.environ.get('QF_RS_U1', '0.3'))        # share of the row (from L) over which the width grows from 0
+QF_RS_X1, QF_RS_X2 = (float(v) for v in os.environ.get('QF_RS_X', '2.18,2.30').split(','))
+
+
 def p_rear_shoulder(R):
     """R1d2: the soft arc.  Rows aft of the window tip: the fold's cross-section (design2.fold_row: L -> shoulder leg -> ROLL -> inclined leg -> crest, G2), whose nodes start as those of the tip row
     (the pinned first row) and move over X_NODE to the standard distribution (dense across the roll)."""
@@ -1126,6 +1132,22 @@ def p_rear_shoulder(R):
     cs /= cs[-1]
 
     L_old = R.cache['L_old'][I_TIP:]
+    # q12 (review 2026-10-22, item 3): the shear da (straightened L - old L) is 0 forward of S and grows at ~0.19 mm/mm aft of it, so its x-slope jumps at S and every row's shear carried that jump
+    # across the whole shoulder: a transverse fold at x 1.972 (2.9 .. 6.1 deg, full width).  The shear is now smoothed along x inside the row: exact at the row start (on L: L, the facet and S do
+    # not move), the Gaussian width grows over the first QF_RS_U1 of the row to QF_RS_SIG, and the smoothing is faded out before the tail (x QF_RS_X1 .. QF_RS_X2) so the pinned last row is untouched.
+    DA = np.asarray(A, float) - L_old
+    XA = np.asarray(A, float)[:, 0]
+    hx = 1.0 - D.sstep(QF_RS_X1, QF_RS_X2, XA)
+
+    def da_at(i, s):
+        sig = QF_RS_SIG * D.sstep(0.0, QF_RS_U1, s)
+        out = np.repeat(DA[i][None, :], len(s), axis=0)
+        if not QF_RS_ON:
+            return out
+        for k in np.nonzero(sig > 1e-4)[0]:
+            w = np.exp(-0.5 * ((XA - XA[i]) / sig[k]) ** 2)
+            out[k] = DA[i] + hx[i] * ((w @ DA) / w.sum() - DA[i])
+        return out
 
     def rf(i, a, c, m):
         x = 0.5 * (a[0] + c[0])
@@ -1134,10 +1156,10 @@ def p_rear_shoulder(R):
         # rearcrease: the fold (the soft arc R-6, the crown) is solved from the OLD character line, so that it stays where it was accepted; only the row's start moves onto the new (straightened) L,
         # the displacement dies out over the first half of the row (smoothstep along the chord): the facet's top edge moves, the soft arc does not
         P = D.fold_row(L_old[i], c, m, u0=u0, w=w)[0]
-        da = a - L_old[i]
-        if np.linalg.norm(da) > 1e-9:
-            g = 1.0 - chord_s(P)                       # a SHEAR (linear in the arclength): the straight legs stay straight, the roll's curvature does not change (a smoothstep here made an S near L)
-            P = P + g[:, None] * da[None, :]
+        if np.abs(DA).max() > 1e-9:
+            s = chord_s(P)
+            g = 1.0 - s                                # a SHEAR (linear in the arclength): the straight legs stay straight, the roll's curvature does not change (a smoothstep here made an S near L)
+            P = P + g[:, None] * da_at(i, s)
         P[0], P[-1] = a, c
         return P
     return strip('rear_shoulder', PAINT, A, B, HC['rear'], pin0=pin0, pinN=R.edge('tail_a'), row_fn=rf, quads=True)

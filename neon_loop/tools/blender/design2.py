@@ -1146,7 +1146,9 @@ def qf_la_dy(L0fy, dy_old, xN, yN):
 # QF_FT_C = 0 restores the ruled surface.
 QF_FT_C = float(os.environ.get('QF_FT_C', '0.005'))
 QF_FT_R0 = float(os.environ.get('QF_FT_R0', '0.35'))
-QF_FT_R1 = float(os.environ.get('QF_FT_R1', '0.25'))
+QF_FT_R1 = float(os.environ.get('QF_FT_R1', '0.7'))
+# q12 (review 2026-10-22, item 1): QF_FT_R1 0.25 -> 0.7.  Over the last 11 rows the 5 mm crown fell to 0 within ~13 cm: two fold pulses across the face in front of the pillar foot (row-to-row normal turn 1.4 / 1.9 deg
+# against 0.3); spread over 0.7 of the rows they are gone (<= 0.4 deg)
 
 # c10 (user: the lower face C is ONE trapezoid, no small triangle T): T is the shell's nose_corner_up (the upper chamfer facet, a planar triangle N - R_l3 - l3_0, 20 degrees off the wall).  QF_NC_ON=1 bends it G1 into the wall (shell2.p_nose_corner_up):
 # its corners (front.py's front face crease) do not move.  QF_NC_V: the fraction of the height over which the lift fades in above the l3 level.  QF_NC_ON=0: the flat facet.
@@ -1849,6 +1851,7 @@ PAIR_BLEND = float(os.environ.get('PAIR_BLEND', '15'))
 PAIR_STEP = float(os.environ.get('PAIR_STEP', '2.5')) * 1e-3
 PAIR_SOFT = float(os.environ.get('PAIR_SOFT', '0.01'))
 PAIR_LEAD = float(os.environ.get('PAIR_LEAD', '0.0'))
+PAIR_SMOOTH = float(os.environ.get('PAIR_SMOOTH', '4'))   # rows: Gaussian smoothing of the L5 sample steps aft of the same-x blend (0 = off)
 
 
 def l5_tau(n=TRI_N):
@@ -1868,6 +1871,19 @@ def l5_tau(n=TRI_N):
     r = r + (1.0 - r[-1]) * np.clip((k - TRI_K) / (n - TRI_K), 0.0, 1.0) ** 6          # (the soft minimum stays PAIR_SOFT ln 2 under 1 at the end: lift it there, over the last rows)
     r = np.where(k <= TRI_K, uni, np.minimum(r, 1.0))
     r[-1] = 1.0
+    if PAIR_SMOOTH > 0:
+        # q12 (review 2026-10-22, item 1): the soft minimum drops the sample step from 13 to 2.5 mm over ~4 rows (k 56 .. 60): the rulings' turning rate jumps there and the fender top shows a fold
+        # line across it (row-to-row normal turn 1.6 deg against 0.3 around it).  The steps aft of the same-x blend are smoothed (Gaussian, PAIR_SMOOTH rows) with their sum kept: L5, W, the flap
+        # (k <= TRI_K) and the end row do not move, only the samples between.
+        k0 = int(TRI_K + PAIR_BLEND)
+        d = np.diff(r)[k0:]
+        pad = int(4 * PAIR_SMOOTH) + 1
+        dp = np.r_[np.full(pad, d[0]), d, np.full(pad, d[-1])]
+        g = np.exp(-0.5 * (np.arange(-pad, pad + 1) / PAIR_SMOOTH) ** 2)
+        ds = np.convolve(dp, g / g.sum(), mode='same')[pad:-pad]
+        ds *= d.sum() / ds.sum()
+        r[k0 + 1:] = r[k0] + np.cumsum(ds)
+        r[-1] = 1.0
     assert np.all(np.diff(r) > 0), 'l5_tau must be strictly increasing'
     return r
 
