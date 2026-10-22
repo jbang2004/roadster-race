@@ -831,6 +831,46 @@ def qf_f_target(x):
     return res
 
 
+# q12b (review 2026-10-22, item 2; user chose the reading B: "按照你推荐去做"): the full round fill (h5) is G2 with the wall at L, so wherever it reaches the door the crease L goes soft (x -1.0: 39 -> 4 deg,
+# a saw-tooth where the 8 mm fillet switches off).  Over the wheel (L hidden in the opening) the fill stays full; over QF_B_XV it hands over to the B section: the face keeps its own (straight) section
+# from L up to QF_B_S0 of the height and only above that gets ONE convex arc to U (a quintic: tangent and zero curvature where it leaves the old line, arriving in the full fill's direction at U),
+# added as an offset to the old surface (<= ~7 mm).  L keeps its crease (visible from x ~-1.21, aft of the opening); the valley ahead of the door gap stays about the c10b waist (13-21 mm at z .78-.84; it
+# cannot be filled without softening L).  QF_B_XV -1.60, -1.20: the hub section keeps ~83 % of the h5 fill (-1.45: 100 % but a 30 mm valley; -1.75: 56 %).
+QF_B_ON = os.environ.get('QF_B_ON', '1') == '1'
+QF_B_XV = tuple(float(v) for v in os.environ.get('QF_B_XV', '-1.60,-1.20').split(','))
+QF_B_S0 = float(os.environ.get('QF_B_S0', '0.33'))
+QF_B_M = tuple(float(v) for v in os.environ.get('QF_B_M', '1.6,0.5,2.0').split(','))       # start speed, end speed (x chord), tangential start acceleration (x chord)
+_QF_B_CACHE = {}
+
+
+def qf_b_offset(x):
+    """(zs, dys) of the B arc's offset over the straight L -> U line at station x (z increasing), or None"""
+    key = round(float(x), 6)
+    if key in _QF_B_CACHE:
+        return _QF_B_CACHE[key]
+    res = None
+    L, U = (np.asarray(D.CURVES[n].at(x), float)[1:] for n in ('L', 'U'))
+    T = qf_f_target(x)
+    if T is not None:
+        p0 = L + QF_B_S0 * (U - L)
+        t0 = (U - L) / np.linalg.norm(U - L)
+        tU = np.array([T[1][-1] - T[1][-6], T[0][-1] - T[0][-6]])
+        tU = tU / np.linalg.norm(tU)
+        lc = float(np.linalg.norm(U - p0))
+        m0, m1, a0 = QF_B_M
+        u = np.linspace(0.0, 1.0, 200)[:, None]
+        h0 = 1 - 10 * u ** 3 + 15 * u ** 4 - 6 * u ** 5
+        h1 = u - 6 * u ** 3 + 8 * u ** 4 - 3 * u ** 5
+        h2 = 0.5 * u ** 2 - 1.5 * u ** 3 + 1.5 * u ** 4 - 0.5 * u ** 5
+        h4 = -4 * u ** 3 + 7 * u ** 4 - 3 * u ** 5
+        c = h0 * p0 + h1 * (t0 * m0 * lc) + h2 * (t0 * a0 * lc) + (1 - h0) * U + h4 * (tU * m1 * lc)
+        if np.all(np.diff(c[:, 1]) > 0):
+            yl = L[0] + (c[:, 1] - L[1]) * (U[0] - L[0]) / (U[1] - L[1])
+            res = (c[:, 1], c[:, 0] - yl)
+    _QF_B_CACHE[key] = res
+    return res
+
+
 def qf_f_point(x, y, z):
     w = qf_f_w(x)
     if w <= 0.0:
@@ -838,7 +878,16 @@ def qf_f_point(x, y, z):
     T = qf_f_target(x)
     if T is None or z < T[0][0] or z > T[0][-1]:
         return y
-    return y + w * (float(np.interp(z, T[0], T[1])) - y)
+    full = float(np.interp(z, T[0], T[1])) - y
+    if not (QF_B_ON and D.QF_C11_ON):
+        return y + w * full
+    v = 1.0 - float(D.sstep(QF_B_XV[0], QF_B_XV[1], x))          # 1 = the full fill (over the wheel), 0 = the B arc (door)
+    dB = 0.0
+    if v < 1.0:
+        B = qf_b_offset(x)
+        if B is not None and B[0][0] <= z <= B[0][-1]:
+            dB = float(np.interp(z, B[0], B[1]))
+    return y + w * (v * full + (1.0 - v) * dB)
 
 
 def qf_fill(pm):
