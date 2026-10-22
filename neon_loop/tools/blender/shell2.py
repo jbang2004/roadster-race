@@ -175,7 +175,8 @@ def facet_plane(R, tl):
     return (n if n[1] > 0 else -n), l3[-1]
 
 
-QF_LB_LEN = float(os.environ.get('QF_LB_LEN', '0.20'))      # m: L turns into the facet's straight segment over this length before S, in plan (q12 item 3; 0 = the old 10 deg turn at S)
+QF_LB_LEN = float(os.environ.get('QF_LB_LEN', '0.0'))       # m: L turns into the facet's straight segment over this length before S, in plan (q12 item 3; 0 = L keeps its plan corner at S: q12c, a plan
+#   bend swelled L out by 9 mm before S and twisted the wall rows that fan into S: a soft dent at the top of the facet edge)
 QF_LB_LENZ = float(os.environ.get('QF_LB_LENZ', '0.50'))    # m: ... and in height (side view: L crests before it falls to the tail; a longer bend keeps that crest soft)
 
 
@@ -188,10 +189,10 @@ def facet_L(R, P):
     t = (x - x[0]) / (x[-1] - x[0])
     P[I_FS:] = s[None, :] + (P[-1] - s)[None, :] * t[:, None]
     P[I_FS] = s
-    if QF_LB_LEN > 0.0:
+    if QF_LB_LEN > 0.0 or QF_LB_LENZ > 0.0:
         # q12 (review 2026-10-22, item 3; user: "同意" L bends before S): L turned 10 deg AT S (the facet apex), and the rear shoulder, sheared onto L, had to fold there (x 1.972, full width) or, smoothed,
         # bulge round S.  L now turns over the QF_LB_LEN before S: a quintic offset d(t), t = (x - xb) / (xS - xb), with d = d' = d'' = 0 at xb (G2 with the old L), d = 0 at S (S does not move),
-        # d' = the slope change to the straight segment and d'' = - the old curvature at S (so L arrives at S straight: G2 with the segment).  S being fixed, L swells OUT before it (max 8.9 mm in y at x 1.89 over 0.20 m) and UP (bent over QF_LB_LENZ); the segment, S and the facet do not move.
+        # d' = the slope change to the straight segment and d'' = - the old curvature at S (so L arrives at S straight: G2 with the segment).  S being fixed, L rises before it (max 6.2 mm, bent over QF_LB_LENZ); the plan corner stays (q12c: the height bend alone removes the shoulder's fold); the segment, S and the facet do not move.
         xS = float(s[0])
         x = P[:I_FS + 1, 0]
         m = (P[I_FS + 1] - P[I_FS]) / (P[I_FS + 1, 0] - P[I_FS, 0])             # slope (per unit x) of the straight segment
@@ -202,6 +203,8 @@ def facet_L(R, P):
         dd = (d1 - d0) / (0.5 * (xo[2] - xo[0]))                                  # the old curvature vector (second derivative in x) at S
         A = np.array([[1.0, 1.0, 1.0], [3.0, 4.0, 5.0], [6.0, 12.0, 20.0]])
         for ax, ln in ((1, QF_LB_LEN), (2, QF_LB_LENZ)):                          # plan (y) and height (z) are bent over their own lengths
+            if ln <= 0.0:
+                continue
             xb = xS - ln
             M, Cv = (m[ax] - d1[ax]) * ln, -dd[ax] * ln * ln
             a_, b_, e_ = np.linalg.solve(A, np.array([0.0, M, Cv]))                # d(t) = a t^3 + b t^4 + e t^5
