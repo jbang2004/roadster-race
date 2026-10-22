@@ -509,7 +509,8 @@ QF_WT_LAM = float(os.environ.get('QF_WT_LAM', '2e-5'))     # q12d: fairness weig
 QF_WT_X1 = float(os.environ.get('QF_WT_X1', '1.17'))
 QF_RT_LAM = float(os.environ.get('QF_RT_LAM', '2e-5'))     # q12d: fairness weight of the roof rail refit, XB1 .. window tip (0 = off)
 QF_AP_STRAIGHT = os.environ.get('QF_AP_STRAIGHT', '1') == '1'     # q12d: the A pillar's outer edge near-straight from the foot to the header (see design_curves)
-QF_UB_X1 = float(os.environ.get('QF_UB_X1', '1.12'))      # q12 item 4: the U crease softens into the fold over X_FOLD0 .. this x (<= X_FOLD0: off)
+QF_UB_X1 = float(os.environ.get('QF_UB_X1', '1.2' if os.environ.get('QF_Q13B', '1') == '1' else '1.12'))      # q12 item 4: the U crease softens into the fold over X_FOLD0 .. this x (<= X_FOLD0: off)
+# (q13b: up to the window tip, 1.12 before: the roll now reaches 33 deg at the tip and grew from 1 to 35 deg over 0.92 .. 1.1, a closed loop in the reflections ahead of the tip)
 QF_GE_FAIR = os.environ.get('QF_GE_FAIR', '1') == '1'     # q12: glass edge / window line fairing (see design_curves)
 QF_GE_X0 = float(os.environ.get('QF_GE_X0', '0.85'))
 QF_HDR_G2 = os.environ.get('QF_HDR_G2', '1') == '1'       # q12: the roof header as a G2 quintic (see build_all)
@@ -599,11 +600,15 @@ def fold_sc13(x):
 
 
 # q13b (the bold variant, user: "你的调整太保守了吧"): aft of the window tip the soft arc follows the photo reading ARC_K (it ran 4 - 5 cm above it): the tip row carries the roll of the pane's
-# 51 deg side (~33 deg) and a convex turn into the beam top; aft of it the roll's turn / centre follow these knots (pchip) and the convex turn fades out over QF_CV[0] (its length grows from QF_CV[1] to QF_CV[2])
+# 51 deg side (~33 deg) and a convex turn into the beam top; aft of it the roll's turn / centre follow these knots (pchip) and the convex turn fades out over QF_CV[0]: at the tip it is the crease
+# of the glass edge (length QF_CV[1] = 0) and it rounds off at once (length 1 - (1 - t)^QF_CV_P of the way to QF_CV[2]); its turn starts to fade with the rate QF_CV_A (see fold_q13b_params)
 QF_Q13B = os.environ.get('QF_Q13B', '1') == '1'
 QF_TH13B = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_TH13B', '1.45:22.5,1.6:21.2,1.8:21.3,2.0:20.5,2.15:15.5,2.27:7,2.382:0').split(',')]
 QF_SC13B = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_SC13B', '1.4:0.383,1.6:0.416,1.8:0.456,2.0:0.497,2.2:0.522,2.382:0.53').split(',')]
-QF_CV = tuple(float(v) for v in os.environ.get('QF_CV', '0.30,0.05,0.18').split(','))
+QF_CV = tuple(float(v) for v in os.environ.get('QF_CV', '0.38,0.0,0.18').split(','))
+QF_CV_P = float(os.environ.get('QF_CV_P', '2'))
+QF_CV_A = float(os.environ.get('QF_CV_A', '0.6'))
+QF_CV_RHO = tuple(float(v) for v in os.environ.get('QF_CV_RHO', '2.5,0.012').split(','))      # weight and margin (m) of the node densification over the convex turn
 # the shoulder leg's angle phi0(x) is PRESCRIBED from QF_PHI13B_X0 on (clamped cubic spline through the solved value there and these knots): one smooth decline, so the lower face is fair along x;
 # the roll's centre sc follows from the end conditions (forward: end points + the pane's direction; aft: end points with the turn th prescribed)
 QF_PHI13B_X0 = float(os.environ.get('QF_PHI13B_X0', '1.0'))
@@ -922,6 +927,8 @@ def fold_tip13b():
 def fold_curve2(S, sc, ell, phi0, th, sc2, ell2, th2, n=800):
     """q13b: fold_curve with ONE concave roll (th at sc, length ell) and one convex roll (-th2 at sc2, length ell2)"""
     s = np.linspace(0.0, S, n + 1)
+    if th2 > 0.0 and ell2 > 1e-6:          # a few mm wide just aft of the tip: its own fine grid, so the turn integrates to th2 exactly
+        s = np.union1d(s, np.clip(np.linspace(sc2 - 0.5 * ell2, sc2 + 0.5 * ell2, 41), 0.0, S))
     kap = (th / ell) * _bump((s - (sc - 0.5 * ell)) / ell)
     if th2 > 0.0 and ell2 > 1e-6:
         kap -= (th2 / ell2) * _bump((s - (sc2 - 0.5 * ell2)) / ell2)
@@ -936,7 +943,11 @@ def fold_curve2(S, sc, ell, phi0, th, sc2, ell2, th2, n=800):
 def fold_q13b_params(x):
     """q13b: the aft family's design functions at station x: concave roll (th, sc, ell), convex roll (th2, ell2, its distance dc from the ridge end)"""
     tp = fold_tip13b()
-    u = float(sstep(X_TIP, X_TIP + QF_CV[0], x))
+    t = min(max((x - X_TIP) / QF_CV[0], 0.0), 1.0)
+    # the convex turn fades from the tip on with the initial rate QF_CV_A (du/dt): with a zero start rate the beam-top strip (convex turn -> ridge) first tipped back by ~0.7 deg as the
+    # leg's angle and the roll declined, and that dip was a closed loop in the reflections just aft of the tip
+    u0 = float(sstep(X_TIP, X_TIP + QF_CV[0], x))
+    u = u0 + QF_CV_A * t * (1.0 - t) ** 2
     kn = np.array([(X_TIP, math.degrees(tp['th']))] + [k for k in QF_TH13B if k[0] > X_TIP], float)
     th = math.radians(float(np.interp(x, kn[:, 0], kn[:, 1]) if len(kn) < 3 else pchip([tuple(k) for k in kn], x)))
     if 'sc13b' not in _FOLD:            # the roll's centre aft of the tip: clamped spline from the tip row's (with the forward family's rate) through QF_SC13B
@@ -946,9 +957,9 @@ def fold_q13b_params(x):
         kn = [(X_TIP, tp['sc'])] + [k for k in QF_SC13B if k[0] > X_TIP]
         _FOLD['sc13b'] = Spline1D([k[0] for k in kn], [k[1] for k in kn], 'clamped', d0, 0.0)
     sc = float(_FOLD['sc13b'](min(x, QF_SC13B[-1][0])))
-    ell = tp['ell'] + (fold_ell(x) - tp['ell']) * u
+    ell = tp['ell'] + (fold_ell(x) - tp['ell']) * u0
     th2 = tp['cv'] * (1.0 - u)
-    ell2 = QF_CV[1] + (QF_CV[2] - QF_CV[1]) * u
+    ell2 = QF_CV[1] + (QF_CV[2] - QF_CV[1]) * (1.0 - (1.0 - t) ** QF_CV_P)
     return th, sc, ell, th2, ell2, tp['dc']
 
 
@@ -1010,8 +1021,10 @@ def fold_nodes(sol, M, rho=None):
     rho = FOLD_RHO if rho is None else rho
     s, S, sc, ell = sol['s'], sol['S'], sol['sc'], sol['ell']
     dens = 1.0 + rho * _bump((s - (sc - 0.5 * ell - 0.03)) / (ell + 0.06))
-    if sol.get('th2', 0.0) > 0.0:          # q13b: the convex turn behind the window tip gets the same densification
-        dens += rho * _bump((s - (sol['s2'] - 0.5 * sol['ell2'] - 0.03)) / (sol['ell2'] + 0.06))
+    if sol.get('th2', 0.0) > 0.0:          # q13b: the convex turn behind the window tip (a crease fading into a roll: only mm wide at first) gets its own, tighter densification
+        # (its weight fades with the turn: switched off at once where th2 reaches 0 it moved the nodes of one row and left a 5 - 7 deg kink across the roll there)
+        m = QF_CV_RHO[1]
+        dens += QF_CV_RHO[0] * min(1.0, sol['th2'] / fold_tip13b()['cv']) * _bump((s - (sol['s2'] - 0.5 * sol['ell2'] - m)) / (sol['ell2'] + 2.0 * m))
     cdf = np.r_[0.0, np.cumsum(0.5 * (dens[1:] + dens[:-1]) * np.diff(s))]
     return np.interp(np.linspace(0.0, 1.0, M + 1), cdf / cdf[-1], s)
 
