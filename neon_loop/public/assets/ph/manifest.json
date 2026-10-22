@@ -1,0 +1,103 @@
+{
+  "textures": {
+    "asphalt_02": {
+      "res": "2k",
+      "maps": {
+        "diff": "textures/asphalt_02/asphalt_02_diff_2k.jpg",
+        "nor": "textures/asphalt_02/asphalt_02_nor_2k.jpg",
+        "arm": "textures/asphalt_02/asphalt_02_arm_2k.jpg"
+      }
+    },
+    "concrete_pavement": {
+      "res": "1k",
+      "maps": {
+        "diff": "textures/concrete_pavement/concrete_pavement_diff_1k.jpg",
+        "nor": "textures/concrete_pavement/concrete_pavement_nor_1k.jpg",
+        "arm": "textures/concrete_pavement/concrete_pavement_arm_1k.jpg"
+      }
+    },
+    "concrete_slab_wall": {
+      "res": "1k",
+      "maps": {
+        "diff": "textures/concrete_slab_wall/concrete_slab_wall_diff_1k.jpg",
+        "nor": "textures/concrete_slab_wall/concrete_slab_wall_nor_1k.jpg",
+        "arm": "textures/concrete_slab_wall/concrete_slab_wall_arm_1k.jpg"
+      }
+    },
+    "asphalt_track": {
+      "res": "2k",
+      "maps": {
+        "diff": "textures/asphalt_track/asphalt_track_diff_2k.jpg",
+        "nor": "textures/asphalt_track/asphalt_track_nor_2k.jpg",
+        "arm": "textures/asphalt_track/asphalt_track_arm_2k.jpg"
+      }
+    },
+    "concrete_panels": {
+      "res": "1k",
+      "maps": {
+        "diff": "textures/concrete_panels/concrete_panels_diff_1k.jpg",
+        "nor": "textures/concrete_panels/concrete_panels_nor_1k.jpg",
+        "arm": "textures/concrete_panels/concrete_panels_arm_1k.jpg"
+      }
+    },
+    "concrete_tile_facade": {
+      "res": "1k",
+      "maps": {
+        "diff": "textures/concrete_tile_facade/concrete_tile_facade_diff_1k.jpg",
+        "nor": "textures/concrete_tile_facade/concrete_tile_facade_nor_1k.jpg",
+        "arm": "textures/concrete_tile_facade/concrete_tile_facade_arm_1k.jpg"
+      }
+    },
+    "ribbed_concrete_wall": {
+      "res": "1k",
+      "maps": {
+        "diff": "textures/ribbed_concrete_wall/ribbed_concrete_wall_diff_1k.jpg",
+        "nor": "textures/ribbed_concrete_wall/ribbed_concrete_wall_nor_1k.jpg",
+        "arm": "textures/ribbed_concrete_wall/ribbed_concrete_wall_arm_1k.jpg"
+      }
+    },
+    "metal_plate": {
+      "res": "1k",
+      "maps": {
+        "diff": "textures/metal_plate/metal_plate_diff_1k.jpg",
+        "nor": "textures/metal_plate/metal_plate_nor_1k.jpg",
+        "arm": "textures/metal_plate/metal_plate_arm_1k.jpg"
+      }
+    },
+    "corrugated_iron_02": {
+      "res": "1k",
+      "maps": {
+        "diff": "textures/corrugated_iron_02/corrugated_iron_02_diff_1k.jpg",
+        "nor": "textures/corrugated_iron_02/corrugated_iron_02_nor_1k.jpg",
+        "arm": "textures/corrugated_iron_02/corrugated_iron_02_arm_1k.jpg"
+      }
+    },
+    "painted_metal_shutter": {
+      "res": "1k",
+      "maps": {
+        "diff": "textures/painted_metal_shutter/painted_metal_shutter_diff_1k.jpg",
+        "nor": "textures/painted_metal_shutter/painted_metal_shutter_nor_1k.jpg",
+        "arm": "textures/painted_metal_shutter/painted_metal_shutter_arm_1k.jpg"
+      }
+    },
+    "dark_brick_wall": {
+      "res": "1k",
+      "maps": {
+        "diff": "textures/dark_brick_wall/dark_brick_wall_diff_1k.jpg",
+        "nor": "textures/dark_brick_wall/dark_brick_wall_nor_1k.jpg",
+        "arm": "textures/dark_brick_wall/dark_brick_wall_arm_1k.jpg"
+      }
+    },
+    "rectangular_facade_tiles": {
+      "res": "1k",
+      "maps": {
+        "diff": "textures/rectangular_facade_tiles/rectangular_facade_tiles_diff_1k.jpg",
+        "nor": "textures/rectangular_facade_tiles/rectangular_facade_tiles_nor_1k.jpg",
+        "arm": "textures/rectangular_facade_tiles/rectangular_facade_tiles_arm_1k.jpg"
+      }
+    }
+  },
+  "hdris": {
+    "shanghai_bund": "hdri/shanghai_bund_2k.hdr"
+  }
+}
