@@ -138,8 +138,8 @@
   }
  },
  "report": {
-  "body_hi_tris": 172774,
-  "hi_tris": 271590,
+  "body_hi_tris": 172750,
+  "hi_tris": 271566,
   "hi_calls": 43,
   "lod1_tris": 56138,
   "lod1_calls": 18,
