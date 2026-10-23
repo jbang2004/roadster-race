@@ -592,3 +592,4 @@ R1b 的 Catmull-Clark 笼子在镜面检查里一直有褶皱（A 柱根、鼻�
   - 用户："姿态按你推荐的定，端板做外张"。每侧 WingTipL / R（翼尖片，藏在面板侧边下）抬起时外伸 9 cm，带着 WingEndL / R（端板，以上棱为铰链）下端外张 15°，展开量 0.2 → 0.9 之间完成；铰链轴、外伸量在 car_meta.json `wing.ends`，src/car/index.js 和 wingpose.py 按同一规律动。展开 0.05 时尾翼与车身重合，0.5 时无穿插。
   - lod1 的 draw call 预算是 20（第一次导出 25）：lod1 上面板连同支柱、每个端板连同翼尖片各是一个车漆网格，翼尖是空节点，动作不变。
   - 测试方法：在已构建的车上只重建尾翼节点再渲染（scratchpad 的 w17h.py），一轮几分钟。
+- 定稿导出：默认 QF_Q17=1、REAR_T17=1；重锁 wall、facet、rear_shoulder、ridge_inner、deck、tail_upper（lock 17 PASS）；jets.js 喷口 y 0.532。hi 282,992 三角 / 49 调用，lod1 56,882 / 19，lod2 8,148 / 8，budget 5 PASS；npm test 通过。regions/_base/rear.py 已同步。
