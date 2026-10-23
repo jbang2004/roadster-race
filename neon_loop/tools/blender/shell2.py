@@ -35,13 +35,23 @@ BREAKS = [-2.39, -2.0, -1.625, -1.43, -1.0, -0.4, 0.15, 0.65, 1.2, 1.65, 1.8, 2.
 SEG_STEP = [(-2.39, -1.0, 0.0125), (-1.0, 1.2, 0.020), (1.2, 2.40, 0.016)]
 
 
+# q16: U turns into the plane P1 over its last ~3 cm (design2 QF_Q16_UX0): the last TIP_REF[0] station intervals before the window tip are each split into TIP_REF[1] (the other stations do not move)
+TIP_REF = tuple(int(v) for v in os.environ.get('TIP_REF', '3,4' if D.QF_Q16 else '0,1').split(','))
+
+
 def make_stations():
     xs = [BREAKS[0]]
     for a, b in zip(BREAKS[:-1], BREAKS[1:]):
         h = next(h for (lo, hi, h) in SEG_STEP if lo - 1e-9 <= a and b <= hi + 1e-9)
         n = max(1, int(round((b - a) / h)))
         xs += list(np.linspace(a, b, n + 1)[1:])
-    return np.array(xs)
+    xs = np.array(xs)
+    k, m = TIP_REF
+    if k > 0 and m > 1:
+        it = int(np.argmin(abs(xs - 1.2)))
+        sub = np.concatenate([np.linspace(xs[j], xs[j + 1], m + 1)[1:-1] for j in range(it - k, it)])
+        xs = np.sort(np.r_[xs, sub])
+    return xs
 
 
 XS = make_stations()
@@ -54,16 +64,23 @@ def IX(x):
     return i
 
 
+def IXN(x):
+    """the station nearest x (for the stations named by their old index aft of the tip)"""
+    i = int(np.argmin(abs(XS - x)))
+    assert abs(XS[i] - x) < 1e-3, x
+    return i
+
+
 I_W, I_A, I_DOOR, I_T, I_B, I_TIP, I_SILL, I_SEAM = (IX(v) for v in (-1.625, -1.43, -1.0, -0.4, 0.65, 1.2, 1.8, 2.05))
 I_LAST = NS - 1
 # rearcrease: the rear-corner facet (SPEC L12).  Its front edge is the straight line E -> S, E = the l3 sample I_FE (x 2.149), S = the L sample I_FS (x 1.972): in p018 the perpendicular distance of
 # E, S to the photo's crease is < 2 px.  l3 is already a straight 3D line aft of x 1.99; the facet is the PLANE through that line and the tail face's side edge; L aft of S becomes the straight line S -> L end
 # lying in that plane (design: facet_L), so the facet is planar by construction.
-I_FS, I_FE = 269, 280
-I_WF0 = 240                         # the wall's rows start to fan towards S at this station (x 1.80, the wheel arch's rear end; nothing forward of x 1.5 changes, the apillar rule): the rows' L partner lags behind the l3 sample
+I_FS, I_FE = IXN(1.9719), IXN(2.1486)         # (stations 269, 280 without TIP_REF)
+I_WF0 = IXN(1.5054)                 # (station 240) the wall's rows start to fan towards S at this station (x 1.80, the wheel arch's rear end; nothing forward of x 1.5 changes, the apillar rule): the rows' L partner lags behind the l3 sample
 WALL_BAND = 0.9                     # rearcrease: the share of a wall row (from the l3 end) over which the continuous ruling is kept; the top 40 % absorb the one-station quantisation of the L partner
 X_BIRTH = float(os.environ.get('X_BIRTH', '0.0'))        # rearcrease round 4 (VARIANT, off by default: reflect check showed coarser arcs but concentric rings in p018 h and a 18 degree crease fading along U): the ruling rows blend into the fold over D.X_FOLD0 .. X_BIRTH
-I_L3K0 = 240                        # rearcrease 2: from this station (x 1.505) the l3 plan is replaced forward of the kink (nothing forward of x 1.5 moves)
+I_L3K0 = IXN(1.5054)                # (station 240) rearcrease 2: from this station (x 1.505) the l3 plan is replaced forward of the kink (nothing forward of x 1.5 moves)
 L3_FRONT_DEG = float(os.environ.get('L3_FRONT_DEG', '3.0'))     # plan angle of l3 just forward of the kink at E (aft of it: 14.85 degrees)
                                     # (wall_pairs).  Tried 240 (x 1.51): the integer lag steps are spread thinly over 40 rows and the reflection of the wall is a sawtooth; 258 packs them into 22 rows: squeezed but smooth
 
@@ -222,7 +239,7 @@ def e_L(R):
 
 
 def e_U(R):
-    return snap(C['U'].at(xlist(0, I_TIP, D.N[0])), (0, D.N), (I_A, D.A_OUT), (I_TIP, D.tip_point(C['L'], C['rail_roof'])))
+    return snap(C['U'].at(xlist(0, I_TIP, D.N[0])), (0, D.N), (I_A, D.A_OUT), (I_TIP, D.tip_final(C['L'], C['rail_roof'])))
 
 
 def e_L5(R):
@@ -403,7 +420,7 @@ def e_top(R):
 
 
 def e_wl(R):
-    return snap(C['wl'].at(xlist(I_A, I_TIP)), (0, D.A_OUT), (-1, D.tip_point(C['L'], C['rail_roof'])))
+    return snap(C['wl'].at(xlist(I_A, I_TIP)), (0, D.A_OUT), (-1, D.tip_final(C['L'], C['rail_roof'])))
 
 
 def glass_row(ge, top, m):
@@ -1282,6 +1299,10 @@ def p_rear_shoulder(R):
         x = 0.5 * (a[0] + c[0])
         w = float(D.sstep(D.X_TIP, D.X_TIP + D.X_NODE, x))
         u0 = np.interp(np.arange(m + 1) * (len(pin0) - 1) / m, np.arange(len(pin0)), cs)
+        if D.QF_Q16:            # q16: the platform's rulings start on L itself (the facet's straightened L included)
+            P = D.fold_row(a, c, m, u0=u0, w=w)[0]
+            P[0], P[-1] = a, c
+            return P
         # rearcrease: the fold (the soft arc R-6, the crown) is solved from the OLD character line, so that it stays where it was accepted; only the row's start moves onto the new (straightened) L,
         # the displacement dies out over the first half of the row (smoothstep along the chord): the facet's top edge moves, the soft arc does not
         P = D.fold_row(L_old[i], c, m, u0=u0, w=w, ja=(len(R.edge('tip_lo')) - 1 if m == len(pin0) - 1 else None))[0]

@@ -642,6 +642,20 @@ QF_KMIN = float(os.environ.get('QF_KMIN', '0.12'))     # q15: the fold's round i
 QF_U15 = float(os.environ.get('QF_U15', '0'))        # VARIANT (off: it bent the window line's hook down into the tip and folded the door glass): U's side view re-drawn over this length, tangent to the beam plane at the tip
 QF_TF = float(os.environ.get('QF_TF', '0.08'))       # behind the tip the plane first carries on the window line's rise (a tent L -> T -> C0, C1 with the band under the window) and lets it go over this length
 QF_WE_K = int(os.environ.get('QF_WE_K', '3'))       # nodes on each side of the edge (2 | 1) that sit at a fixed spacing across it: the edge runs along one grid line from the tip on
+# q16 (user 2026-10-23: rebuild from first principles, "按推荐的做，开始重构出预览"; see HISTORY q16).  Surfaces first, lines from them:
+#   P1  the PLANE through R-1 at the tip (C0), the ear tip E and L at the tip (27.6 deg in section): R-1 aft of the tip lies in it, the rail band ahead of it within 5 mm;
+#   P2  the PLATFORM: straight rulings from L, one ruled surface from the B pillar to the tail.  Under the window the rows run L -> U; aft of the tip L -> R-1 with the angle q16_p2(x), which
+#       falls monotonically from the plane's at the tip (C1 with the rows under the window) through QF_Q16_P2 to L -> E at the tail;
+#   ONE soft arc where P2 and P1 meet: cubic smooth max (C2) of constant radius QF_Q16_R (it grows from nothing at the tip, where the two are one plane).
+# The side window is a recess in P1: the rail band above it lies in P1 (wl moved onto it, plan only, QF_Q16_WL) and U's depth below P1 closes with zero slope at the tip (U moved in plan
+# only, QF_Q16_UX0 .. tip): the rows under the window run into the plane with no step, no crease and no triangle.  No solving, no switches.
+QF_Q16 = os.environ.get('QF_Q16', '0') == '1'      # PREVIEW (off until the user accepts it): QF_Q16=1 builds the q16 rear
+QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '0.85,1.0').split(','))
+QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '1.14'))
+QF_Q16_UC = os.environ.get('QF_Q16_UC', 'auto')      # the depth's curvature (1/m) at the tip: 'auto' = the one with the smallest peak; 0 = U meets the plane to second order
+QF_Q16_P2 = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_Q16_P2', '1.4:19.5,1.55:13.8,1.7:8.8,1.85:5.0,2.0:4.2').split(',')]
+QF_Q16_R = tuple(float(v) for v in os.environ.get('QF_Q16_R', '0.25,0.25').split(','))      # radius (m) of the soft arc at the tip and aft (smoothstep between, over the 3rd value's length or to E)
+QF_Q16_RHO = tuple(float(v) for v in os.environ.get('QF_Q16_RHO', '1.3,6').split(','))      # node densification over the arc, reached when the turn is this many degrees
 FOLD_SC_D = float(os.environ.get('FOLD_SC_D', '0.0'))            # extra slope (m/m) of the roll's centre sc(x) at the window tip, a smooth bump of half width X_SC_W (a free parameter for the G1 across tip_lo)
 X_SC_W = 0.25
 # rearcrease round 4: the roll's BIRTH.  Behind the window the roll peels off U with a radius of 1-6 cm over x 0.9 - 1.05 and its mirror image is a family of fine concentric arcs (p018 v) and a closed oval (p016 h).  The roll
@@ -1173,9 +1187,87 @@ def fold_solve_q14(x, a, c, ax=None, cx=None):
     return out
 
 
+_Q16 = {}
+
+
+def q16_plane():
+    """q16: the plane P1 (unit normal n pointing up, n . p = d)"""
+    if 'n' not in _Q16:
+        c0, e = np.array([X_TIP, QF_R1_Y, QF_R1_ZK]), np.asarray(E_TARGET, float)
+        n = np.cross(e - c0, np.asarray(CURVES['L'].at(X_TIP), float) - c0)
+        n *= np.sign(n[2]) / np.linalg.norm(n)
+        _Q16.update(n=n, d=float(n @ c0))
+    return _Q16['n'], _Q16['d']
+
+
+def q16_p2(x):
+    """q16: the platform's section angle (rad) aft of the tip: a clamped spline from the plane's angle at the tip, leaving it with the rate of the rows under the window (L -> U, C1 across the
+    tip row), through QF_Q16_P2 to the chord L -> E at the tail"""
+    if 'p2' not in _Q16:
+        n, _ = q16_plane()
+        E = np.asarray(E_TARGET, float)
+
+        def chord(xv):
+            L, U = CURVES['L'].at(xv), CURVES['U'].at(xv)
+            return math.atan2(U[2] - L[2], L[1] - U[1])
+        th1, e = math.atan2(n[1], n[2]), 1e-3
+        LE = CURVES['L'].at(E[0])
+        kn = [(X_TIP, th1)] + [(k[0], math.radians(k[1])) for k in QF_Q16_P2 if X_TIP < k[0] < E[0]] + [(E[0], math.atan2(E[2] - LE[2], LE[1] - E[1]))]
+        _Q16['p2'] = Spline1D([k[0] for k in kn], [k[1] for k in kn], 'clamped', (chord(X_TIP) - chord(X_TIP - e)) / e, 0.0)
+        _Q16['xe'] = float(E[0])
+    return float(_Q16['p2'](min(x, _Q16['xe'])))
+
+
+def q16_section(x, a, c, ax=None, cx=None):
+    """q16: the row between a = L (y, z) and c = U (forward of / at the tip: the straight ruling) or R-1 (aft: smooth max(platform, plane), the plane lowered by dl only where the arc reaches
+    R-1 at the ear, so that the row ends on it); a solution dict like fold_solve_q14's"""
+    a, c = np.asarray(a, float), np.asarray(c, float)
+    ax = x if ax is None else ax
+    cx = x if cx is None else cx
+    u = np.linspace(0.0, 1.0, 2401)
+    y = a[0] + (c[0] - a[0]) * u
+    n, d = q16_plane()
+    th1 = math.atan2(n[1], n[2])
+    if x <= X_TIP + 1e-9:
+        z = a[1] + (c[1] - a[1]) * u
+        s = u * float(np.hypot(*(c - a)))
+        ph = math.atan2(c[1] - a[1], a[0] - c[0])
+        return dict(x=float(x), a=a, c=c, phi0=ph, S=float(s[-1]), sc=float(s[-1]), ell=0.0, th=0.0, s=s, y=y - a[0], z=z - a[1], straight=True)
+    th2 = q16_p2(x)
+    t1, t2 = math.tan(th1), math.tan(th2)
+    xs = ax + (cx - ax) * u
+    z2 = a[1] + (a[0] - y) * t2
+    z1 = (d - n[0] * xs - n[1] * y) / n[2]
+    w = float(sstep(X_TIP, X_TIP + QF_Q16_R[2] if len(QF_Q16_R) > 2 else _Q16['xe'], x))
+    r = QF_Q16_R[0] + (QF_Q16_R[1] - QF_Q16_R[0]) * w
+    k = r * max(t1 - t2, 0.0) ** 2 / (1.0 + (0.5 * (t1 + t2)) ** 2) ** 1.5      # (the cubic smooth max of two lines: peak curvature dt^2 / k)
+    smax = lambda p, q: -_smin(-np.atleast_1d(p), -np.atleast_1d(q), k)
+    dl = 0.0
+    if float(smax(z2[-1], z1[-1])[0]) > c[1] + 1e-12:
+        lo, hi = 0.0, k + abs(z1[-1] - z2[-1])
+        for _ in range(60):
+            dl = 0.5 * (lo + hi)
+            lo, hi = (dl, hi) if float(smax(z2[-1], z1[-1] - dl)[0]) > c[1] else (lo, dl)
+        dl = 0.5 * (lo + hi)
+    z = smax(z2, z1 - dl)
+    s = np.r_[0.0, np.cumsum(np.hypot(np.diff(y), np.diff(z)))]
+    up = z1 - dl
+    i = int(np.argmax(up >= z2)) if np.any(up >= z2) else len(s) - 1
+    blend = np.abs(z2 - up) < k
+    sc, ell = float(s[i]), (float(s[blend].max() - s[blend].min()) if blend.any() else 0.0)
+    return dict(x=float(x), a=a, c=c, phi0=th2, S=float(s[-1]), sc=sc, ell=ell, th=th1 - th2, s=s, y=y - a[0], z=z - a[1], dl=dl, k=k)
+
+
+def tip_final(L, rail):
+    """the window tip as the panels see it (q16: moved onto the plane P1, see build_all)"""
+    return np.asarray(_Q16['tip'], float) if QF_Q16 and 'tip' in _Q16 else tip_point(L, rail)
+
+
 def fold_section(x, sc=None):
     """the solved cross-section of the fold at station x (L -> U forward of / at the tip, L -> crest aft of it)"""
     L = CURVES['L'].at(x)
+    if QF_Q16 and x > X_FOLD0 + 1e-9:
+        return q16_section(x, L[1:], (CURVES['U'] if x <= X_TIP + 1e-9 else CURVES['rail']).at(x)[1:])
     if QF_Q14 and x > X_FOLD0 + 1e-9:
         return fold_solve_q14(x, L[1:], (CURVES['U'] if x <= X_TIP + 1e-9 else CURVES['rail']).at(x)[1:])
     nb = FOLD_NOBARREL and x >= X_KEEP + X_NB
@@ -1251,6 +1343,17 @@ def fold_row(a, c, M, u0=None, w=0.0, ja=None):
     fractions of the window-tip row (the first row aft of the tip keeps its nodes) and the weight of the standard (dense over the roll) distribution."""
     a, c = np.asarray(a, float), np.asarray(c, float)
     x = 0.5 * (a[0] + c[0])
+    if QF_Q16 and x > X_FOLD0 + 1e-9:
+        sol = q16_section(x, a[1:], c[1:], a[0], c[0])
+        if sol.get('straight'):
+            sj = np.linspace(0.0, sol['S'], M + 1)
+        else:
+            sj = fold_nodes(sol, M, rho=QF_Q16_RHO[0] * min(1.0, sol['th'] / math.radians(QF_Q16_RHO[1])))
+        if u0 is not None:
+            sj = sol['S'] * ((1.0 - w) * np.asarray(u0) + w * sj / sol['S'])
+        P = fold_points(sol, sj, a[0], c[0])
+        P[0], P[-1] = a, c
+        return P, sol
     if QF_Q14 and x > X_FOLD0 + 1e-9:
         sol = fold_solve_q14(x, a[1:], c[1:], a[0], c[0])
         sj = np.linspace(0.0, sol['S'], M + 1) if sol.get('straight') else q14_nodes(sol, M, ja)
@@ -2647,6 +2750,42 @@ def build_all():
                     (lambda x, _u=_dgU0_, _q=_dgUz_: np.where(np.asarray(x, float) < _q[0], _u.at(x)[..., 2], quint1(x, *_q))), 'U')
         _dgUn_.resid, _dgUn_.dbg = getattr(_dgU0_, 'resid', None), getattr(_dgU0_, 'dbg', None)
         CURVES['U'] = _dgUn_
+    if QF_Q16:
+        # q16: the window as a recess in the plane P1 (user's choice 2026-10-23: side views of wl and U unchanged, plan only).  wl moves onto P1 (QF_Q16_WL; it was within 2 - 6 mm of it,
+        # 14 mm at the tip); U keeps its side view and its plan follows its depth below P1, which closes with zero slope at the tip: a quintic in x from QF_Q16_UX0 (G2 with the old depth
+        # there, end curvature the one with the smallest peak) -> U arrives tangent to P1, the tip moves 14 mm inboard onto it
+        _Q16.clear()
+        _qn_, _qd_ = q16_plane()
+        _yon_ = lambda x, z: (_qd_ - _qn_[0] * x - _qn_[2] * z) / _qn_[1]
+        _qW_, _qU_ = CURVES['wl'], CURVES['U']
+
+        def _q16_wly(x, _w=_qW_):
+            x = np.asarray(x, float)
+            p = _w.at(x)
+            return p[..., 1] + (_yon_(x, p[..., 2]) - p[..., 1]) * sstep(QF_Q16_WL[0], QF_Q16_WL[1], x)
+        _qWn_ = Fn(_qW_.x0, _qW_.x1, _q16_wly, lambda x, _w=_qW_: _w.at(x)[..., 2], 'wl')
+        _qdep_ = lambda x: float(_qd_ - _qn_[0] * x - _qn_[1] * _qU_.at(x)[1]) / _qn_[2] - float(_qU_.at(x)[2])
+        _qa_, _qe_ = QF_Q16_UX0, 1e-3
+        _qv_ = _qdep_(_qa_)
+        _qs_ = (_qdep_(_qa_ + _qe_) - _qdep_(_qa_ - _qe_)) / (2 * _qe_)
+        _qc_ = (_qdep_(_qa_ + 1e-2) - 2 * _qv_ + _qdep_(_qa_ - 1e-2)) / 1e-4
+        _qxs_ = np.linspace(_qa_, X_TIP, 201)
+        if QF_Q16_UC == 'auto':
+            _qct_ = min(((float(np.abs(np.gradient(np.gradient(quint1(_qxs_, _qa_, _qv_, _qs_, _qc_, X_TIP, 0.0, 0.0, _ct), _qxs_), _qxs_))[3:-3].max()), _ct)
+                         for _ct in np.linspace(-20.0, 20.0, 401)))[1]
+        else:
+            _qct_ = float(QF_Q16_UC)
+        _qq_ = (_qa_, _qv_, _qs_, _qc_, X_TIP, 0.0, 0.0, _qct_)
+        _Q16['uq'] = _qq_
+
+        def _q16_uy(x, _u=_qU_, _q=_qq_):
+            x = np.asarray(x, float)
+            p = _u.at(x)
+            return np.where(x < _q[0], p[..., 1], _yon_(x, p[..., 2] + quint1(np.clip(x, _q[0], _q[4]), *_q)))
+        _qUn_ = Fn(_qU_.x0, _qU_.x1, _q16_uy, lambda x, _u=_qU_: _u.at(x)[..., 2], 'U')
+        _qUn_.resid, _qUn_.dbg = getattr(_qU_, 'resid', None), getattr(_qU_, 'dbg', None)
+        CURVES['wl'], CURVES['U'] = _qWn_, _qUn_
+        _Q16['tip'] = np.asarray(_qUn_.at(X_TIP), float)
     # centre line of the glass: the windscreen plane, the dome, then (rear window) the glass edge + crown (-> 0 at the wing seam), then the flat deck (= the glass edge level)
     xs = np.linspace(-1.625, X_SEAM, 80)
     zt = np.array([pchip([(p[0], p[2]) for p in TOP_K], x) for x in xs])
