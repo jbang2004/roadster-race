@@ -924,8 +924,10 @@ def build_wing17(ctx, level):
         if a is None or b is None or ia is None or ib is None:
             return
         M.face([M.v(a[0]), M.v(b[0]), M.v(ib), M.v(ia)], 0.5 * (a[0] + b[0]) - ref)
-    # the panel
-    Mo, Mi = Mesh(), Mesh()
+    # the panel.  (lod1 keeps to its draw-call budget, 20: the panel, its struts and each endplate with its tip are one paint mesh each, the tips are bare pivots)
+    lo = level >= 1
+    Mo = Mesh()
+    Mi = Mo if lo else Mesh()
     w17_sheets(Mo, top, {})
     w17_sheets(Mi, top, {}, IT, {})
     for i, i2 in ((0, 1), (nu - 1, nu - 2)):                   # leading edge (the top seam), trailing edge (the tail's top edge)
@@ -937,13 +939,19 @@ def build_wing17(ctx, level):
             if top[i][j2] is not None:
                 rim(Mi, top[i][j], IT[i][j], top[i + 1][j], IT[i + 1][j], top[i][j2][0])
     o1 = ctx.mk(Mo.bm, 'Wing', 'Paint', True)
-    o2 = ctx.mk(Mi.bm, 'WingUnder', ctx.mat_of(level, 'GlossBlack'), True)
-    ctx.mark_sharp(o2.data, 30)
-    ob = ctx.join([o1, o2], 'Wing')
+    if lo:
+        st = ctx.cb_obj(wing17_links(ctx, level), 'WingLinks', 'Paint', sharp=30)
+        st.location = P                                               # (built pivot-local)
+        ob = ctx.join([o1, st], 'Wing')
+    else:
+        o2 = ctx.mk(Mi.bm, 'WingUnder', ctx.mat_of(level, 'GlossBlack'), True)
+        ctx.mark_sharp(o2.data, 30)
+        ob = ctx.join([o1, o2], 'Wing')
     ob.data.transform(Matrix.Translation(-P))
     ob.location = P
-    kids = ctx.cb_obj(wing17_links(ctx, level), 'WingPlates', 'Carbon' if level == 0 else 'Paint', sharp=30)
-    kids.parent = ob            # struts and linkage: the game drops them in (scaleY) as the wing deploys
+    if not lo:
+        kids = ctx.cb_obj(wing17_links(ctx, level), 'WingPlates', 'Carbon', sharp=30)
+        kids.parent = ob        # struts and linkage: the game drops them in (scaleY) as the wing deploys
     # the tips and the endplates
     parts = []
     for s, F in fac.items():
@@ -954,16 +962,22 @@ def build_wing17(ctx, level):
         A, B = edge[0], edge[-1]
         H = 0.5 * (A + B)
         ax = (B - A).normalized()
-        Mt = Mesh()                                                   # tip blade: under the panel's side edge, 6 .. 14 mm below it, reaching W17_END['out'] + 3 cm in
+        Me = Mesh()
+        Mf = Me if lo else Mesh()                                     # endplate: the facet, paint outside, gloss black inside and on its rims
+        Mt = Me if lo else Mesh()                                     # tip blade: under the panel's side edge, 6 .. 14 mm below it, reaching W17_END['out'] + 3 cm in
+        org = Vector((0, 0, 0)) if lo else P
         rings = []
         for p in edge:
             o = p + Vector((0, 0, -0.006))
             q = o - Vector((0, s * (W17_END['out'] + 0.03), 0))
-            rings.append([tuple(o - P), tuple(q - P), tuple(q - P + Vector((0, 0, -0.008))), tuple(o - P + Vector((0, 0, -0.008)))])
+            rings.append([tuple(o - org), tuple(q - org), tuple(q - org + Vector((0, 0, -0.008))), tuple(o - org + Vector((0, 0, -0.008)))])
         prism(Mt, rings)
-        tip = ctx.mk(Mt.bm, 'WingTip' + sd, 'Paint', False)
+        if lo:
+            tip = bpy.data.objects.new('WingTip' + sd, None)
+            ctx.link(tip)
+        else:
+            tip = ctx.mk(Mt.bm, 'WingTip' + sd, 'Paint', False)
         tip.parent = ob
-        Me, Mf = Mesh(), Mesh()                                       # endplate: the facet, paint outside, gloss black inside and on its rims
         w17_sheets(Me, top, {s: F}, with_top=False)
         w17_sheets(Mf, top, {s: F}, IT, IF, with_top=False)
         for i in range(nu - 1):                                       # its front (the side seam) and bottom (l3) edge, and its top edge (L)
@@ -975,10 +989,13 @@ def build_wing17(ctx, level):
             for k in range(nk - 1):
                 if F[i2][k] is not None:
                     rim(Mf, F[i][k], IF[s][i][k], F[i][k + 1], IF[s][i][k + 1], F[i2][k][0])
-        e1 = ctx.mk(Me.bm, 'WingEnd' + sd, 'Paint', True)
-        e2 = ctx.mk(Mf.bm, 'WingEndIn' + sd, ctx.mat_of(level, 'GlossBlack'), True)
-        ctx.mark_sharp(e2.data, 30)
-        end = ctx.join([e1, e2], 'WingEnd' + sd)
+        if lo:
+            end = ctx.mk(Me.bm, 'WingEnd' + sd, 'Paint', True)
+        else:
+            e1 = ctx.mk(Me.bm, 'WingEnd' + sd, 'Paint', True)
+            e2 = ctx.mk(Mf.bm, 'WingEndIn' + sd, ctx.mat_of(level, 'GlossBlack'), True)
+            ctx.mark_sharp(e2.data, 30)
+            end = ctx.join([e1, e2], 'WingEnd' + sd)
         end.data.transform(Matrix.Translation(-H))
         end.parent = tip
         end.location = H - P                                          # (the tip sits at the node origin: the endplate's origin is on its hinge)
