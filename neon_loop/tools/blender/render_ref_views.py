@@ -13,6 +13,7 @@ Options:  --wing deploy|stow|hide   wing pose (the r81 / thrusters photos show i
           --glass-dark              glass without specular reflection (a flat pane would otherwise mirror the studio rim light as a white sheet at a grazing angle)
           --hide A,B                hide objects by name prefix
           --extra-views "{...}"     more cameras, same tuple format as VIEWS
+          --bands N                 (with --reflect) stripe pairs per revolution, default 24 (7.5 deg bands)
           --reflect h|v|hv          reflection-line check: the paint becomes a perfect mirror under a striped sky (24 bands per
                                     revolution; h = horizontal bands, v = vertical, hv = both), no lights.  A clean surface
                                     gives smooth, parallel stripes; pinches / ripples / creases show as kinks and whorls.
@@ -70,6 +71,7 @@ names = arg('--views', 'r81,thrust,high').split(',')
 WING = arg('--wing', 'deploy')      # deploy | stow | hide : the matched r81 / thrust photos show the wing stowed, official-02 deployed
 LAMPS = arg('--lamps', 'night' if arg('--views', '') == 'p014' else 'day')      # head lamps: 'night' (p014) | 'day'
 REFLECT = arg('--reflect', '')      # '' | h | v | hv : reflection-line check: mirror paint under a striped sky (h = horizontal bands, v = vertical bands)
+BANDS = float(arg('--bands', '24'))   # (--reflect) stripe pairs per revolution: 24 = bands of 7.5 deg; 72 = 2.5 deg, for the flatter panels
 GLASS_DARK = '--glass-dark' in argv       # glass without any specular reflection (see the Glass material below)
 HIDE = [h for h in arg('--hide', '').split(',') if h]      # object-name prefixes to hide (e.g. TailLower,TailCheek to see the bare body)
 
@@ -245,7 +247,7 @@ if REFLECT:
         terms.append(az)
     st = None
     for t_ in terms:
-        mul = nt.nodes.new('ShaderNodeMath'); mul.operation = 'MULTIPLY'; mul.inputs[1].default_value = 24.0
+        mul = nt.nodes.new('ShaderNodeMath'); mul.operation = 'MULTIPLY'; mul.inputs[1].default_value = BANDS
         nt.links.new(t_.outputs[0], mul.inputs[0])
         sn = nt.nodes.new('ShaderNodeMath'); sn.operation = 'SINE'
         nt.links.new(mul.outputs[0], sn.inputs[0])
