@@ -613,6 +613,20 @@ QF_CV_RHO = tuple(float(v) for v in os.environ.get('QF_CV_RHO', '2.5,0.012').spl
 # the roll's centre sc follows from the end conditions (forward: end points + the pane's direction; aft: end points with the turn th prescribed)
 QF_PHI13B_X0 = float(os.environ.get('QF_PHI13B_X0', '1.0'))
 QF_PHI13B = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_PHI13B', '1.2:17.6,1.35:15.4,1.5:12.3,1.7:8.2,1.9:5.2,2.1:4.2,2.382:4.0').split(',')]
+# q14 (user 2026-10-23: "将窗框和窗后的铁皮做成一个光滑平面，窗下方的平台也做成一个平面，在两个平面相交处做光滑曲面过渡"; chose: platform = ruled, twisting evenly; the edge behind the tip: a
+# small, crisp round).  Aft of X_FOLD0 every row of the shoulder / rear shoulder is built directly from three faces: (3) the PLATFORM, straight from L at the angle phi3(x) (a clamped spline
+# from the ruled row's chord at X_FOLD0 through QF_P3 to L -> E at the tail: one monotone twist); (2) the steep PANE plane through the window tip T and U(X_FOLD0) at the glass's angle at the tip
+# (the frame below the window and the small triangle behind it; forward of the tip the same angle through U); (1) the BEAM plane through the window tip, the start of R-1 and the ear tip E (the
+# metal behind the window up to R-1, ~25 deg).  Section = smooth max(3, smooth min(2, 1)) (cubic, C2): the fold (3 | 2, 1) is a soft round QF_FW wide (across, m), the edge (2 | 1) a small one
+# QF_WE[0] wide that grows from the crease at the tip over QF_WE[1].  QF_KUP: x range over which the fold passes from the pane to the beam plane (its blend size follows the slope difference).
+QF_Q14 = os.environ.get('QF_Q14', '1') == '1'
+QF_P3 = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_P3', '1.2:17.9,1.55:11.8,1.8:6.6,2.0:4.4,2.15:3.97').split(',')]
+QF_FW = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_FW', '1.0:0.035,1.2:0.06,1.6:0.09,2.0:0.10').split(',')]
+QF_KUP = tuple(float(v) for v in os.environ.get('QF_KUP', '1.45,1.75').split(','))
+QF_WE = tuple(float(v) for v in os.environ.get('QF_WE', '0.007,0.05').split(','))
+QF_P2E = float(os.environ.get('QF_P2E', '2'))
+QF_P2R = float(os.environ.get('QF_P2R', '1.2'))      # forward of the tip the pane face steepens from the ruled row's chord (X_FOLD0: no fold yet) to the glass's angle at the tip by this x (1 - (1 - t)^QF_P2E)
+QF_WE_K = int(os.environ.get('QF_WE_K', '3'))       # nodes on each side of the edge (2 | 1) that sit at a fixed spacing across it: the edge runs along one grid line from the tip on
 FOLD_SC_D = float(os.environ.get('FOLD_SC_D', '0.0'))            # extra slope (m/m) of the roll's centre sc(x) at the window tip, a smooth bump of half width X_SC_W (a free parameter for the G1 across tip_lo)
 X_SC_W = 0.25
 # rearcrease round 4: the roll's BIRTH.  Behind the window the roll peels off U with a radius of 1-6 cm over x 0.9 - 1.05 and its mirror image is a family of fine concentric arcs (p018 v) and a closed oval (p016 h).  The roll
@@ -1007,9 +1021,112 @@ def fold_solve_q13b(x, a, c, th=None, sc=None, phi0=None):
                 res=float(np.abs(f(q)).max()), net=float(phi[-1] - phi0), th2=th2, s2=s2, ell2=ell2)
 
 
+def q14_faces():
+    """q14: the two planes and the platform's twist (cached): beam plane n1 . p = d1, pane plane n2 . p = d2 (normals pointing up), their section angles ph1, ph2, phi3(x)"""
+    if 'q14' not in _FOLD:
+        T, U0 = np.asarray(CURVES['U'].at(X_TIP), float), np.asarray(CURVES['U'].at(X_FOLD0), float)
+        C0, E = np.asarray(REAR['C0'], float), np.asarray(REAR['E'], float)
+        n1 = np.cross(E - C0, T - C0)
+        n1 *= np.sign(n1[2]) / np.linalg.norm(n1)
+        ph2 = fold_glass_dir(X_TIP)
+        sn, cs = math.sin(ph2), math.cos(ph2)
+        kx = ((sn * T[1] + cs * T[2]) - (sn * U0[1] + cs * U0[2])) / (U0[0] - T[0])
+        n2 = np.array([kx, sn, cs])
+
+        def chord(x):
+            L, U = CURVES['L'].at(x), CURVES['U'].at(x)
+            return math.atan2(U[2] - L[2], L[1] - U[1])
+        e = 0.005
+        LE = CURVES['L'].at(E[0])
+        kn = [(X_FOLD0, chord(X_FOLD0))] + [(k[0], math.radians(k[1])) for k in QF_P3 if X_FOLD0 < k[0] < E[0]] + [(E[0], math.atan2(E[2] - LE[2], LE[1] - E[1]))]
+        p3 = Spline1D([k[0] for k in kn], [k[1] for k in kn], 'clamped', (chord(X_FOLD0) - chord(X_FOLD0 - e)) / e, 0.0)
+        _FOLD['q14'] = dict(n1=n1, d1=float(n1 @ C0), n2=n2, d2=float(n2 @ T), ph1=math.atan2(n1[1], n1[2]), ph2=ph2, p3=p3, xe=float(E[0]))
+    return _FOLD['q14']
+
+
+def _smin(a, b, k):
+    """cubic smooth minimum (C2) of two graphs; k = the blend size in their difference"""
+    if k <= 1e-9:
+        return np.minimum(a, b)
+    h = np.maximum(k - np.abs(a - b), 0.0) / k
+    return np.minimum(a, b) - h ** 3 * k / 6.0
+
+
+def fold_solve_q14(x, a, c, ax=None, cx=None):
+    """q14: the row between a = L (y, z) and c = U (forward of / at the tip) or the crest R-1 (aft): smooth max(platform, smooth min(pane, beam)); returns a solution dict like fold_solve_nb's"""
+    g = q14_faces()
+    a, c = np.asarray(a, float), np.asarray(c, float)
+    ax = x if ax is None else ax
+    cx = x if cx is None else cx
+    fwd = x <= X_TIP + 1e-9
+    ph3 = float(g['p3'](min(x, g['xe'])))
+    ph2 = g['ph2']
+    if fwd and x < QF_P2R:
+        L_, U_ = CURVES['L'].at(x), CURVES['U'].at(x)
+        ch = math.atan2(U_[2] - L_[2], L_[1] - U_[1])
+        tr = min(max((x - X_FOLD0) / (QF_P2R - X_FOLD0), 0.0), 1.0)
+        ph2 = ch + (ph2 - ch) * (1.0 - (1.0 - tr) ** QF_P2E)     # (a linear start: the fold peels off U, not off L)
+    t1, t2, t3 = math.tan(g['ph1']), math.tan(ph2), math.tan(ph3)
+    u = np.linspace(0.0, 1.0, 2401)
+    y = a[0] + (c[0] - a[0]) * u
+    xs = ax + (cx - ax) * u
+    z3 = a[1] + (a[0] - y) * t3
+    n1, n2 = g['n1'], g['n2']
+    z2 = c[1] + (c[0] - y) * t2 if fwd else (g['d2'] - n2[0] * xs - n2[1] * y) / n2[2]
+    kw = 0.0
+    if fwd:
+        up = z2
+    else:
+        z1 = (g['d1'] - n1[0] * xs - n1[1] * y) / n1[2]
+        tw = min(max((x - X_TIP) / QF_WE[1], 0.0), 1.0)
+        kw = QF_WE[0] * (t2 - t1) * (1.0 - (1.0 - tw) ** 2)
+        up = _smin(z2, z1, kw)
+    sup = t2 + (t1 - t2) * float(sstep(QF_KUP[0], QF_KUP[1], x))
+    kf = max(pchip([(X_FOLD0, 0.0)] + QF_FW, x), 0.0) * max(sup - t3, 0.0)
+    # where the round reaches the row's end (at its birth on U, at the ear where the beam plane runs out on R-1) the face it rounds into is lowered there just enough for the row to
+    # end on its end point: the crease at U softens into the fold, the fold fades into R-1 at the ear, and the round is never squeezed into a crease the mesh cannot carry
+    za, zc = z3[-1], up[-1]
+
+    def endz(dl):
+        return float(-_smin(np.array([-za]), np.array([-(zc - dl)]), kf)[0])
+    dl = 0.0
+    if kf > 0.0 and endz(0.0) > c[1] + 1e-12:
+        lo, hi = 0.0, kf + abs(zc - za)
+        for _ in range(60):
+            dl = 0.5 * (lo + hi)
+            lo, hi = (dl, hi) if endz(dl) > c[1] else (lo, dl)
+        dl = 0.5 * (lo + hi)
+    if dl > 0.0:
+        if fwd:
+            up = up - dl
+        else:
+            up = _smin(z2, z1 - dl, kw)
+    z = -_smin(-z3, -up, kf)
+    dy, dz = np.diff(y), np.diff(z)
+    s = np.r_[0.0, np.cumsum(np.hypot(dy, dz))]
+    phi = np.arctan2(np.gradient(z), -np.gradient(y))
+    kap = np.gradient(phi) / np.maximum(np.gradient(s), 1e-12)
+    i = int(np.argmax(up >= z3)) if np.any(up >= z3) else len(s) - 1
+    blend = np.abs(z3 - up) < kf
+    sc, ell = float(s[i]), (float(s[blend].max() - s[blend].min()) if blend.any() else 0.0)
+    out = dict(x=float(x), a=a, c=c, phi0=ph3, S=float(s[-1]), sc=sc, ell=ell, th=float(math.atan(sup) - ph3), T=0.0, B1=0.0, B2=0.0, lam=max(float(s[-1]) - sc, 1e-4),
+               s=s, y=y - a[0], z=z - a[1], phi=phi, kap=kap, res=0.0, net=float(phi[-1] - phi[0]), th2=0.0, s2=sc, ell2=0.0, cv=g['ph2'] - g['ph1'])
+    if not fwd:
+        j = int(np.argmax(z2 >= z1)) if np.any(z2 >= z1) else len(s) - 1
+        we = np.abs(z2 - z1) < kw
+        s2, ell2 = float(s[j]), (float(s[we].max() - s[we].min()) if we.any() else 0.0)
+        # how much of the edge is left: it fades as the platform's round runs over it (where the pane runs out); a continuous measure (the solved turn left of it jumps when the fold crosses it)
+        r = min(max((up[j] - z3[j]) / max(kf, 1e-6), -1.0), 1.0)
+        f = 1.0 - 0.5 * (1.0 - r) ** 2 if r >= 0.0 else 0.5 * (1.0 + r) ** 2        # the share of the edge's turn that the platform's round lets through (d smax / d upper)
+        out.update(th2=f * (g['ph2'] - g['ph1']), s2=s2, ell2=ell2, anc=min(1.0, f / 0.15))
+    return out
+
+
 def fold_section(x, sc=None):
     """the solved cross-section of the fold at station x (L -> U forward of / at the tip, L -> crest aft of it)"""
     L = CURVES['L'].at(x)
+    if QF_Q14 and x > X_FOLD0 + 1e-9:
+        return fold_solve_q14(x, L[1:], (CURVES['U'] if x <= X_TIP + 1e-9 else CURVES['rail']).at(x)[1:])
     nb = FOLD_NOBARREL and x >= X_KEEP + X_NB
     if x <= X_TIP + 1e-9:
         return (fold_solve_nb if nb else fold_solve)(x, L[1:], CURVES['U'].at(x)[1:], phir=fold_end_dir(x), sc=sc)
@@ -1024,9 +1141,34 @@ def fold_nodes(sol, M, rho=None):
     if sol.get('th2', 0.0) > 0.0:          # q13b: the convex turn behind the window tip (a crease fading into a roll: only mm wide at first) gets its own, tighter densification
         # (its weight fades with the turn: switched off at once where th2 reaches 0 it moved the nodes of one row and left a 5 - 7 deg kink across the roll there)
         m = QF_CV_RHO[1]
-        dens += QF_CV_RHO[0] * min(1.0, sol['th2'] / fold_tip13b()['cv']) * _bump((s - (sol['s2'] - 0.5 * sol['ell2'] - m)) / (sol['ell2'] + 2.0 * m))
+        dens += QF_CV_RHO[0] * min(1.0, sol['th2'] / (sol['cv'] if 'cv' in sol else fold_tip13b()['cv'])) * _bump((s - (sol['s2'] - 0.5 * sol['ell2'] - m)) / (sol['ell2'] + 2.0 * m))
     cdf = np.r_[0.0, np.cumsum(0.5 * (dens[1:] + dens[:-1]) * np.diff(s))]
     return np.interp(np.linspace(0.0, 1.0, M + 1), cdf / cdf[-1], s)
+
+
+def q14_nodes(sol, M, ja=None):
+    """q14: the row's nodes; aft of the tip node ja (the window tip's index in the tip row) sits on the edge between the pane and the beam plane, with QF_WE_K nodes at a fixed spacing on each
+    side (a crisp round on a grid line: no saw teeth from nodes drifting across it from row to row)"""
+    sj = fold_nodes(sol, M)
+    K = QF_WE_K
+    if ja is None or 'anc' not in sol or ja - K < 1 or ja + K > M - 1:
+        return sj
+    S, s2 = sol['S'], sol['s2']
+    F = np.linspace(0.0, 1.0, M + 1)
+    lam = sol.get('anc', 1.0)
+    # where the edge has gone (the platform's round covers it) the node keeps following its line, but the spacing round it relaxes to the standard one: no switch, no jump
+    hb = float(np.interp(np.interp(s2, sj, F), F[:-1] + 0.5 / M, np.diff(sj)))
+    h = lam * max(sol['ell2'], 0.004) / (2 * K - 2) + (1.0 - lam) * hb
+    lo, hi = s2 - K * h, s2 + K * h
+    if lo <= 1e-3 or hi >= S - 1e-3:
+        return sj
+
+    def part(a_, b_, n):
+        Fa, Fb = np.interp([a_, b_], sj, F)
+        return np.interp(np.linspace(Fa, Fb, n + 1), F, sj)
+    an = np.r_[part(0.0, lo, ja - K)[:-1], s2 + h * np.arange(-K, K + 1), part(hi, S, M - ja - K)[1:]]
+    wt = max(lam, float(sstep(0.12, 0.3, s2 / S)))       # (aft of the pane the edge's line runs out over the platform towards L: let go of it gradually, long after it has faded)
+    return (1.0 - wt) * sj + wt * an
 
 
 def fold_points(sol, sj, ax=None, cx=None):
@@ -1053,11 +1195,19 @@ def fold_row_dir(x, a, c):
     return phir
 
 
-def fold_row(a, c, M, u0=None, w=0.0):
+def fold_row(a, c, M, u0=None, w=0.0, ja=None):
     """M + 1 points of the fold's cross-section between the 3-D edge points a (on L) and c (on U forward of / at the window tip, on the crest aft of it): the row of a panel.  u0 / w: the node
     fractions of the window-tip row (the first row aft of the tip keeps its nodes) and the weight of the standard (dense over the roll) distribution."""
     a, c = np.asarray(a, float), np.asarray(c, float)
     x = 0.5 * (a[0] + c[0])
+    if QF_Q14 and x > X_FOLD0 + 1e-9:
+        sol = fold_solve_q14(x, a[1:], c[1:], a[0], c[0])
+        sj = q14_nodes(sol, M, ja)
+        if u0 is not None:
+            sj = sol['S'] * ((1.0 - w) * np.asarray(u0) + w * sj / sol['S'])
+        P = fold_points(sol, sj, a[0], c[0])
+        P[0], P[-1] = a, c
+        return P, sol
     phir = fold_row_dir(x, a, c)
     wb = float(sstep(X_KEEP, X_KEEP + X_NB, x)) if FOLD_NOBARREL else 0.0
     sol = fold_solve(x, a[1:], c[1:], phir=phir) if wb < 1.0 else fold_solve_nb(x, a[1:], c[1:], phir=phir)

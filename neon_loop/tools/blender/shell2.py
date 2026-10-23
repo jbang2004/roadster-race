@@ -1284,7 +1284,7 @@ def p_rear_shoulder(R):
         u0 = np.interp(np.arange(m + 1) * (len(pin0) - 1) / m, np.arange(len(pin0)), cs)
         # rearcrease: the fold (the soft arc R-6, the crown) is solved from the OLD character line, so that it stays where it was accepted; only the row's start moves onto the new (straightened) L,
         # the displacement dies out over the first half of the row (smoothstep along the chord): the facet's top edge moves, the soft arc does not
-        P = D.fold_row(L_old[i], c, m, u0=u0, w=w)[0]
+        P = D.fold_row(L_old[i], c, m, u0=u0, w=w, ja=(len(R.edge('tip_lo')) - 1 if m == len(pin0) - 1 else None))[0]
         da = a - L_old[i]
         if np.linalg.norm(da) > 1e-9:
             g = 1.0 - chord_s(P)                       # a SHEAR (linear in the arclength): the straight legs stay straight, the roll's curvature does not change (a smoothstep here made an S near L)
