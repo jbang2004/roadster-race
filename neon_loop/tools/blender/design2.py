@@ -650,14 +650,15 @@ QF_WE_K = int(os.environ.get('QF_WE_K', '3'))       # nodes on each side of the 
 # The side window is a recess in P1: the rail band above it lies in P1 (wl moved onto it, plan only, QF_Q16_WL) and U's depth below P1 closes with zero slope at the tip (U moved in plan
 # only, QF_Q16_UX0 .. tip): the rows under the window run into the plane with no step, no crease and no triangle.  No solving, no switches.
 QF_Q16 = os.environ.get('QF_Q16', '0') == '1'      # PREVIEW (off until the user accepts it): QF_Q16=1 builds the q16 rear
-QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '0.85,1.0').split(','))
+QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '1.0').split(','))      # wl: one value = its distance to P1 closes with zero slope from this x to the tip (plan only); two = the old sstep ramp onto P1
 QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '1.14'))
 QF_Q16_L = tuple(float(v) for v in os.environ.get('QF_Q16_L', '1.65,0.976').split(','))      # L aft of the window tip (p018, user 2026-10-23 "原车窗[后肩线]应该是水平的"): rises from the tip (G2) to this x / height and runs level to the tail; 0 = off
+QF_Q16_R1 = tuple(float(v) for v in os.environ.get('QF_Q16_R1', '0.85,0.013').split(','))      # R-1 raised (p018 top outline, user 2026-10-23 "R-1 和后窗玻璃边一起抬高"): by [1] at the tip, a quintic from [0] (G2), straight to E aft; the rear glass edge and centre line rise with it; 0 = off
 QF_Q16_U = os.environ.get('QF_Q16_U', 'face')      # 'face': U = where the one ruled face from L (under and behind the window) reaches U's side view (the window is an opening in it); 'depth': U's depth below P1 closes (preview 1)
 QF_Q16_FX0 = float(os.environ.get('QF_Q16_FX0', str(0.65 + 11 * 0.55 / 27)))      # 'face': the face's angle law starts here (G2 with the ruled rows L -> U ahead of it)
 QF_Q16_AX = os.environ.get('QF_Q16_AX', 'y')      # wl / U move in plan ('y', the user's choice) or in side view ('z', variant)
 QF_Q16_UC = os.environ.get('QF_Q16_UC', 'auto')      # the depth's curvature (1/m) at the tip: 'auto' = the one with the smallest peak; 0 = U meets the plane to second order
-QF_Q16_P2 = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_Q16_P2', '1.4:19.9,1.55:15.5,1.7:12.1,1.85:9.4,2.0:7.6').split(',')]
+QF_Q16_P2 = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_Q16_P2', '1.4:20.7,1.55:16.1,1.7:12.6,1.85:9.7,2.0:7.7').split(',')]
 QF_Q16_R = tuple(float(v) for v in os.environ.get('QF_Q16_R', '0.25,0.25').split(','))      # radius (m) of the soft arc at the tip and aft (smoothstep between, over the 3rd value's length or to E)
 QF_Q16_RHO = tuple(float(v) for v in os.environ.get('QF_Q16_RHO', '1.3,6').split(','))      # node densification over the arc, reached when the turn is this many degrees
 FOLD_SC_D = float(os.environ.get('FOLD_SC_D', '0.0'))            # extra slope (m/m) of the roll's centre sc(x) at the window tip, a smooth bump of half width X_SC_W (a free parameter for the G1 across tip_lo)
@@ -1197,7 +1198,7 @@ _Q16 = {}
 def q16_plane():
     """q16: the plane P1 (unit normal n pointing up, n . p = d)"""
     if 'n' not in _Q16:
-        c0, e = np.array([X_TIP, QF_R1_Y, QF_R1_ZK]), np.asarray(E_TARGET, float)
+        c0, e = np.asarray(CURVES['rail'].at(X_TIP), float), np.asarray(E_TARGET, float)
         n = np.cross(e - c0, np.asarray(CURVES['L'].at(X_TIP), float) - c0)
         n *= np.sign(n[2]) / np.linalg.norm(n)
         _Q16.update(n=n, d=float(n @ c0))
@@ -2759,6 +2760,21 @@ def build_all():
         # 14 mm at the tip); U keeps its side view and its plan follows its depth below P1, which closes with zero slope at the tip: a quintic in x from QF_Q16_UX0 (G2 with the old depth
         # there, end curvature the one with the smallest peak) -> U arrives tangent to P1, the tip moves 14 mm inboard onto it
         _Q16.clear()
+        if QF_Q16_R1[1] > 0.0:
+            # R-1 as p018 shows it (its top outline, column by column): 13 mm higher at the window tip, still the straight line to E aft of the tip (the plane P1 holds it); ahead of the tip
+            # the roof rail takes the rise up over QF_Q16_R1[0] .. tip (G2 at the start, the crest's new slope and zero curvature at the tip).  The window tip does not move (it hangs off
+            # rail_roof); the rear glass edge and the centre line get the same rise (below, where they are built): R-1 stays flush with the glass
+            _R0_, _Ex_ = CURVES['rail'], float(E_TARGET[0])
+            _ra_, _rz_ = QF_Q16_R1
+            _rq_ = (_ra_, 0.0, 0.0, 0.0, X_TIP, _rz_, -_rz_ / (_Ex_ - X_TIP), 0.0)
+
+            def _q16_r1d(x, _q=_rq_, _ex=_Ex_):
+                x = np.asarray(x, float)
+                fwd = quint1(np.clip(x, _q[0], _q[4]), *_q)
+                aft = _q[5] * np.clip((_ex - x) / (_ex - _q[4]), 0.0, 1.0)
+                return np.where(x < _q[0], 0.0, np.where(x <= _q[4], fwd, aft))
+            _Q16['r1d'] = _q16_r1d
+            CURVES['rail'] = Fn(_R0_.x0, _R0_.x1, lambda x, _r=_R0_: _r.at(x)[..., 1], lambda x, _r=_R0_: _r.at(x)[..., 2] + _q16_r1d(x), 'rail')
         if QF_Q16_L[0] > 0.0:
             # the shoulder line L aft of the tip as p018 shows it (its tonal edge, read column by column, less the 7 mm by which that edge runs above L ahead of the window): it rises
             # from the tip to 0.976 by x 1.65 and runs level to the tail (the old fit kept rising to 1.024 at x 2.1, 4 - 5 cm above the photo).  Ahead of the tip L does not change.
@@ -2790,6 +2806,24 @@ def build_all():
             return p[..., 2] + (_pz_(x, p[..., 1]) - p[..., 2]) * sstep(QF_Q16_WL[0], QF_Q16_WL[1], x)
         if QF_Q16_AX == 'z':          # (variant: side view instead of plan)
             _qWn_ = Fn(_qW_.x0, _qW_.x1, lambda x, _w=_qW_: _w.at(x)[..., 1], _q16_wlz, 'wl')
+        elif len(QF_Q16_WL) == 1:
+            # wl's depth below P1 (vertical) closes with zero slope at the tip, from QF_Q16_WL[0] (G2 there; the end curvature with the smallest peak): wl arrives at the tip on P1 and
+            # tangent to it (G1 of the rail band with the plane behind the tip); its side view does not change
+            _qwdep_ = lambda x: float(_pz_(x, float(_qW_.at(x)[1])) - _qW_.at(x)[2])
+            _qwa_, _qwe_ = QF_Q16_WL[0], 1e-3
+            _qwv_ = _qwdep_(_qwa_)
+            _qws_ = (_qwdep_(_qwa_ + _qwe_) - _qwdep_(_qwa_ - _qwe_)) / (2 * _qwe_)
+            _qwc_ = (_qwdep_(_qwa_ + 1e-2) - 2 * _qwv_ + _qwdep_(_qwa_ - 1e-2)) / 1e-4
+            _qwxs_ = np.linspace(_qwa_, X_TIP, 201)
+            _qwct_ = min(((float(np.abs(np.gradient(np.gradient(quint1(_qwxs_, _qwa_, _qwv_, _qws_, _qwc_, X_TIP, 0.0, 0.0, _ct), _qwxs_), _qwxs_))[3:-3].max()), _ct)
+                         for _ct in np.linspace(-20.0, 20.0, 401)))[1]
+            _qwq_ = (_qwa_, _qwv_, _qws_, _qwc_, X_TIP, 0.0, 0.0, _qwct_)
+
+            def _q16_wly2(x, _w=_qW_, _q=_qwq_):
+                x = np.asarray(x, float)
+                p = _w.at(x)
+                return np.where(x < _q[0], p[..., 1], _yon_(x, p[..., 2] + quint1(np.clip(x, _q[0], _q[4]), *_q)))
+            _qWn_ = Fn(_qW_.x0, _qW_.x1, _q16_wly2, lambda x, _w=_qW_: _w.at(x)[..., 2], 'wl')
         else:
             _qWn_ = Fn(_qW_.x0, _qW_.x1, _q16_wly, lambda x, _w=_qW_: _w.at(x)[..., 2], 'wl')
         _qdep_ = lambda x: float(_qd_ - _qn_[0] * x - _qn_[1] * _qU_.at(x)[1]) / _qn_[2] - float(_qU_.at(x)[2])
@@ -2904,6 +2938,12 @@ def build_all():
         top_mid = Fn(0.65, X_SEAM, lambda x: 0.0 * np.asarray(x), lambda x: ge_z(x) + crown_mid(x), 'top_mid')
     top2 = Fn(X_SEAM, 2.41, lambda x: 0.0 * np.asarray(x), ge_z, 'top2')
     CURVES['top'] = Composite([top_front, top_mid, top2], 'top')
+    if QF_Q16 and 'r1d' in _Q16:
+        # q16: the rear glass edge and the centre line rise with R-1 (see QF_Q16_R1)
+        for _k_ in ('gedge', 'top'):
+            _c_ = CURVES[_k_]
+            CURVES[_k_] = Fn(_c_.x0, _c_.x1, lambda x, _c=_c_: _c.at(x)[..., 1], lambda x, _c=_c_: _c.at(x)[..., 2] + _Q16['r1d'](x), _k_)
+        gedge = CURVES['gedge']
     # ---- the READING of the soft arc (x-graph, fair B-spline through ARC_K) and the named rear curves
     _FOLD.pop('tip', None)
     u0 = np.asarray(CURVES['U'].at(X_FOLD0), float)
