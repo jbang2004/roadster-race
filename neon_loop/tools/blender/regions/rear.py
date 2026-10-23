@@ -53,7 +53,7 @@ endplate foot sweeps forward on a large radius and tapers (build_diffuser); the 
 import math, os, types
 import bpy, bmesh
 from mathutils import Vector, Matrix
-from common import smooth, smoother, pchip, W_DARK
+from common import smooth, smoother, pchip, W_DARK, Mesh
 
 NAME = 'rear'
 
@@ -681,6 +681,73 @@ def glass_cover(ctx, cb, level):
                 cb.face(vs, N_COVER)
 
 
+# --- the wing's seam (REAR_T17; user 2026-10-23: "原车的车尾和玻璃之间有一条贯穿的缝隙，那条缝隙事实上升起来就是车辆的尾翼了").  p013: straight across the whole width at x 2.04
+# (the centre, where it is the rear glass's end) .. 2.025 (|y| 0.9), over both ridges and shoulders to the body's side edge; p018: it crosses the shoulder line L at x ~2.01 and runs down
+# the side, just aft of the corner facet's front edge, to the black zone (l3) at x 2.145.  The rest of the wing's outline (l3, the tail's side edges, the tail top edge over the light box)
+# is a colour boundary or a crease already.  A hairline like the door seams (SIDE): PanelGap, 3 mm on paint.
+SEAM_X = (2.05, 2.02)            # top seam: x at the centre (the glass end) and at L
+SEAM_SIDE_X = 2.145              # side seam: x where it meets l3
+SEAM_W = 0.0030                  # hairline width on paint (m)
+
+
+def _strip(ctx, M, cl, width, off):
+    """hairline along the centre line cl [(point, normal)] laid on the HI surface (as side.strip_along + side._grid): the edges are the centre line moved +-width / 2 across and re-cast"""
+    cast = ctx.surf_hi.cast
+    P, N = [], []
+    for i, (c, n) in enumerate(cl):
+        a, b = cl[max(i - 1, 0)][0], cl[min(i + 1, len(cl) - 1)][0]
+        w = (b - a).normalized().cross(n).normalized()
+        rp, rn = [], []
+        for s_ in (-0.5, 0.5):
+            q = c + w * (s_ * width)
+            p, nn = cast(q + n * 0.02, -n, off, 0.06)
+            if p is None:
+                p, nn = q + n * off, n
+            rp.append(p)
+            rn.append(nn)
+        P.append(rp)
+        N.append(rn)
+    V = [[M.v(p) for p in row] for row in P]
+    for i in range(len(V) - 1):
+        vs = [V[i][0], V[i + 1][0], V[i + 1][1], V[i][1]]
+        nn = N[i][0] + N[i + 1][0] + N[i + 1][1] + N[i][1]
+        gn = (vs[1].co - vs[0].co).cross(vs[3].co - vs[0].co) + (vs[3].co - vs[2].co).cross(vs[1].co - vs[2].co)
+        M.face(vs if gn.dot(nn) >= 0 else vs[::-1])
+
+
+def wing_seam(ctx, level):
+    """-> [object]: the top seam across the whole width (cast down) and the two side seams (cast in from the side), one PanelGap object"""
+    if not REAR_T17 or level > 1:
+        return []
+    D, cast = ctx.A.D, ctx.surf_hi.cast
+    step, width, off = (0.005, 0.02)[level], SEAM_W * (1.0, 1.5)[level], (0.0008, 0.0035)[level]
+    xs = lambda a: SEAM_X[0] - (SEAM_X[0] - SEAM_X[1]) * smooth(0.30, 1.0, a / yl)
+    yl = float(D.CURVES['L'].at(SEAM_X[1])[1]) - 0.002
+    M = Mesh()
+    top = []
+    for i in range(int(2 * yl / step) + 1):
+        y = -yl + i * step
+        p, n = cast(Vector((xs(abs(y)), y, 2.5)), Vector((0, 0, -1)), 0.0, 5.0)
+        if p is not None:
+            top.append((p, n))
+    _strip(ctx, M, top, width, off)
+    zl, z3 = float(D.CURVES['L'].at(SEAM_X[1])[2]), float(D.CURVES['l3'].at(SEAM_SIDE_X)[2])
+    m = max(2, int(math.hypot(SEAM_SIDE_X - SEAM_X[1], zl - z3) / step) + 1)
+    for sd in (-1, 1):
+        side = []
+        for i in range(m + 1):
+            t = i / m
+            p, n = cast(Vector((SEAM_X[1] + t * (SEAM_SIDE_X - SEAM_X[1]), sd * 2.5, zl - 0.004 + t * (z3 + 0.004 - zl))), Vector((0, -sd, 0)), 0.0, 4.0)
+            if p is not None:
+                side.append((p, n))
+        _strip(ctx, M, side, width, off)
+    if M.empty():
+        M.bm.free()
+        return []
+    mat = ctx.mat_of(level, 'PanelGap')
+    return [ctx.mk(M.bm, 'WingSeam', mat, True)] if mat else []
+
+
 def wing_footprint(ctx, name, mat, level, off, hi_n=(26, 72), lo_n=(7, 26)):
     """grid cast on the shell's top surface: the whole stowed wing panel = every face aft of the seam (x 2.05) above the lamp band, out to |y| WING_Y: the deck, the ear-inner
     triangles, the ridge and the rear-shoulder (R-6) surface.  (A copy in a NEW object: the locked shell's own vertices stay where they are.)  Rows follow the tail edge, which is
@@ -767,7 +834,7 @@ def lod_post(ctx, level, body):
 def build(ctx, level):
     """-> static objects for the body.  level 2 merges everything static (no node): the nozzle ring, the plain walls and the deployed wing come here too."""
     K = consts(ctx)
-    stat = build_tail_skin(ctx, level) + [build_tail_lip(ctx, level)]
+    stat = build_tail_skin(ctx, level) + [build_tail_lip(ctx, level)] + wing_seam(ctx, level)
     cm = 'GlossBlack' if level < 2 else 'Trim'          # round 5: the diffuser is black (Carbon read mid-grey in the studio light)
     cb = ctx.CB()
     build_diffuser(cb, level)
