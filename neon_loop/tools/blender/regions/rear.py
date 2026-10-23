@@ -437,7 +437,9 @@ def build_tail_lip(ctx, level):
         pr = 0.050 * (1.0 - 0.28 * (a / 0.95) ** 2) * smooth(1.01, 0.93, a)
         pr = min(pr, max(0.0, sil_x(a) - xb - 0.002))
         zv = band_top(ctx) + 0.0005         # round 7: the visor's underside never dips into the band (it was a white wedge across the band's top at the corners): ONE edge there
-        sec_v.append([(xb - 0.06, y, zt + 0.0015), (xb + pr, y, max(zt - 0.0175, zv + 0.0005)), (xb + pr, y, max(zt - 0.0225, zv)), (xb - 0.06, y, max(zt - 0.0125, zv))])
+        zf = (deck_z(surf, xb - 0.06, y) or zt) if REAR_T17 else zt      # (REAR_T17: the visor's front edge sits on the deck where it is: with the raised tail corner the shoulder rises
+        #  aft, and a front edge laid level from xb - 0.02 stood proud of it as a line across the shoulder in p013)
+        sec_v.append([(xb - 0.06, y, zf + 0.0015), (xb + pr, y, max(zt - 0.0175, zv + 0.0005)), (xb + pr, y, max(zt - 0.0225, zv)), (xb - 0.06, y, max(zf - 0.0125, zv))])
         # lip roll (bead): base on the band plane, full section to the band's end (its depth tapers to the end face: same clamp)
         sc = 1.0
         xr = tail_x(surf, y, LIP_Z[0] + 0.02)
