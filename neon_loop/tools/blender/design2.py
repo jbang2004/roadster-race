@@ -649,12 +649,12 @@ QF_WE_K = int(os.environ.get('QF_WE_K', '3'))       # nodes on each side of the 
 #   ONE soft arc where P2 and P1 meet: cubic smooth max (C2) of constant radius QF_Q16_R (it grows from nothing at the tip, where the two are one plane).
 # The side window is a recess in P1: the rail band above it lies in P1 (wl moved onto it, plan only, QF_Q16_WL) and U's depth below P1 closes with zero slope at the tip (U moved in plan
 # only, QF_Q16_UX0 .. tip): the rows under the window run into the plane with no step, no crease and no triangle.  No solving, no switches.
-QF_Q16 = os.environ.get('QF_Q16', '0') == '1'      # PREVIEW (off until the user accepts it): QF_Q16=1 builds the q16 rear
+QF_Q16 = os.environ.get('QF_Q16', '1') == '1'      # the q16 rear (accepted 2026-10-23, "可以，开始定稿"); QF_Q16=0 rebuilds the q14 rear
 # q16 'ruled' (option 1b, user 2026-10-23 "按方案 1b 建模，出预览"): the arc READING (ARC_K, y and z) is the soft arc itself.  The photos put it on no plane through R-1 (through C0, E and the
 # reading at x 1.2 / 1.55 / 2.15: 42.8 / 32.7 / 21.6 deg), so P1 becomes the RULED surface reading -> R-1 (43 -> 22 deg aft of the tip, monotone) and the platform the ruled surface
 # L -> reading (24 -> 7 deg, monotone): no face twists back anywhere.  Under the window the strip reading -> U is part of the beam face; the window is an opening in it (U and wl close onto
 # it, plan only): the window tip moves 4.3 cm inboard, its side view does not change.
-QF_Q16_P1 = os.environ.get('QF_Q16_P1', 'plane')      # 'plane' (preview 3) | 'ruled' (option 1b)
+QF_Q16_P1 = os.environ.get('QF_Q16_P1', 'ruled')      # 'ruled' (option 1b, accepted) | 'plane' (preview 3)
 QF_Q16_KD = float(os.environ.get('QF_Q16_KD', '0.15'))      # 'ruled': the roll under the window takes on the rate of the roll behind the tip over this length before the tip
 QF_Q16_XC = float(os.environ.get('QF_Q16_XC', '2.2'))      # 'ruled': both faces follow the reading up to here; aft of it a C2 continuation (the reading's fit bends off near the ear tip)
 QF_Q16_WLP = float(os.environ.get('QF_Q16_WLP', '0.6' if QF_Q16_P1 == 'ruled' else '0'))      # 'ruled': > 0 = wl's plan moves by one quintic from this x onto the beam face at the tip (instead of QF_Q16_WL's depth closure); 0 = off

@@ -2,34 +2,34 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "20765a16bca8fd32",
-   "verts": 7515,
-   "faces": 7293
+   "sha": "8988d90f93164880",
+   "verts": 8281,
+   "faces": 8050
   },
   "wall": {
-   "sha": "e142945fb71cfe70",
-   "verts": 4492,
-   "faces": 4206
+   "sha": "6578aa20749187c7",
+   "verts": 4635,
+   "faces": 4340
   },
   "wall_black": {
-   "sha": "ef1de758e4daf7af",
-   "verts": 4727,
-   "faces": 4440
+   "sha": "1485f63743db340e",
+   "verts": 4871,
+   "faces": 4575
   },
   "pillar": {
-   "sha": "335a8df503c3f361",
+   "sha": "128e23dccbbde854",
    "verts": 470,
    "faces": 353
   },
   "door_glass": {
-   "sha": "174898d2f9d9a018",
-   "verts": 3434,
-   "faces": 3312
+   "sha": "45f5439b98ed8ab8",
+   "verts": 3650,
+   "faces": 3519
   },
   "rail_band": {
-   "sha": "9d517564144970d9",
-   "verts": 192,
-   "faces": 162
+   "sha": "2c5617df1722a1ff",
+   "verts": 219,
+   "faces": 181
   },
   "front_face": {
    "sha": "e02df9a5f256d537",
@@ -52,29 +52,29 @@
    "faces": 792
   },
   "rear_shoulder": {
-   "sha": "bb3013d719bb6242",
-   "verts": 3035,
-   "faces": 2950
+   "sha": "3f94d5b546022cd1",
+   "verts": 3110,
+   "faces": 3017
   },
   "glass": {
-   "sha": "372c09a8e5c3c026",
-   "verts": 8953,
-   "faces": 8756
+   "sha": "708a47918d7384c3",
+   "verts": 9331,
+   "faces": 9125
   },
   "ridge_inner": {
-   "sha": "cb0655d28f6ebf40",
-   "verts": 1010,
-   "faces": 889
+   "sha": "47f27dd0b406380e",
+   "verts": 1082,
+   "faces": 952
   },
   "deck": {
-   "sha": "28d1014577511172",
+   "sha": "e701b52c332c61a6",
    "verts": 586,
    "faces": 556
   },
   "tail_upper": {
-   "sha": "37750932dcc82f8e",
-   "verts": 840,
-   "faces": 767
+   "sha": "48b8eeb7a9531044",
+   "verts": 720,
+   "faces": 649
   },
   "tail_lower": {
    "sha": "c58f1ed104e3bfac",
@@ -82,9 +82,9 @@
    "faces": 2242
   },
   "facet": {
-   "sha": "7d169023b29347de",
-   "verts": 390,
-   "faces": 357
+   "sha": "85a869bfc7cba168",
+   "verts": 335,
+   "faces": 302
   }
  }
 }
