@@ -652,11 +652,12 @@ QF_WE_K = int(os.environ.get('QF_WE_K', '3'))       # nodes on each side of the 
 QF_Q16 = os.environ.get('QF_Q16', '0') == '1'      # PREVIEW (off until the user accepts it): QF_Q16=1 builds the q16 rear
 QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '0.85,1.0').split(','))
 QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '1.14'))
+QF_Q16_L = tuple(float(v) for v in os.environ.get('QF_Q16_L', '1.65,0.976').split(','))      # L aft of the window tip (p018, user 2026-10-23 "原车窗[后肩线]应该是水平的"): rises from the tip (G2) to this x / height and runs level to the tail; 0 = off
 QF_Q16_U = os.environ.get('QF_Q16_U', 'face')      # 'face': U = where the one ruled face from L (under and behind the window) reaches U's side view (the window is an opening in it); 'depth': U's depth below P1 closes (preview 1)
 QF_Q16_FX0 = float(os.environ.get('QF_Q16_FX0', str(0.65 + 11 * 0.55 / 27)))      # 'face': the face's angle law starts here (G2 with the ruled rows L -> U ahead of it)
 QF_Q16_AX = os.environ.get('QF_Q16_AX', 'y')      # wl / U move in plan ('y', the user's choice) or in side view ('z', variant)
 QF_Q16_UC = os.environ.get('QF_Q16_UC', 'auto')      # the depth's curvature (1/m) at the tip: 'auto' = the one with the smallest peak; 0 = U meets the plane to second order
-QF_Q16_P2 = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_Q16_P2', '1.4:19.5,1.55:13.8,1.7:8.8,1.85:5.0,2.0:4.2').split(',')]
+QF_Q16_P2 = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_Q16_P2', '1.4:19.9,1.55:15.5,1.7:12.1,1.85:9.4,2.0:7.6').split(',')]
 QF_Q16_R = tuple(float(v) for v in os.environ.get('QF_Q16_R', '0.25,0.25').split(','))      # radius (m) of the soft arc at the tip and aft (smoothstep between, over the 3rd value's length or to E)
 QF_Q16_RHO = tuple(float(v) for v in os.environ.get('QF_Q16_RHO', '1.3,6').split(','))      # node densification over the arc, reached when the turn is this many degrees
 FOLD_SC_D = float(os.environ.get('FOLD_SC_D', '0.0'))            # extra slope (m/m) of the roll's centre sc(x) at the window tip, a smooth bump of half width X_SC_W (a free parameter for the G1 across tip_lo)
@@ -2758,6 +2759,21 @@ def build_all():
         # 14 mm at the tip); U keeps its side view and its plan follows its depth below P1, which closes with zero slope at the tip: a quintic in x from QF_Q16_UX0 (G2 with the old depth
         # there, end curvature the one with the smallest peak) -> U arrives tangent to P1, the tip moves 14 mm inboard onto it
         _Q16.clear()
+        if QF_Q16_L[0] > 0.0:
+            # the shoulder line L aft of the tip as p018 shows it (its tonal edge, read column by column, less the 7 mm by which that edge runs above L ahead of the window): it rises
+            # from the tip to 0.976 by x 1.65 and runs level to the tail (the old fit kept rising to 1.024 at x 2.1, 4 - 5 cm above the photo).  Ahead of the tip L does not change.
+            _L0_ = CURVES['L']
+            _la_, _le_ = X_TIP, 2e-3
+            _lv_ = float(_L0_.at(_la_)[2])
+            _ls_ = float(_L0_.at(_la_ + _le_)[2] - _L0_.at(_la_ - _le_)[2]) / (2 * _le_)
+            _lc_ = float(_L0_.at(_la_ + 1e-2)[2] - 2 * _lv_ + _L0_.at(_la_ - 1e-2)[2]) / 1e-4
+            _lq_ = (_la_, _lv_, _ls_, _lc_, QF_Q16_L[0], QF_Q16_L[1], 0.0, 0.0)
+
+            def _q16_lz(x, _l=_L0_, _q=_lq_):
+                x = np.asarray(x, float)
+                z0 = _l.at(x)[..., 2]
+                return np.where(x <= _q[0], z0, np.where(x <= _q[4], quint1(np.clip(x, _q[0], _q[4]), *_q), _q[5]))
+            CURVES['L'] = Fn(_L0_.x0, _L0_.x1, lambda x, _l=_L0_: _l.at(x)[..., 1], _q16_lz, 'L')
         _qn_, _qd_ = q16_plane()
         _yon_ = lambda x, z: (_qd_ - _qn_[0] * x - _qn_[2] * z) / _qn_[1]
         _qW_, _qU_ = CURVES['wl'], CURVES['U']
