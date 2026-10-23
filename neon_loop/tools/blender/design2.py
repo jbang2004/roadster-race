@@ -669,7 +669,7 @@ QF_Q16_FX0 = float(os.environ.get('QF_Q16_FX0', str(0.65 + 11 * 0.55 / 27)))    
 QF_Q16_AX = os.environ.get('QF_Q16_AX', 'y')      # wl / U move in plan ('y', the user's choice) or in side view ('z', variant)
 QF_Q16_UC = os.environ.get('QF_Q16_UC', 'auto')      # the depth's curvature (1/m) at the tip: 'auto' = the one with the smallest peak; 0 = U meets the plane to second order
 QF_Q16_P2 = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_Q16_P2', '1.4:20.7,1.55:16.1,1.7:12.6,1.85:9.7,2.0:7.7').split(',')]
-QF_Q16_R = tuple(float(v) for v in os.environ.get('QF_Q16_R', '0.25,0.25').split(','))      # radius (m) of the soft arc at the tip and aft (smoothstep between, over the 3rd value's length or to E)
+QF_Q16_R = tuple(float(v) for v in os.environ.get('QF_Q16_R', '0.12,0.25,0.5' if QF_Q16_P1 == 'ruled' else '0.25,0.25').split(','))      # radius (m) of the soft arc at the tip and aft (smoothstep between, over the 3rd value's length or to E); 'ruled' (user 2026-10-23 "按第 1 种做，窗尖处圆角收紧"): 0.12 m at the tip, 0.25 m from x 1.7 on: the front rim light's reflection on the roll under the window (p017) is half as wide
 QF_Q16_RHO = tuple(float(v) for v in os.environ.get('QF_Q16_RHO', '1.3,6').split(','))      # node densification over the arc, reached when the turn is this many degrees
 FOLD_SC_D = float(os.environ.get('FOLD_SC_D', '0.0'))            # extra slope (m/m) of the roll's centre sc(x) at the window tip, a smooth bump of half width X_SC_W (a free parameter for the G1 across tip_lo)
 X_SC_W = 0.25
