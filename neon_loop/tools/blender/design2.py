@@ -652,6 +652,8 @@ QF_WE_K = int(os.environ.get('QF_WE_K', '3'))       # nodes on each side of the 
 QF_Q16 = os.environ.get('QF_Q16', '0') == '1'      # PREVIEW (off until the user accepts it): QF_Q16=1 builds the q16 rear
 QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '0.85,1.0').split(','))
 QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '1.14'))
+QF_Q16_U = os.environ.get('QF_Q16_U', 'face')      # 'face': U = where the one ruled face from L (under and behind the window) reaches U's side view (the window is an opening in it); 'depth': U's depth below P1 closes (preview 1)
+QF_Q16_FX0 = float(os.environ.get('QF_Q16_FX0', str(0.65 + 11 * 0.55 / 27)))      # 'face': the face's angle law starts here (G2 with the ruled rows L -> U ahead of it)
 QF_Q16_AX = os.environ.get('QF_Q16_AX', 'y')      # wl / U move in plan ('y', the user's choice) or in side view ('z', variant)
 QF_Q16_UC = os.environ.get('QF_Q16_UC', 'auto')      # the depth's curvature (1/m) at the tip: 'auto' = the one with the smallest peak; 0 = U meets the plane to second order
 QF_Q16_P2 = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_Q16_P2', '1.4:19.5,1.55:13.8,1.7:8.8,1.85:5.0,2.0:4.2').split(',')]
@@ -2792,6 +2794,35 @@ def build_all():
             x = np.asarray(x, float)
             p = _u.at(x)
             return np.where(x < _q[0], p[..., 1], _yon_(x, p[..., 2] + quint1(np.clip(x, _q[0], _q[4]), *_q)))
+        if QF_Q16_U == 'face':
+            # the window as an opening in ONE face: rows from L at the angle th(x) (a quintic in x: G2 with the ruled rows L -> U at QF_Q16_FX0, the plane's angle at the tip with the rate
+            # that makes the face tangent to P1 at the tip (the platform's twist rate there, so the soft arc is born at the tip) and the platform's curvature there (C2 across the tip
+            # row)); U keeps its side view and lies on the face: its plan follows (y = L_y - (U_z - L_z) / tan th)
+            _qL_ = CURVES['L']
+            _th1_ = math.atan2(_qn_[1], _qn_[2])
+            _ch_ = lambda x: math.atan2(float(_qU_.at(x)[2] - _qL_.at(x)[2]), float(_qL_.at(x)[1] - _qU_.at(x)[1]))
+            _fa_, _fe_ = QF_Q16_FX0, 1e-3
+            _fv_ = _ch_(_fa_)
+            _fs_ = (_ch_(_fa_ + _fe_) - _ch_(_fa_ - _fe_)) / (2 * _fe_)
+            _fc_ = (_ch_(_fa_ + 1e-2) - 2 * _fv_ + _ch_(_fa_ - 1e-2)) / 1e-4
+            _hl_ = lambda x: float(_qL_.at(x)[2]) - float(_pz_(x, float(_qL_.at(x)[1])))
+            _Tz_ = float(_qU_.at(X_TIP)[2])
+            _wT_ = float(_qL_.at(X_TIP)[1]) - _yon_(X_TIP, _Tz_)
+            _rT_ = -(_hl_(X_TIP + _fe_) - _hl_(X_TIP - _fe_)) / (2 * _fe_) / _wT_ * math.cos(_th1_) ** 2
+            _E_ = np.asarray(E_TARGET, float)
+            _LE_ = _qL_.at(_E_[0])
+            _kn_ = [(X_TIP, _th1_)] + [(k[0], math.radians(k[1])) for k in QF_Q16_P2 if X_TIP < k[0] < _E_[0]] + [(_E_[0], math.atan2(_E_[2] - _LE_[2], _LE_[1] - _E_[1]))]
+            _sp_ = Spline1D([k[0] for k in _kn_], [k[1] for k in _kn_], 'clamped', _rT_, 0.0)
+            _cR_ = float((_sp_(X_TIP + 2e-3) - 2 * _sp_(X_TIP + 1e-3) + _sp_(X_TIP)) / 1e-6)
+            _fq_ = (_fa_, _fv_, _fs_, _fc_, X_TIP, _th1_, _rT_, _cR_)
+            _Q16['fq'] = _fq_
+
+            def _q16_uy(x, _u=_qU_, _l=_qL_, _q=_fq_):
+                x = np.asarray(x, float)
+                p, l = _u.at(x), _l.at(x)
+                th = quint1(np.clip(x, _q[0], _q[4]), *_q)
+                return np.where(x < _q[0], p[..., 1], l[..., 1] - (p[..., 2] - l[..., 2]) / np.tan(th))
+
         def _q16_uz(x, _u=_qU_, _q=_qq_):
             x = np.asarray(x, float)
             p = _u.at(x)
