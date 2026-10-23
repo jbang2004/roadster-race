@@ -667,6 +667,8 @@ QF_Q16_L = tuple(float(v) for v in os.environ.get('QF_Q16_L', '1.65,0.976').spli
 QF_Q16_LT = tuple(float(v) for v in os.environ.get('QF_Q16_LT', '0,2.37,0.986').split(','))      # the tail corner (user 2026-10-23, "按侧视组"): p018's corner top reads 0.993 (0.984 less the same tonal-edge offset as the level part): L leaves its level at [0] and reaches [2] at [1] (quintic, level at both ends); the light box's top is 5 mm under it; [0] = 0: off (preview: QF_Q16_LT=2.15,2.37,0.986, with REAR_T17=1)
 _q17_ = os.environ.get('QF_Q17', '1')
 QF_Q17 = (1.015, 2.345, 2.10) if _q17_ == '1' else (tuple(float(v) for v in _q17_.split(',')) if ',' in _q17_ else None)      # the level tail top edge (user 2026-10-23, "取中 ≈1.015": the tail seen from behind is flat in r81, the model showed a trapezoid of paint over the light box): (height of the tail's top edge, x where R-1 meets the deck = p013's ear triangle closing 4.6 cm before the tail edge, x where R-1 leaves its line and the platform's angle leaves the reading); QF_Q17=0: off (the tail before 2026-10-23)
+_tw_ = os.environ.get('QF_Q17_TW', '1')
+QF_Q17_TW = (0.05, 1e-6) if _tw_ == '1' else (tuple(float(v) for v in _tw_.split(',')) if ',' in _tw_ else None)      # q17 tail twist (review 2026-10-23, item 2): (the beam face's width at the level edge, third-difference weight of the platform angle's fit); 0: the platform meets the ruling L -> R-1 at the edge and the face lies down onto it
 QF_Q17_L = tuple(float(v) for v in os.environ.get('QF_Q17_L', '1.9709,2.3685,0.25,0,2.20').split(','))      # q17, L to the raised corner: (x of the facet apex S = shell2 L sample I_FS, x of the tail corner = L's last sample, length of L's bend into the facet's straight edge before S, the platform's pivot: the width from L over which it rises into the corner with L, inboard of it it falls to the tail edge (0: where a ruling L -> R-1 at the edge has it); x from which the beam face lies down onto the platform, flat at the edge)
 QF_Q16_R1 = tuple(float(v) for v in os.environ.get('QF_Q16_R1', '0.85,0.013').split(','))      # R-1 raised (p018 top outline, user 2026-10-23 "R-1 和后窗玻璃边一起抬高"): by [1] at the tip, a quintic from [0] (G2), straight to E aft; the rear glass edge and centre line rise with it; 0 = off
 QF_Q16_U = os.environ.get('QF_Q16_U', 'depth' if QF_Q16_P1 == 'ruled' else 'face')      # 'face': U = where the one ruled face from L (under and behind the window) reaches U's side view (the window is an opening in it); 'depth': U's depth below P1 closes (preview 1)
@@ -1249,6 +1251,39 @@ def _q16_raw(x):
     return np.arctan2(A[..., 2] - L[..., 2], L[..., 1] - A[..., 1]), np.arctan2(R[..., 2] - A[..., 2], A[..., 1] - R[..., 1])
 
 
+def _q17_twist(xc, xe, thE):
+    """QF_Q17_TW: the platform's angle over xc .. xe (a Spline1D of rad), least squares: the platform's lengthwise profiles (z = L_z + (L_y - y) tan(angle), y from the reading to L) as
+    straight as they can be (sum of z_xx^2) plus QF_Q17_TW[1] times the angle's third difference; the reading's own angle (and so its rate and curvature) up to xc, thE at the edge.
+    (review 2026-10-23, item 2: going on to the ruling L -> R-1 at the edge, the platform had to turn at 0.76 rad/m there -- L rises 4 deg into the corner, R-1 falls 19 deg to E --
+    and its profiles ran -4 -> -1 -> -8 deg between S and the edge, an S in the zebra at the tail corners; R-1's height over the platform is the beam face's, to the edge)"""
+    h = 2.5e-3
+    xg = np.arange(xc - 3 * h, xe + 0.5 * h, h)
+    xg[-1] = xe
+    n = len(xg)
+    Lg, Ag = CURVES['L'].at(xg), np.asarray(_Q16['rd'].at(xg), float)
+    g = np.tan(_q16_raw(np.minimum(xg, xc))[0])
+    g[-1] = math.tan(thE)
+    i0 = int(np.searchsorted(xg, xc + 1e-9))
+    rows, rhs = [], []
+    for i in range(i0 - 1, n - 1):
+        lyp, lypp = (Lg[i + 1, 1] - Lg[i - 1, 1]) / (2 * h), (Lg[i + 1, 1] - 2 * Lg[i, 1] + Lg[i - 1, 1]) / h ** 2
+        lzpp = (Lg[i + 1, 2] - 2 * Lg[i, 2] + Lg[i - 1, 2]) / h ** 2
+        for y in np.arange(Ag[i, 1] + 0.03, Lg[i, 1] - 0.01, 0.01):
+            dd_ = Lg[i, 1] - y
+            c = np.zeros(n)
+            c[i - 1], c[i], c[i + 1] = -lyp / h + dd_ / h ** 2, lypp - 2 * dd_ / h ** 2, lyp / h + dd_ / h ** 2
+            rows.append(c); rhs.append(-lzpp)
+    for i in range(i0 - 2, n - 2):
+        c = np.zeros(n)
+        c[i - 1], c[i], c[i + 1], c[i + 2] = -1.0, 3.0, -3.0, 1.0
+        rows.append(math.sqrt(QF_Q17_TW[1]) * c / h ** 3); rhs.append(0.0)
+    M, b = np.array(rows), np.array(rhs)
+    fr = np.arange(i0, n - 1)
+    fx = np.setdiff1d(np.arange(n), fr)
+    g[fr] = np.linalg.lstsq(M[:, fr], b - M[:, fx] @ g[fx], rcond=None)[0]
+    return Spline1D(xg, np.arctan(g))
+
+
 def q16_ruled(x):
     """q16 'ruled': (platform angle, beam face angle) in section at x (rad, arrays like x): the reading's own up to QF_Q16_XC; aft of it the platform goes on (C2) to L -> E at the ear tip
     (zero rate there, as in 'plane') and the beam face carries on its own trend (C2, quadratic)"""
@@ -1270,12 +1305,27 @@ def q16_ruled(x):
             sr = float(Rr[1, 2] - Rr[0, 2]) / (2 * e)
             se = -_Q16['l17'][2] / QF_Q17_L[3] if QF_Q17_L[3] > 0.0 else (sr - _Q16['l17'][2]) / float(Rl[1] - 0.5 * (Rr[0, 1] + Rr[1, 1]))
         _Q16['rc'] = (xc, dd(t2), dd(t1), xe, math.atan2(E[2] - LE[2], LE[1] - E[1]), se)
+        if QF_Q17 and QF_Q17_TW:
+            _Q16['tw'] = _q17_twist(xc, xe, _Q16['rc'][4])
     xc, p2, p1, xe, thE, se = _Q16['rc']
     t2, t1 = _q16_raw(np.minimum(x, xc))
     dx = np.maximum(x - xc, 0.0)
-    a2 = np.where(x <= xc, t2, quint1(np.minimum(x, xe), xc, *p2, xe, thE, se, 0.0))
+    if 'tw' in _Q16:
+        a2 = np.where(x <= xc, t2, _Q16['tw'](np.clip(x, xc, xe)))
+    else:
+        a2 = np.where(x <= xc, t2, quint1(np.minimum(x, xe), xc, *p2, xe, thE, se, 0.0))
     a1 = np.where(x <= xc, t1, p1[0] + p1[1] * dx + 0.5 * p1[2] * dx * dx)
-    if QF_Q17 and len(QF_Q17_L) > 4:
+    if 'tw' in _Q16 and len(QF_Q17_L) > 4:
+        # QF_Q17_TW: R-1 stands over the platform (gap) to the edge; the beam face takes it: its width (from R-1 to where it meets the platform) goes from the one its own trend gives
+        # to QF_Q17_TW[0] at the edge, from QF_Q17_L[4] on (G2 with the trend there).  Both angles reach thE at the edge, the arc between them fades there
+        xw = QF_Q17_L[4]
+        Lx, Rx = CURVES['L'].at(np.clip(x, xw, xe)), CURVES['rail'].at(np.clip(x, xw, xe))
+        g2 = np.tan(a2)
+        gap = np.maximum(Rx[..., 2] - Lx[..., 2] - (Lx[..., 1] - Rx[..., 1]) * g2, 0.0)
+        wt = gap / np.maximum(np.tan(a1) - g2, 1e-6)
+        w = wt + (QF_Q17_TW[0] - wt) * sstep(xw, xe, x)
+        a1 = np.where(x <= xw, a1, np.arctan(g2 + gap / np.maximum(w, 1e-6)))
+    elif QF_Q17 and len(QF_Q17_L) > 4:
         # q17: the beam face's height (R-1 over the platform) goes to nothing at the level edge; at its own angle it ended as a 9 deg crease beside R-1, so it lies down onto the platform
         wf = quint1(np.minimum(x, xe), QF_Q17_L[4], 0.0, 0.0, 0.0, xe, 1.0, 0.0, 0.0)
         a1 = a1 + (a2 - a1) * wf
@@ -3198,7 +3248,8 @@ def build_all():
         CURVES['gedge'], CURVES['top'] = _q17_deck(_g0_, 'gedge'), _q17_deck(_t0_, 'top')
         CURVES['rail'] = Fn(_r0_.x0, _r0_.x1, lambda x, _r=_r0_: _r.at(x)[..., 1], lambda x, _r=_r0_: _r.at(x)[..., 2] - _Dr_(x), 'rail')
         gedge = CURVES['gedge']
-        _Q16.pop('rc', None)            # (the section angles are taken again from the moved rail and deck)
+        for _k_ in ('rc', 'tw'):
+            _Q16.pop(_k_, None)            # (the section angles are taken again from the moved rail and deck)
     # ---- the READING of the soft arc (x-graph, fair B-spline through ARC_K) and the named rear curves
     _FOLD.pop('tip', None)
     u0 = np.asarray(CURVES['U'].at(X_FOLD0), float)
