@@ -166,6 +166,11 @@ def tip_point(L, rail, q13=True):
     t = a + TIP_F * (b - a)
     t[1] -= QF_TIP_D[0]          # ... less these offsets (q13): the rung above the tip then rises steeper than the chord L -> tip, so the tip row carries the soft arc's roll (see QF_TIP_D)
     t[2] -= QF_TIP_D[1]
+    if QF_Q14 and QF_Q15 and QF_R1_ZK > 0.0 and QF_R1_Y > 0.0:
+        # q15: the tip sits on the beam plane (R-1 and the tip row's outer edge L; 7 mm lower), so the band under the window runs into the plane behind it without a step
+        c0, e = np.array([X_TIP, QF_R1_Y, QF_R1_ZK]), np.asarray(E_TARGET, float)
+        n = np.cross(e - c0, np.asarray(a, float) - c0)
+        t[2] = c0[2] - (n[0] * (t[0] - c0[0]) + n[1] * (t[1] - c0[1])) / n[2]
     return t
 
 
@@ -626,6 +631,16 @@ QF_KUP = tuple(float(v) for v in os.environ.get('QF_KUP', '1.45,1.75').split(','
 QF_WE = tuple(float(v) for v in os.environ.get('QF_WE', '0.007,0.05').split(','))
 QF_P2E = float(os.environ.get('QF_P2E', '2'))
 QF_P2R = float(os.environ.get('QF_P2R', '1.2'))      # forward of the tip the pane face steepens from the ruled row's chord (X_FOLD0: no fold yet) to the glass's angle at the tip by this x (1 - (1 - t)^QF_P2E)
+# q15 (user 2026-10-23: "窗尖后的三角形不应该存在，而是应该窗后的平面顺滑过渡到窗下的平面"): no pane behind the tip.  The beam plane (1) now holds R-1 and the tip row's outer edge L(X_TIP)
+# (27.6 deg; the window tip is 0.7 cm above it), so the band under the window (straight rows L -> U up to the tip, 28.4 deg at the tip row) runs into it without a step; aft of the tip
+# every row = smooth max(platform, beam plane), the platform's angle falls from the beam plane's at the tip (QF_P3B_D0 deg / m) through QF_P3B to L -> E at the tail.
+QF_Q15 = os.environ.get('QF_Q15', '0') == '1'      # VARIANT (off): experiment; see HISTORY q15
+QF_P3B = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_P3B', '1.4:19.5,1.55:13.8,1.7:8.8,1.85:5.0,2.0:4.2').split(',')]
+QF_P3B_D0 = os.environ.get('QF_P3B_D0', 'auto')      # the platform's twist rate at the tip (deg / m); auto: the one that makes the rows C1 with the band under the window there
+QF_TK = float(os.environ.get('QF_TK', '4'))
+QF_KMIN = float(os.environ.get('QF_KMIN', '0.12'))     # q15: the fold's round is sized for at least this slope difference
+QF_U15 = float(os.environ.get('QF_U15', '0'))        # VARIANT (off: it bent the window line's hook down into the tip and folded the door glass): U's side view re-drawn over this length, tangent to the beam plane at the tip
+QF_TF = float(os.environ.get('QF_TF', '0.08'))       # behind the tip the plane first carries on the window line's rise (a tent L -> T -> C0, C1 with the band under the window) and lets it go over this length
 QF_WE_K = int(os.environ.get('QF_WE_K', '3'))       # nodes on each side of the edge (2 | 1) that sit at a fixed spacing across it: the edge runs along one grid line from the tip on
 FOLD_SC_D = float(os.environ.get('FOLD_SC_D', '0.0'))            # extra slope (m/m) of the roll's centre sc(x) at the window tip, a smooth bump of half width X_SC_W (a free parameter for the G1 across tip_lo)
 X_SC_W = 0.25
@@ -1026,7 +1041,7 @@ def q14_faces():
     if 'q14' not in _FOLD:
         T, U0 = np.asarray(CURVES['U'].at(X_TIP), float), np.asarray(CURVES['U'].at(X_FOLD0), float)
         C0, E = np.asarray(REAR['C0'], float), np.asarray(REAR['E'], float)
-        n1 = np.cross(E - C0, T - C0)
+        n1 = np.cross(E - C0, (np.asarray(CURVES['L'].at(X_TIP), float) if QF_Q15 else T) - C0)
         n1 *= np.sign(n1[2]) / np.linalg.norm(n1)
         ph2 = fold_glass_dir(X_TIP)
         sn, cs = math.sin(ph2), math.cos(ph2)
@@ -1040,6 +1055,17 @@ def q14_faces():
         LE = CURVES['L'].at(E[0])
         kn = [(X_FOLD0, chord(X_FOLD0))] + [(k[0], math.radians(k[1])) for k in QF_P3 if X_FOLD0 < k[0] < E[0]] + [(E[0], math.atan2(E[2] - LE[2], LE[1] - E[1]))]
         p3 = Spline1D([k[0] for k in kn], [k[1] for k in kn], 'clamped', (chord(X_FOLD0) - chord(X_FOLD0 - e)) / e, 0.0)
+        if QF_Q15:
+            kn = [(X_TIP, math.atan2(n1[1], n1[2]))] + [(k[0], math.radians(k[1])) for k in QF_P3B if X_TIP < k[0] < E[0]] + kn[-1:]
+            if QF_P3B_D0 == 'auto':
+                # the band under the window (straight L -> U, U tangent to the plane at the tip) leaves the plane with the rate (1 - t) h_L' along the row (h_L: L above the plane):
+                # the platform's rows match it to first order with d tan(phi3) / dx = -h_L' / (L_y - T_y)
+                hl = lambda xv: float(CURVES['L'].at(xv)[2] - (n1 @ C0 - n1[0] * xv - n1[1] * CURVES['L'].at(xv)[1]) / n1[2])
+                dt = -(hl(X_TIP) - hl(X_TIP - e)) / e / float(CURVES['L'].at(X_TIP)[1] - T[1])
+                d0 = dt * math.cos(kn[0][1]) ** 2
+            else:
+                d0 = math.radians(float(QF_P3B_D0))
+            p3 = Spline1D([k[0] for k in kn], [k[1] for k in kn], 'clamped', d0, 0.0)
         _FOLD['q14'] = dict(n1=n1, d1=float(n1 @ C0), n2=n2, d2=float(n2 @ T), ph1=math.atan2(n1[1], n1[2]), ph2=ph2, p3=p3, xe=float(E[0]))
     return _FOLD['q14']
 
@@ -1059,6 +1085,13 @@ def fold_solve_q14(x, a, c, ax=None, cx=None):
     ax = x if ax is None else ax
     cx = x if cx is None else cx
     fwd = x <= X_TIP + 1e-9
+    if QF_Q15 and fwd:                  # under the window: the straight ruling L -> U (the band runs into the beam plane at the tip)
+        u = np.linspace(0.0, 1.0, 2401)
+        y, z = a[0] + (c[0] - a[0]) * u, a[1] + (c[1] - a[1]) * u
+        s = u * float(np.hypot(*(c - a)))
+        ph = math.atan2(c[1] - a[1], a[0] - c[0])
+        return dict(x=float(x), a=a, c=c, phi0=ph, S=float(s[-1]), sc=float(s[-1]), ell=0.0, th=0.0, T=0.0, B1=0.0, B2=0.0, lam=1e-4, s=s, y=y - a[0], z=z - a[1],
+                    phi=np.full_like(s, ph), kap=np.zeros_like(s), res=0.0, net=0.0, th2=0.0, s2=float(s[-1]), ell2=0.0, cv=g['ph2'] - g['ph1'], straight=True)
     ph3 = float(g['p3'](min(x, g['xe'])))
     ph2 = g['ph2']
     if fwd and x < QF_P2R:
@@ -1073,16 +1106,32 @@ def fold_solve_q14(x, a, c, ax=None, cx=None):
     z3 = a[1] + (a[0] - y) * t3
     n1, n2 = g['n1'], g['n2']
     z2 = c[1] + (c[0] - y) * t2 if fwd else (g['d2'] - n2[0] * xs - n2[1] * y) / n2[2]
-    kw = 0.0
+    kw, tent = 0.0, None
     if fwd:
         up = z2
     else:
         z1 = (g['d1'] - n1[0] * xs - n1[1] * y) / n1[2]
-        tw = min(max((x - X_TIP) / QF_WE[1], 0.0), 1.0)
-        kw = QF_WE[0] * (t2 - t1) * (1.0 - (1.0 - tw) ** 2)
+        if QF_Q15:
+            z2 = z1 + 1.0                # (no pane: the beam plane alone)
+            tent = None
+            wt = 1.0 - float(sstep(X_TIP, X_TIP + QF_TF, x))
+            if wt > 0.0:
+                # the window line U rises through the plane into the tip (its height above the plane grows ~0.45 m / m there) and the band under it with it (the share t of the row
+                # from L), while the rail band above the window lies in the plane: right behind the tip the row carries the band's rise on (its height t * rate * (x - tip)) and lets it go
+                # over QF_TF; inboard of the tip's row point it drops to nothing over a width growing from 0 at the tip (QF_TK (x - tip)): C1 with the band, nothing on the rail band
+                T_, L_ = (np.asarray(CURVES[k].at(X_TIP), float) for k in ('U', 'L'))
+                hU = lambda xv: float(CURVES['U'].at(xv)[2] - (g['d1'] - n1[0] * xv - n1[1] * CURVES['U'].at(xv)[1]) / n1[2])
+                amp = wt * (hU(X_TIP) + (x - X_TIP) * (hU(X_TIP) - hU(X_TIP - 0.005)) / 0.005)
+                dk = _softmin(QF_TK * (x - X_TIP), 0.7 * (T_[1] - c[0]), 0.005) + 1e-4      # (and it is gone well before R-1)
+                lin, drop = (L_[1] - y) / (L_[1] - T_[1]), 1.0 - (T_[1] - y) / dk
+                tent = amp * -_smin(-_smin(lin, drop, 0.3), np.zeros_like(y), 0.15)
+        else:
+            tw = min(max((x - X_TIP) / QF_WE[1], 0.0), 1.0)
+            kw = QF_WE[0] * (t2 - t1) * (1.0 - (1.0 - tw) ** 2)
         up = _smin(z2, z1, kw)
-    sup = t2 + (t1 - t2) * float(sstep(QF_KUP[0], QF_KUP[1], x))
-    kf = max(pchip([(X_FOLD0, 0.0)] + QF_FW, x), 0.0) * max(sup - t3, 0.0)
+    sup = t1 if QF_Q15 else t2 + (t1 - t2) * float(sstep(QF_KUP[0], QF_KUP[1], x))
+    kf = max(pchip([(X_FOLD0, 0.0)] + QF_FW, x), 0.0) * (max(sup - t3, QF_KMIN) if QF_Q15 else max(sup - t3, 0.0))
+    # (q15: near the tip the platform and the plane are nearly one plane: there the round is spread wide instead of becoming a fine line that sweeps across the face)
     # where the round reaches the row's end (at its birth on U, at the ear where the beam plane runs out on R-1) the face it rounds into is lowered there just enough for the row to
     # end on its end point: the crease at U softens into the fold, the fold fades into R-1 at the ear, and the round is never squeezed into a crease the mesh cannot carry
     za, zc = z3[-1], up[-1]
@@ -1102,6 +1151,8 @@ def fold_solve_q14(x, a, c, ax=None, cx=None):
         else:
             up = _smin(z2, z1 - dl, kw)
     z = -_smin(-z3, -up, kf)
+    if QF_Q15 and not fwd and tent is not None:
+        z = z + tent
     dy, dz = np.diff(y), np.diff(z)
     s = np.r_[0.0, np.cumsum(np.hypot(dy, dz))]
     phi = np.arctan2(np.gradient(z), -np.gradient(y))
@@ -1111,7 +1162,7 @@ def fold_solve_q14(x, a, c, ax=None, cx=None):
     sc, ell = float(s[i]), (float(s[blend].max() - s[blend].min()) if blend.any() else 0.0)
     out = dict(x=float(x), a=a, c=c, phi0=ph3, S=float(s[-1]), sc=sc, ell=ell, th=float(math.atan(sup) - ph3), T=0.0, B1=0.0, B2=0.0, lam=max(float(s[-1]) - sc, 1e-4),
                s=s, y=y - a[0], z=z - a[1], phi=phi, kap=kap, res=0.0, net=float(phi[-1] - phi[0]), th2=0.0, s2=sc, ell2=0.0, cv=g['ph2'] - g['ph1'])
-    if not fwd:
+    if not fwd and not QF_Q15:
         j = int(np.argmax(z2 >= z1)) if np.any(z2 >= z1) else len(s) - 1
         we = np.abs(z2 - z1) < kw
         s2, ell2 = float(s[j]), (float(s[we].max() - s[we].min()) if we.any() else 0.0)
@@ -1202,7 +1253,7 @@ def fold_row(a, c, M, u0=None, w=0.0, ja=None):
     x = 0.5 * (a[0] + c[0])
     if QF_Q14 and x > X_FOLD0 + 1e-9:
         sol = fold_solve_q14(x, a[1:], c[1:], a[0], c[0])
-        sj = q14_nodes(sol, M, ja)
+        sj = np.linspace(0.0, sol['S'], M + 1) if sol.get('straight') else q14_nodes(sol, M, ja)
         if u0 is not None:
             sj = sol['S'] * ((1.0 - w) * np.asarray(u0) + w * sj / sol['S'])
         P = fold_points(sol, sj, a[0], c[0])
@@ -2565,6 +2616,24 @@ def build_all():
         _dgwz_ = float(_dgW0_.at(X_TIP)[2] - _dgW0_.at(X_TIP - _dgh_)[2]) / _dgh_
         _dguz_ = float(_dgU0_.at(X_TIP)[2] - _dgU0_.at(X_TIP - _dgh_)[2]) / _dgh_
         _dgs1_ = _dgwy_ + (_dgwz_ - _dguz_) / math.tan(math.radians(QF_DG_X[1]))
+        _dgUz_ = None
+        if QF_Q14 and QF_Q15 and QF_U15 > 0.0:
+            # q15: U also arrives TANGENT to the beam plane n . p = d (side view: the slope z' with n . (1, y', z') = 0, solved together with the plan slope y' of the pane angle), so
+            # the band under the window and the plane behind it meet at the tip with no crease along the tip row; the side view changes over the last QF_U15 m only (G2 there)
+            _c0_, _e_ = np.array([X_TIP, QF_R1_Y, QF_R1_ZK]), np.asarray(E_TARGET, float)
+            _n_ = np.cross(_e_ - _c0_, np.asarray(CURVES['L'].at(X_TIP), float) - _c0_)
+            _tg_ = math.tan(math.radians(QF_DG_X[1]))
+            _A_ = _dgwy_ + _dgwz_ / _tg_
+            _zs_ = -(_n_[0] + _n_[1] * _A_) / (_n_[2] - _n_[1] / _tg_)
+            _dgs1_ = _A_ - _zs_ / _tg_
+            _ua_, _ue_ = X_TIP - QF_U15, 1e-3
+            _uzv_ = float(_dgU0_.at(_ua_)[2])
+            _uzd_ = float(_dgU0_.at(_ua_ + _ue_)[2] - _dgU0_.at(_ua_ - _ue_)[2]) / (2 * _ue_)
+            _uzc_ = float(_dgU0_.at(_ua_ + 1e-2)[2] - 2 * _uzv_ + _dgU0_.at(_ua_ - 1e-2)[2]) / 1e-4
+            _uxs_ = np.linspace(_ua_, X_TIP, 161)
+            _ubest_ = min(((float(np.abs(np.gradient(np.gradient(quint1(_uxs_, _ua_, _uzv_, _uzd_, _uzc_, X_TIP, float(_dgT_[2]), _zs_, _ct), _uxs_), _uxs_))[2:-2].max()), _ct)
+                            for _ct in np.linspace(-12.0, 12.0, 121)))
+            _dgUz_ = (_ua_, _uzv_, _uzd_, _uzc_, X_TIP, float(_dgT_[2]), _zs_, _ubest_[1])
         _dgxs_ = np.linspace(_dgxa_, X_TIP, 241)
         _dgbest_ = None
         for _ct in np.linspace(-4.0, 4.0, 81):
@@ -2574,7 +2643,8 @@ def build_all():
                 _dgbest_ = (_pk, _ct)
         _dgq_ = (_dgxa_, _dgv_, _dgd_, _dgc_, X_TIP, float(_dgT_[1]), _dgs1_, _dgbest_[1])
         _dgUn_ = Fn(_dgU0_.x0, _dgU0_.x1, lambda x, _u=_dgU0_, _q=_dgq_: np.where(np.asarray(x, float) < _q[0], _u.at(x)[..., 1], quint1(x, *_q)),
-                    lambda x, _u=_dgU0_: _u.at(x)[..., 2], 'U')
+                    (lambda x, _u=_dgU0_: _u.at(x)[..., 2]) if _dgUz_ is None else
+                    (lambda x, _u=_dgU0_, _q=_dgUz_: np.where(np.asarray(x, float) < _q[0], _u.at(x)[..., 2], quint1(x, *_q))), 'U')
         _dgUn_.resid, _dgUn_.dbg = getattr(_dgU0_, 'resid', None), getattr(_dgU0_, 'dbg', None)
         CURVES['U'] = _dgUn_
     # centre line of the glass: the windscreen plane, the dome, then (rear window) the glass edge + crown (-> 0 at the wing seam), then the flat deck (= the glass edge level)
