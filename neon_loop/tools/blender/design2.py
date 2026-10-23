@@ -657,7 +657,8 @@ QF_Q16 = os.environ.get('QF_Q16', '0') == '1'      # PREVIEW (off until the user
 QF_Q16_P1 = os.environ.get('QF_Q16_P1', 'plane')      # 'plane' (preview 3) | 'ruled' (option 1b)
 QF_Q16_KD = float(os.environ.get('QF_Q16_KD', '0.15'))      # 'ruled': the roll under the window takes on the rate of the roll behind the tip over this length before the tip
 QF_Q16_XC = float(os.environ.get('QF_Q16_XC', '2.2'))      # 'ruled': both faces follow the reading up to here; aft of it a C2 continuation (the reading's fit bends off near the ear tip)
-QF_Q16_WLP = float(os.environ.get('QF_Q16_WLP', '0'))      # 'ruled': > 0 = wl's plan moves by one quintic from this x onto the beam face at the tip (instead of QF_Q16_WL's depth closure)
+QF_Q16_WLP = float(os.environ.get('QF_Q16_WLP', '0.6' if QF_Q16_P1 == 'ruled' else '0'))      # 'ruled': > 0 = wl's plan moves by one quintic from this x onto the beam face at the tip (instead of QF_Q16_WL's depth closure); 0 = off
+QF_Q16_UP = float(os.environ.get('QF_Q16_UP', '0.95' if QF_Q16_P1 == 'ruled' else '0'))      # 'ruled': > 0 = U's plan is one quintic from this x onto the beam face at the tip (instead of QF_Q16_UX0's depth closure); 0 = off
 QF_Q16_DR = float(os.environ.get('QF_Q16_DR', str(1.2 - (0.65 + 11 * 0.55 / 27))))      # 'ruled': the rows under the window take on the densification over the arc over this length from X_FOLD0
 QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '0.9' if QF_Q16_P1 == 'ruled' else '1.0').split(','))      # wl: one value = its distance to P1 closes with zero slope from this x to the tip (plan only); two = the old sstep ramp onto P1
 QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '0.9' if QF_Q16_P1 == 'ruled' else '1.14'))
@@ -3005,6 +3006,29 @@ def build_all():
                 p, l = _u.at(x), _l.at(x)
                 th = quint1(np.clip(x, _q[0], _q[4]), *_q)
                 return np.where(x < _q[0], p[..., 1], l[..., 1] - (p[..., 2] - l[..., 2]) / np.tan(th))
+
+        if QF_Q16_P1 == 'ruled' and QF_Q16_UP > 0.0:
+            # the bright spot under the window tip (user 2026-10-23 "先处理窗尖下的小亮斑"; p017, the front rim light mirrored in the strip reading -> U): the strip's normal follows U's
+            # direction, and closing U's depth from x 0.9 kept it 5 - 8 deg less aft-facing than the beam face behind the tip until the last few cm.  U's plan is instead ONE quintic
+            # from QF_Q16_UP (G2 with U there) to the beam face at the tip, arriving along it: U turns inboard from about x 1.0 and runs almost straight into the tip (p017 shows the
+            # window's lower edge as a straight diagonal into the tip), and the strip faces aft like the beam face from x 1.06 on
+            _ue_ = 1e-3
+            _uyT_ = float(_yon_(X_TIP, float(_qU_.at(X_TIP)[2])))
+            _ufx_ = (float(_pz_(X_TIP + _ue_, _uyT_)) - float(_pz_(X_TIP - _ue_, _uyT_))) / (2 * _ue_)
+            _ufy_ = (float(_pz_(X_TIP, _uyT_ + _ue_)) - float(_pz_(X_TIP, _uyT_ - _ue_))) / (2 * _ue_)
+            _usT_ = (float(_qU_.at(X_TIP)[2] - _qU_.at(X_TIP - _ue_)[2]) / _ue_ - _ufx_) / _ufy_
+            _ua_ = QF_Q16_UP
+            _uv_ = float(_qU_.at(_ua_)[1])
+            _us_ = float(_qU_.at(_ua_ + _ue_)[1] - _qU_.at(_ua_ - _ue_)[1]) / (2 * _ue_)
+            _uc_ = float(_qU_.at(_ua_ + 1e-2)[1] - 2 * _uv_ + _qU_.at(_ua_ - 1e-2)[1]) / 1e-4
+            _upx_ = np.linspace(_ua_, X_TIP, 301)
+            _upc_ = min(((float(np.abs(np.gradient(np.gradient(quint1(_upx_, _ua_, _uv_, _us_, _uc_, X_TIP, _uyT_, _usT_, _ct), _upx_), _upx_))[3:-3].max()), _ct)
+                         for _ct in np.linspace(-60.0, 60.0, 1201)))[1]
+            _upq_ = (_ua_, _uv_, _us_, _uc_, X_TIP, _uyT_, _usT_, _upc_)
+
+            def _q16_uy(x, _u=_qU_, _q=_upq_):
+                x = np.asarray(x, float)
+                return np.where(x < _q[0], _u.at(x)[..., 1], quint1(np.clip(x, _q[0], _q[4]), *_q))
 
         def _q16_uz(x, _u=_qU_, _q=_qq_):
             x = np.asarray(x, float)
