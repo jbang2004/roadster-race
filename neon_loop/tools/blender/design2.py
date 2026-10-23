@@ -659,7 +659,7 @@ QF_Q16_KD = float(os.environ.get('QF_Q16_KD', '0.15'))      # 'ruled': the roll 
 QF_Q16_XC = float(os.environ.get('QF_Q16_XC', '2.2'))      # 'ruled': both faces follow the reading up to here; aft of it a C2 continuation (the reading's fit bends off near the ear tip)
 QF_Q16_WLP = float(os.environ.get('QF_Q16_WLP', '0.6' if QF_Q16_P1 == 'ruled' else '0'))      # 'ruled': > 0 = wl's plan moves by one quintic from this x onto the beam face at the tip (instead of QF_Q16_WL's depth closure); 0 = off
 QF_Q16_UP = float(os.environ.get('QF_Q16_UP', '0.95' if QF_Q16_P1 == 'ruled' else '0'))      # 'ruled': > 0 = U's plan is one quintic from this x onto the beam face at the tip (instead of QF_Q16_UX0's depth closure); 0 = off
-QF_Q16_GH = tuple(float(v) for v in os.environ.get('QF_Q16_GH', '0.95,1.1,0.05' if QF_Q16_P1 == 'ruled' else '0').split(','))      # 'ruled': the rear glass edge closes onto R-1 in plan over [0] .. [1] and leaves it round the corner over +-[2] (in height too over [3] .. [4] if given); 0 = off
+QF_Q16_GH = tuple(float(v) for v in os.environ.get('QF_Q16_GH', '0.75,1.1,0.05' if QF_Q16_P1 == 'ruled' else '0').split(','))      # 'ruled': the rear glass edge closes onto R-1 in plan over [0] .. [1] and leaves it round the corner over +-[2] (in height too over [3] .. [4] if given); 0 = off
 QF_Q16_DR = float(os.environ.get('QF_Q16_DR', str(1.2 - (0.65 + 11 * 0.55 / 27))))      # 'ruled': the rows under the window take on the densification over the arc over this length from X_FOLD0
 QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '0.9' if QF_Q16_P1 == 'ruled' else '1.0').split(','))      # wl: one value = its distance to P1 closes with zero slope from this x to the tip (plan only); two = the old sstep ramp onto P1
 QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '0.9' if QF_Q16_P1 == 'ruled' else '1.14'))
@@ -3107,9 +3107,9 @@ def build_all():
         # R-1 (and 1 - 20 mm under it); where it came up to the crest's height (x 1.0 - 1.3) the strip between them lay almost flat and lit up as a bright sliver beside the window, and the
         # edge bent there.  official-02 shows the beam's inner edge straight down to the window's end, p013 the triangle starting at the glass corner with no width.  The glass edge now
         # closes onto R-1 in PLAN (a quintic blend over QF_Q16_GH[0] .. [1]), runs under it, and leaves it again round the vertex with the diagonal P1 -> P3 (blend over +-[2]): there the
-        # strip is a step under the crest (7 -> 1 mm high over x 1.0 - 1.15) that faces inboard, not up.  Ahead of x 0.95 nothing changes (closing it from 0.6 made a 20 mm wall under the
-        # crest, a 56 deg knife edge); its height is kept (closing that too folded the rear glass 2 - 4 deg between rows; optional [3] .. [4]).  The diagonal, P1, P3 and everything aft of
-        # the corner are unchanged.  (0.5 mm stays between them: no zero-area faces in the ridge strip.)
+        # strip is a step under the crest (17 mm at x 0.85, 7 -> 1 mm over x 1.0 - 1.15) that faces inboard, not up.  Ahead of x 0.75 nothing changes (closing it from 0.6 made a 20 mm wall
+        # under the crest; from 0.95 the edge jogged out over 0.15 m, seen from behind); its height is kept (closing that too folded the rear glass 2 - 4 deg between rows; optional
+        # [3] .. [4]).  The diagonal, P1, P3 and everything aft of the corner are unchanged.  (0.5 mm stays between them: no zero-area faces in the ridge strip.)
         _ge0_, _rl_ = CURVES['gedge'], CURVES['rail']
         _gd_ = lambda x: y_p1 + (Y_P3 - y_p1) * (np.asarray(x, float) - X_P1) / (X_SEAM - X_P1)
         _xg_ = np.linspace(1.0, X_P1, 2001)
