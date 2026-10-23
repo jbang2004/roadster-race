@@ -53,12 +53,18 @@ endplate foot sweeps forward on a large radius and tapers (build_diffuser); the 
 import math, os, types
 import bpy, bmesh
 from mathutils import Vector, Matrix
-from common import smooth, smoother, pchip, W_DARK
+from common import smooth, smoother, pchip, W_DARK, Mesh, prism
 
 NAME = 'rear'
 
 # ----------------------------------------------------------------------------- the black / body-colour outline of the tail
-LIP_BOT = 0.893                  # underside of the lip roll
+# 2026-10-23 (user: "按侧视组" -- the tail's heights from the side group p018 / p017): everything on the tail face below the light band's top and the diffuser module were placed
+# with the matched r81 camera, which reads 5 - 10 px high on anchors that have nothing to do with the tail (roof apex, rear glass corners, ear tips, ground; see REFS r81).  p018 puts the
+# tail corner at ~0.99 and the diffuser endplates ~6 cm under the old ones; the r81 layout (box, red bar, lip, plate, nozzles, module) keeps its proportions and drops by DZ_TAIL.
+REAR_T17 = os.environ.get('REAR_T17', '1') == '1'      # the 2026-10-23 tail (with design2 QF_Q17, the level tail edge): the tail layout below, the wing seam and the one-piece wing; 0 = the tail before it
+# (with design2 QF_Q17 the tail's top edge is level at 1.015, the box's top 1.010: the r81 layout (box top 1.056) drops 4.6 cm; with the side-group corner alone (0.986) it was 6 cm)
+DZ_TAIL = -0.046 if REAR_T17 else 0.0
+LIP_BOT = 0.893 + DZ_TAIL        # underside of the lip roll
 
 
 CREASE = [(1.90, 0.580), (1.96, 0.636), (2.00, 0.664), (2.06, 0.708), (2.14, 0.772), (2.20, 0.800), (2.26, 0.840), (2.34, 0.862)]
@@ -194,21 +200,21 @@ def deck_z(surf, x, y):
 
 
 # ------------------------------------------------------------- constants
-BAND = (0.930, 1.040)            # gloss-black light band (z): r81 (zoomed, gamma-lifted) black band z 0.93 .. 1.05 under the white top edge; the face ends at the deck, z 1.042
+BAND = (0.930 + DZ_TAIL, 1.040)  # gloss-black light band (z): r81 (zoomed, gamma-lifted) black band z 0.93 .. 1.05 under the white top edge; the face ends at the deck, z 1.042
 BAND_Y = 0.930                   # half width (column parameter) of band / bar: r81 red bar ends +-236 px = +-0.95 m.  The rays swing round at the corner, so a column at 0.930 lands at |y| 0.949 on the
                                  # tail's corner (0.945): round 3b: the band / bar stop there, so the corner facet seen from the side (p018) is plain paint (it was 0.940 -> 0.965: a black cap on the facet)
-BAR_H, BAR_Y = 0.015, 0.918            # red bar (round 7, DR-2: the same width along the whole band, straight to the ends, 1.2 cm short of the band's end, centred in the band: r81): thickness, half width
-LIP_Z = (LIP_BOT, 0.930)         # the convex lip roll under the band (r81: pink roll z 0.90 .. 0.926, thin white line at 0.893)
-PLATE = dict(uv=(1024, 512, 1024, 216), y=(-0.17, 0.17), z=(0.668, 0.838))
+BAR_H, BAR_Y = 0.018 if REAR_T17 else 0.015, 0.918            # red bar (2026-10-23: 1.5 -> 1.8 cm, r81 rows 719 - 723.5) (round 7, DR-2: the same width along the whole band, straight to the ends, 1.2 cm short of the band's end, centred in the band: r81): thickness, half width
+LIP_Z = (LIP_BOT, 0.930 + DZ_TAIL)   # the convex lip roll under the band (r81: pink roll z 0.90 .. 0.926, thin white line at 0.893)
+PLATE = dict(uv=(1024, 512, 1024, 216), y=(-0.17, 0.17), z=(0.668 + DZ_TAIL, 0.838 + DZ_TAIL))
 DIFF_W = 0.700                   # half width of the diffuser module (r81 / 012: |y| 0.70 ... 0.72)
-JET_X, JET_Z = 2.318, 0.578      # nozzle lip face (x) and nozzle centre height (r81: ring centres at y 822.5 px = z 0.579; 012 agrees).  Round 2: recessed 3.4 cm deeper (the crossbeam's rear edge at 2.408
+JET_X, JET_Z = 2.318, 0.578 + DZ_TAIL      # (src/car/jets.js JET_EXITS follows) nozzle lip face (x) and nozzle centre height (r81: ring centres at y 822.5 px = z 0.579; 012 agrees).  Round 2: recessed 3.4 cm deeper (the crossbeam's rear edge at 2.408
                                  # overhangs the rings by 9 cm, so the housing hides them in p017 as in the photo)
 JET_Y = (-0.405, -0.135, 0.135, 0.405)
 PORT_Y = (-0.525, -0.27, 0.0, 0.27, 0.525)   # the dark round recessed holes between / outside the nozzles (SPEC DR-7: the mounts)
 PORT_R = (0.034, 0.048, 0.048, 0.048, 0.034)      # (the outer two are smaller: the housing's chamfer is close)
 CELL = 0.062                     # half height of the nozzle housing's channel
-TOP_Z = (JET_Z + CELL, 0.660)    # crossbeam plate (its underside closes the nozzle channel); its top is the housing's top edge (z 0.66 in r81)
-SHELF_Z = (0.4935, JET_Z - CELL)     # shelf under the channel = ceiling of the tunnels (housing bottom z 0.50)
+TOP_Z = (JET_Z + CELL, 0.660 + DZ_TAIL)    # crossbeam plate (its underside closes the nozzle channel); its top is the housing's top edge (z 0.66 in r81)
+SHELF_Z = (0.4935 + DZ_TAIL, JET_Z - CELL)     # shelf under the channel = ceiling of the tunnels (housing bottom z 0.50)
 CH_X = 2.284                     # back wall of the nozzle channel (the beam's rear edge is at 2.408; the nozzle lips stand 3.4 cm proud of the wall)
 N_WALL = (0.004, 0.004, 0.0045, 0.62)    # the channel wall / tunnel back wall: round 5b = BLACK ANODISED METAL (a < 0.7 is metal in the game shader and in render_ref_views): its reflectance is the base colour, 0.4 %, so under the studio
                                  # lights it stays pure black (a rough dielectric kept the 4 % Fresnel of the bright floor: grey 25 / 255 against the photo's 7).  (Round 3's grey-pink wall was a metal with base 0.034.)
@@ -216,13 +222,13 @@ CH_CHAMF = 0.15                  # the housing's upper end corners fall by this 
 CH_Y0 = 0.50                     # |y| where the chamfer starts (flat top edge to here)
 TUCK = 0.095                     # round 5: the module's lower part is tucked in under the tail (it follows the shell's own undercut instead of hanging off the tail as a box): everything below TUCK_Z0
                                  # is sheared forward LINEARLY (so the flat wall tiles stay exactly planar: just tilted), by TUCK at TUCK_Z1 (tuck_x)
-TUCK_Z0, TUCK_Z1 = 0.495, 0.20
+TUCK_Z0, TUCK_Z1 = 0.495 + DZ_TAIL, 0.20 + DZ_TAIL
 BATH_R = 0.10                    # round 6: the module's lower outline seen from behind is a bathtub: vertical sides, flat bottom, corners of this radius (bath_z)
-BATH_Z0, BATH_Z1 = 0.19, 0.46    # the squeeze zone: the bottom z BATH_Z0 rises along the corner arc, the top of the zone (BATH_Z1) stays
+BATH_Z0, BATH_Z1 = 0.19 + DZ_TAIL, 0.46 + DZ_TAIL    # the squeeze zone: the bottom z BATH_Z0 rises along the corner arc, the top of the zone (BATH_Z1) stays
 SWEEP = (0.045, 0.075)           # round 6: the ends fall forward in plan like a parabola, u^2: SWEEP[0] at the housing, + SWEEP[1] more at the foot: ONE continuous forward-sweeping bottom edge (module_xyz)
 DIFF_PLAN = 0.045                # the module's ends fall forward in plan (rounded module, endplate trailing edge ~ at the lip)
 WALL_X = 2.25                    # dark back wall of the tunnels (round 3: 10 cm behind the shelf's rear edge, a compact box: it was 20 cm)
-BAY_Z0 = 0.215                   # the bays' floor = the tray that closes the box underneath (r81 / thrust: the photo's box ends at z ~0.20)
+BAY_Z0 = 0.215 + DZ_TAIL         # the bays' floor = the tray that closes the box underneath (r81 / thrust: the photo's box ends at z ~0.20)
 STRAKE_Y = (-0.315, 0.0, 0.315)
 BAY_E = (-DIFF_W + 0.016, -0.315, 0.0, 0.315, DIFF_W - 0.016)   # bay edges
 # --- the active wing (DR-1).  Stowed = the shell's own deck faces; the Wing node is a COPY of them (+ tips, endplates, struts in WingPlates) that coincides with the deck in
@@ -258,7 +264,7 @@ def consts(ctx):
     c = ctx.cache.get('rear')
     if c is None:
         surf = ctx.surf_hi
-        lean = math.degrees(math.atan2(tail_x(surf, 0.0, 0.83) - tail_x(surf, 0.0, 0.69), 0.14))      # (the plate panel's face normal points down)
+        lean = math.degrees(math.atan2(tail_x(surf, 0.0, 0.83 + DZ_TAIL) - tail_x(surf, 0.0, 0.69 + DZ_TAIL), 0.14))      # (the plate panel's face normal points down)
         c = types.SimpleNamespace(FAS_LEAN=lean)
         ctx.cache['rear'] = c
     return c
@@ -276,7 +282,7 @@ def tail_top_z(y, ctx):
     the shoulder line L's height.  Read from the shell (q16: L runs level aft of the window, the corner fell from 1.005 to 0.976; the old fixed 1.005 let the band's rays pass over the
     tail's top edge and paint jagged black wedges on the rear shoulder).  The black light band must stop under it: above it the rays would paint the rear shoulder (as in the first round)."""
     D = ctx.A.D
-    ye, ze, zc = (0.403, 1.042, 1.005) if D is None else (D.E_TARGET[1], D.E_TARGET[2], float(D.CURVES['L'].at(D.E_TARGET[0])[2]))
+    ye, ze, zc = (0.403, 1.042, 1.005) if D is None else (D.E_TARGET[1], float(D.CURVES['rail'].at(D.E_TARGET[0])[2]), float(D.CURVES['L'].at(D.E_TARGET[0])[2]))      # (E's height from R-1's end: q17 levels it)
     t = min(1.0, max(0.0, (abs(y) - ye) / (0.945 - ye)))
     return ze + (zc - ze) * t
 
@@ -392,6 +398,11 @@ def build_tail_skin(ctx, level):
     if OLDBODY:         # (new shell: the deck behind the seam is the body-colour wing panel carrying the ridges on to the tail edge)
         out.append(patch('DeckPanel', gb, ((-BAND_Y, BAND_Y), (0.0, 1.0)), lambda a, bb: (deck_x0(a) + bb * (deck_x1(ctx.surf, a) - deck_x0(a)), a, 3.0), (0, 0, -1),
                          0.0025 * k, (110, 40, 20)[level], (7, 4, 3)[level], a_fn=lambda t: ycol(2 * t - 1, BAND_Y)))
+    if level == 0 and REAR_T17:      # 2026-10-23 (012 / thrust): a dark grey lens strip in each outer half of the band under the red bar (012: |y| 0.41 .. 0.92, 70 .. 87 % of the band's height down from its top)
+        zl = lambda f: bt - f * (bt - BAND[0])
+        for s_ in (-1, 1):
+            out.append(patch('TailLens_%s' % ('L' if s_ < 0 else 'R'), 'Trim', ((0.41, 0.92), (0.0, 1.0)), None, None, 0.0032, 40, 2,
+                             ray_fn=lambda a, t, s_=s_: rear_ray(s_ * a, zl(0.87) + t * (zl(0.70) - zl(0.87))), keep=keep))
     if level < 2:
         out.append(patch('BrakeBar', 'BrakeLamp' if level == 0 else 'TailLamp', ((-BAR_Y, BAR_Y), (0.0, 1.0)), None, None, 0.0036, nu, 3,
                          unit_uv=True, ray_fn=lambda a, t: rear_ray(a, bar_z + (t - 0.5) * (BAR_H + 0.003) * bar_t(a)), keep=keep,
@@ -427,7 +438,10 @@ def build_tail_lip(ctx, level):
         pr = 0.050 * (1.0 - 0.28 * (a / 0.95) ** 2) * smooth(1.01, 0.93, a)
         pr = min(pr, max(0.0, sil_x(a) - xb - 0.002))
         zv = band_top(ctx) + 0.0005         # round 7: the visor's underside never dips into the band (it was a white wedge across the band's top at the corners): ONE edge there
-        sec_v.append([(xb - 0.06, y, zt + 0.0015), (xb + pr, y, max(zt - 0.0175, zv + 0.0005)), (xb + pr, y, max(zt - 0.0225, zv)), (xb - 0.06, y, max(zt - 0.0125, zv))])
+        # (REAR_T17: the visor's front edge is buried 0.5 mm under the deck where it is.  It stood 1.5 mm proud; the old tail sloped down aft enough to hide that, the raised tail corner
+        #  makes the deck there flat, and the step read as a bright line across the shoulder in p013)
+        zf = (deck_z(surf, xb - 0.06, y) or zt) - 0.0020 if REAR_T17 else zt
+        sec_v.append([(xb - 0.06, y, zf + 0.0015), (xb + pr, y, max(zt - 0.0175, zv + 0.0005)), (xb + pr, y, max(zt - 0.0225, zv)), (xb - 0.06, y, max(zf - 0.0125, zv))])
         # lip roll (bead): base on the band plane, full section to the band's end (its depth tapers to the end face: same clamp)
         sc = 1.0
         xr = tail_x(surf, y, LIP_Z[0] + 0.02)
@@ -510,12 +524,12 @@ def build_diffuser(cb, level):
     # round 3: a COMPACT BOX.  The tray closes it underneath (bottom edge z 0.19, r81 / thrust); the old ramp floor that stuck out below the walls (a pale plate) is gone, what is left
     # of it hides behind the tray; the strakes are thin ribs in front of the walls (they were big fins hanging 20 cm into the bays).
     # round 5: the conspicuous bottom cross-plate (the rear tray, 10 cm behind the walls) is gone: the floor slab ends flush at the wall, so the module's lower edge is just the wall's rounded foot
-    fl = [(1.95, 0.176), (WALL_X - 0.01, 0.196), (WALL_X, 0.200), (WALL_X, 0.214), (WALL_X - 0.01, 0.208), (1.95, 0.188), (1.95, 0.176)]
+    fl = [(x, z + DZ_TAIL) for x, z in ((1.95, 0.176), (WALL_X - 0.01, 0.196), (WALL_X, 0.200), (WALL_X, 0.214), (WALL_X - 0.01, 0.208), (1.95, 0.188), (1.95, 0.176))]
     ys = [-(yo - t), -0.66, -0.63, -0.60, -0.50, 0.50, 0.60, 0.63, 0.66, yo - t]            # (stations along the rounded corner: the warp bends the slab's bottom edge into the arc)
     if level == 1:
-        fl, ys = [(1.95, 0.176), (WALL_X, 0.200), (WALL_X, 0.214), (1.95, 0.188), (1.95, 0.176)], [-(yo - t), -0.65, -0.60, 0.60, 0.65, yo - t]
+        fl, ys = [(x, z + DZ_TAIL) for x, z in ((1.95, 0.176), (WALL_X, 0.200), (WALL_X, 0.214), (1.95, 0.188), (1.95, 0.176))], [-(yo - t), -0.65, -0.60, 0.60, 0.65, yo - t]
     elif level == 2:
-        fl, ys = [(1.95, 0.176), (WALL_X, 0.200), (WALL_X, 0.214), (1.95, 0.188), (1.95, 0.176)], [-(yo - t), yo - t]
+        fl, ys = [(x, z + DZ_TAIL) for x, z in ((1.95, 0.176), (WALL_X, 0.200), (WALL_X, 0.214), (1.95, 0.188), (1.95, 0.176))], [-(yo - t), yo - t]
     cb.prism([[(x, y, z) for x, z in fl] for y in ys], [W_DARK] * (len(fl) - 1), cap=W_DARK)
     if level == 0:       # the strakes' bodies are in the Thrusters node (black metal: no floor reflection on their sides); here only their thin bright rear (leading) edges: a 1 cm lip in GlossBlack
         for y in STRAKE_Y:
@@ -530,11 +544,11 @@ def build_endplates(cb, level, col):
     housing's end down to z ~0.40, then one smooth arc into the bottom edge, which curls forward and up.  Their foot (z 0.29) is the end of the bathtub's corner arc (bath_z at |y| = DIFF_W).
     hi / lod1: they are in the Thrusters node, black metal (N_WALL): a big flat GlossBlack plate seen from the side mirrors the studio's softbox as a white sheet (it was blazing white in p018)."""
     yo, t = DIFF_W, 0.011
-    R_, xc, zc = 0.095, 2.267, 0.385                    # the corner arc: centre (2.267, 0.385), radius 0.095: from the vertical trailing edge (x 2.362) to the bottom (z 0.29)
+    R_, xc, zc = 0.095, 2.267, 0.385 + DZ_TAIL          # the corner arc: centre (2.267, 0.385), radius 0.095: from the vertical trailing edge (x 2.362) to the bottom (z 0.29)
     da = 30 if level else 15
     arc = [(xc + R_ * math.cos(math.radians(a)), zc + R_ * math.sin(math.radians(a))) for a in range(0, -91, -da)]
-    ep = [(1.98, 0.700), (2.10, 0.694), (2.20, 0.680), (2.28, 0.662), (2.335, 0.640), (2.355, 0.612), (2.362, 0.570), (2.362, 0.500)] + arc + \
-         [(2.170, 0.294), (2.110, 0.304), (2.050, 0.322), (1.998, 0.346), (1.98, 0.360)]
+    ep = [(x, z + DZ_TAIL) for x, z in ((1.98, 0.700), (2.10, 0.694), (2.20, 0.680), (2.28, 0.662), (2.335, 0.640), (2.355, 0.612), (2.362, 0.570), (2.362, 0.500))] + arc + \
+         [(x, z + DZ_TAIL) for x, z in ((2.170, 0.294), (2.110, 0.304), (2.050, 0.322), (1.998, 0.346), (1.98, 0.360))]
     if level == 2:
         ep = ep[::2]
     for s in (-1, 1):
@@ -544,8 +558,8 @@ def build_endplates(cb, level, col):
 def strake_edge(dx):
     """the rear (leading) edge polyline [(x, z)] of the strakes (knife blades), standing 10.8 cm off the tunnel wall at the top and sweeping forward to meet the wall at the foot; dx shifts it in x"""
     zt = SHELF_Z[0] + 0.004
-    return [(WALL_X + 0.108 + dx, zt), (WALL_X + 0.107 + dx, 0.44), (WALL_X + 0.096 + dx, 0.375), (WALL_X + 0.076 + dx, 0.32), (WALL_X + 0.048 + dx, 0.272), (WALL_X + 0.018 + dx, 0.236),
-            (WALL_X + 0.004 + dx, BAY_Z0 + 0.004)]
+    return [(WALL_X + 0.108 + dx, zt)] + [(WALL_X + ex + dx, z + DZ_TAIL) for ex, z in ((0.107, 0.44), (0.096, 0.375), (0.076, 0.32), (0.048, 0.272), (0.018, 0.236))] + \
+           [(WALL_X + 0.004 + dx, BAY_Z0 + 0.004)]
 
 
 def build_strakes(cb, level):
@@ -641,7 +655,7 @@ def build_tunnels(cb, level):
     for yc in JET_Y:
         h = 0.135
         poly = [(yc - h, z0), (yc, z0), (yc + h, z0)] + [(yc + h, z) for z in zs[1:-1]] + [(yc + h, z1), (yc, z1), (yc - h, z1)] + [(yc - h, z) for z in zs[-2:0:-1]]
-        holed_tile(cb, x, poly, (yc, 0.350, 0.030), N_WALL, n=n, depth=0.075, bore=N_VOID, floor=N_VOID, cone=0.014)
+        holed_tile(cb, x, poly, (yc, 0.350 + DZ_TAIL, 0.030), N_WALL, n=n, depth=0.075, bore=N_VOID, floor=N_VOID, cone=0.014)
     w = DIFF_W - 0.016
     ya = [0.54, 0.57, 0.60, 0.62, 0.64, 0.66, w] if level == 0 else [0.54, 0.60, 0.65, w]            # (the outer side piece in strips, so that the bathtub warp can bend the wall's foot into the corner arc)
     for sg in (-1, 1):
@@ -669,6 +683,73 @@ def glass_cover(ctx, cb, level):
             vs = [grid[i][j], grid[i][j + 1], grid[i + 1][j + 1], grid[i + 1][j]]
             if all(v is not None for v in vs):
                 cb.face(vs, N_COVER)
+
+
+# --- the wing's seam (REAR_T17; user 2026-10-23: "原车的车尾和玻璃之间有一条贯穿的缝隙，那条缝隙事实上升起来就是车辆的尾翼了").  p013: straight across the whole width at x 2.04
+# (the centre, where it is the rear glass's end) .. 2.025 (|y| 0.9), over both ridges and shoulders to the body's side edge; p018: it crosses the shoulder line L at x ~2.01 and runs down
+# the side, just aft of the corner facet's front edge, to the black zone (l3) at x 2.145.  The rest of the wing's outline (l3, the tail's side edges, the tail top edge over the light box)
+# is a colour boundary or a crease already.  A hairline like the door seams (SIDE): PanelGap, 3 mm on paint.
+SEAM_X = (2.05, 2.02)            # top seam: x at the centre (the glass end) and at L
+SEAM_SIDE_X = 2.145              # side seam: x where it meets l3
+SEAM_W = 0.0030                  # hairline width on paint (m)
+
+
+def _strip(ctx, M, cl, width, off):
+    """hairline along the centre line cl [(point, normal)] laid on the HI surface (as side.strip_along + side._grid): the edges are the centre line moved +-width / 2 across and re-cast"""
+    cast = ctx.surf_hi.cast
+    P, N = [], []
+    for i, (c, n) in enumerate(cl):
+        a, b = cl[max(i - 1, 0)][0], cl[min(i + 1, len(cl) - 1)][0]
+        w = (b - a).normalized().cross(n).normalized()
+        rp, rn = [], []
+        for s_ in (-0.5, 0.5):
+            q = c + w * (s_ * width)
+            p, nn = cast(q + n * 0.02, -n, off, 0.06)
+            if p is None:
+                p, nn = q + n * off, n
+            rp.append(p)
+            rn.append(nn)
+        P.append(rp)
+        N.append(rn)
+    V = [[M.v(p) for p in row] for row in P]
+    for i in range(len(V) - 1):
+        vs = [V[i][0], V[i + 1][0], V[i + 1][1], V[i][1]]
+        nn = N[i][0] + N[i + 1][0] + N[i + 1][1] + N[i][1]
+        gn = (vs[1].co - vs[0].co).cross(vs[3].co - vs[0].co) + (vs[3].co - vs[2].co).cross(vs[1].co - vs[2].co)
+        M.face(vs if gn.dot(nn) >= 0 else vs[::-1])
+
+
+def wing_seam(ctx, level):
+    """-> [object]: the top seam across the whole width (cast down) and the two side seams (cast in from the side), one PanelGap object"""
+    if not REAR_T17 or level > 1:
+        return []
+    D, cast = ctx.A.D, ctx.surf_hi.cast
+    step, width, off = (0.005, 0.02)[level], SEAM_W * (1.0, 1.5)[level], (0.0008, 0.0035)[level]
+    xs = lambda a: SEAM_X[0] - (SEAM_X[0] - SEAM_X[1]) * smooth(0.30, 1.0, a / yl)
+    yl = float(D.CURVES['L'].at(SEAM_X[1])[1]) - 0.002
+    M = Mesh()
+    top = []
+    for i in range(int(2 * yl / step) + 1):
+        y = -yl + i * step
+        p, n = cast(Vector((xs(abs(y)), y, 2.5)), Vector((0, 0, -1)), 0.0, 5.0)
+        if p is not None:
+            top.append((p, n))
+    _strip(ctx, M, top, width, off)
+    zl, z3 = float(D.CURVES['L'].at(SEAM_X[1])[2]), float(D.CURVES['l3'].at(SEAM_SIDE_X)[2])
+    m = max(2, int(math.hypot(SEAM_SIDE_X - SEAM_X[1], zl - z3) / step) + 1)
+    for sd in (-1, 1):
+        side = []
+        for i in range(m + 1):
+            t = i / m
+            p, n = cast(Vector((SEAM_X[1] + t * (SEAM_SIDE_X - SEAM_X[1]), sd * 2.5, zl - 0.004 + t * (z3 + 0.004 - zl))), Vector((0, -sd, 0)), 0.0, 4.0)
+            if p is not None:
+                side.append((p, n))
+        _strip(ctx, M, side, width, off)
+    if M.empty():
+        M.bm.free()
+        return []
+    mat = ctx.mat_of(level, 'PanelGap')
+    return [ctx.mk(M.bm, 'WingSeam', mat, True)] if mat else []
 
 
 def wing_footprint(ctx, name, mat, level, off, hi_n=(26, 72), lo_n=(7, 26)):
@@ -720,6 +801,249 @@ def build_wing(ctx, level):
     return ob
 
 
+# --- step 3 (REAR_T17; user 2026-10-23: "那条缝隙事实上升起来就是车辆的尾翼"): the wing is the WHOLE piece inside the seam.  001 (side, raised): the deck, the ears, the rear shoulders and the
+# rear-corner facets lift as one body-colour shell, the facets hanging from it as its endplates, dark lip and linkage under its front; high / 012 (behind): its trailing edge is one straight
+# level blade (the level tail edge, design2 QF_Q17).  Wing = the shell's own surface inside the seam outline (top: seam -> tail edge, out to L; each side: the corner facet aft of the side
+# seam, down to l3) with a thickness and a dark underside and rims; WingWell = the same outline in gloss black (the cut-outs down the sides included); WingPlates = the struts and the
+# linkage only (they drop in as it deploys; no tips sliding out, no separate endplates).
+W17_T, W17_TF = 0.016, 0.010             # thickness of the panel and of the endplates
+W17_N = ((24, 64, 9), (7, 22, 4))       # per level: rows seam -> tail edge, columns across, rows down each facet
+W17_END = dict(out=0.09, flare=math.radians(15.0), k=(0.2, 0.9))   # raised, the endplates stand out of the body (high / 012: tops at |y| ~1.04, bottoms ~1.09): each slides out by `out` on a tip blade and
+                                            # swings out at the bottom by `flare` about its top edge, over the deploy fraction k (user 2026-10-23: "端板做外张")
+W17_DEP = dict(dx=0.28, dy=0.13, rot=0.45)   # raised: 0.28 m aft, 0.13 m up, 26 deg trailing edge up about WING_P (001 mapped onto the matched p018 camera by the wheel hubs: the deck's front edge and the
+                                            # tail corner of the raised piece); `high` shows it steeper still, ~57 deg = this + the game's airbrake pitch (index.js wingA, up to 0.55 rad)
+
+
+def w17_lines(ctx):
+    """the shell's own L and l3 (shell2 edges; L aft of the facet apex is the facet's straight edge) as x -> y / z, the tail face's x at the corner, the seam (as wing_seam)"""
+    c = ctx.cache.get('w17')
+    if c is None:
+        import numpy as np
+        D, R = ctx.A.D, ctx.A.S2.Registry()
+        L, l3 = np.asarray(R.edge('L'), float), np.asarray(R.edge('l3'), float)
+        L, l3 = L[L[:, 0] > 1.8], l3[l3[:, 0] > 1.8]
+        yl = float(D.CURVES['L'].at(SEAM_X[1])[1]) - 0.002
+        zl, z3 = float(np.interp(SEAM_X[1], L[:, 0], L[:, 2])), float(np.interp(SEAM_SIDE_X, l3[:, 0], l3[:, 2]))
+        c = types.SimpleNamespace(
+            xs=lambda ay: SEAM_X[0] - (SEAM_X[0] - SEAM_X[1]) * smooth(0.30, 1.0, ay / yl),
+            xe=lambda ay: float(D.tail_x(ay, 1.0)) - 0.003,
+            yL=lambda x: float(np.interp(x, L[:, 0], L[:, 1])) - 0.0015,
+            xL1=float(L[-1, 0]),
+            zb=lambda x: (zl - 0.004 + (x - SEAM_X[1]) / (SEAM_SIDE_X - SEAM_X[1]) * (z3 + 0.008 - zl)) if x <= SEAM_SIDE_X else float(np.interp(x, l3[:, 0], l3[:, 2])) + 0.004,
+            xr=lambda z: float(D.tail_x(0.94, z)) - 0.003)
+        ctx.cache['w17'] = c
+    return c
+
+
+def w17_skin(ctx, level, off):
+    """the outline's surface, cast on the level's body `off` out along its normal: (top[i][j], fac[s][i][k]) of (point, normal) or None; fac[s][i][0] IS top[i][edge column]"""
+    W = w17_lines(ctx)
+    nu, nv, nk = W17_N[min(level, 1)]
+    cast = ctx.surf.cast
+    top = [[None] * nv for _ in range(nu)]
+    for i in range(nu):
+        u = i / (nu - 1)
+        for j in range(nv):
+            v = -1.0 + 2.0 * j / (nv - 1)
+            x = W.xs(0.9)
+            for _ in range(4):
+                y = v * W.yL(x)
+                x = W.xs(abs(y)) + u * (W.xe(abs(y)) - W.xs(abs(y)))
+            p, n = cast(Vector((x, y, 3.0)), Vector((0, 0, -1)), off, 4.0)
+            for k in range(12):                 # (L's crease is rounded: the top ends 2 - 3 mm inside L; the edge columns step in until they land on it)
+                if p is not None and n.z > 0.3:
+                    break
+                y -= math.copysign(0.001, v)
+                p, n = cast(Vector((x, y, 3.0)), Vector((0, 0, -1)), off, 4.0)
+            top[i][j] = None if p is None or n.z <= 0.3 else (p, n)
+    fac = {}
+    for s in (-1, 1):
+        je = nv - 1 if s > 0 else 0
+        F = []
+        for i in range(nu):
+            a = top[i][je]
+            col = [a]
+            if a is not None:
+                zb = min(W.zb(a[0].x), a[0].z - 0.003)
+                for k in range(1, nk):
+                    z = a[0].z + (zb - a[0].z) * k / (nk - 1)
+                    x = min(a[0].x, W.xr(z))
+                    p, n = cast(Vector((x, s * 2.5, z)), Vector((0, -s, 0)), off, 3.0)
+                    col.append(None if p is None else (p, n))
+            else:
+                col += [None] * (nk - 1)
+            F.append(col)
+        fac[s] = F
+    return top, fac
+
+
+def w17_sheets(M, top, fac, IT=None, IF=None, with_top=True):
+    """quads of the top grid and the facet grids in `fac` into Mesh M: outer (the cast points, facing along the normals) or, with IT / IF, the inner points (facing in).  Without
+    the top only the facets are made (their first row is the top's edge column)"""
+    nu, nv = len(top), len(top[0])
+    sg = 1.0 if IT is None else -1.0
+    cols = range(nv) if with_top else sorted({nv - 1 if s > 0 else 0 for s in fac})
+    VT = [[None] * nv for _ in range(nu)]
+    for i in range(nu):
+        for j in cols:
+            if top[i][j] is not None:
+                VT[i][j] = M.v(top[i][j][0] if IT is None else IT[i][j])
+    if with_top:
+        for i in range(nu - 1):
+            for j in range(nv - 1):
+                q = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)]
+                if all(VT[a][b] is not None for a, b in q):
+                    M.face([VT[a][b] for a, b in q], sg * sum((top[a][b][1] for a, b in q), Vector((0, 0, 0))))
+    for s, F in fac.items():
+        je = nv - 1 if s > 0 else 0
+        if not with_top and IF is not None:          # (the endplate on its own: its top edge's inner points are its own, not the panel's)
+            for i in range(nu):
+                if VT[i][je] is not None and IF[s][i][0] is not None:
+                    VT[i][je].co = IF[s][i][0]
+        V = [[VT[i][je] if k == 0 else (None if F[i][k] is None else M.v(F[i][k][0] if IF is None else IF[s][i][k])) for k in range(len(F[i]))] for i in range(nu)]
+        for i in range(nu - 1):
+            for k in range(len(F[i]) - 1):
+                q = [(i, k), (i + 1, k), (i + 1, k + 1), (i, k + 1)]
+                if all(V[a][b] is not None for a, b in q):
+                    M.face([V[a][b] for a, b in q], sg * sum((F[a][max(b, 1)][1] for a, b in q), Vector((0, 0, 0))))
+
+
+def build_wing17(ctx, level):
+    """-> Wing: the panel inside the seam (paint outside; gloss black underside and rims), pivot-local, with the children WingPlates (struts + linkage) and, per side, WingTipL / R
+    (a tip blade under the panel's side edge, which slides out) carrying WingEndL / R (the endplate = the corner facet, hinged on its top edge, which swings out at the bottom)"""
+    top, fac = w17_skin(ctx, level, 0.0 if level == 0 else 0.002)
+    nu, nv = len(top), len(top[0])
+    IT = [[None if q is None else q[0] - q[1] * W17_T for q in row] for row in top]
+    IF = {}
+    for s, F in fac.items():
+        IF[s] = [[None if F[i][k] is None or F[i][max(k, 1)] is None else F[i][k][0] - F[i][max(k, 1)][1] * W17_TF for k in range(len(F[i]))] for i in range(nu)]
+    P = WING_P
+
+    def rim(M, a, ia, b, ib, ref):
+        """a thickness face from the outer edge a -> b to the inner one (own copies of the points), facing away from ref (a point inside the outline)"""
+        if a is None or b is None or ia is None or ib is None:
+            return
+        M.face([M.v(a[0]), M.v(b[0]), M.v(ib), M.v(ia)], 0.5 * (a[0] + b[0]) - ref)
+    # the panel.  (lod1 keeps to its draw-call budget, 20: the panel, its struts and each endplate with its tip are one paint mesh each, the tips are bare pivots)
+    lo = level >= 1
+    Mo = Mesh()
+    Mi = Mo if lo else Mesh()
+    w17_sheets(Mo, top, {})
+    w17_sheets(Mi, top, {}, IT, {})
+    for i, i2 in ((0, 1), (nu - 1, nu - 2)):                   # leading edge (the top seam), trailing edge (the tail's top edge)
+        for j in range(nv - 1):
+            if top[i2][j] is not None:
+                rim(Mi, top[i][j], IT[i][j], top[i][j + 1], IT[i][j + 1], top[i2][j][0])
+    for j, j2 in ((0, 1), (nv - 1, nv - 2)):                   # the side edges (on L)
+        for i in range(nu - 1):
+            if top[i][j2] is not None:
+                rim(Mi, top[i][j], IT[i][j], top[i + 1][j], IT[i + 1][j], top[i][j2][0])
+    o1 = ctx.mk(Mo.bm, 'Wing', 'Paint', True)
+    if lo:
+        st = ctx.cb_obj(wing17_links(ctx, level), 'WingLinks', 'Paint', sharp=30)
+        st.location = P                                               # (built pivot-local)
+        ob = ctx.join([o1, st], 'Wing')
+    else:
+        o2 = ctx.mk(Mi.bm, 'WingUnder', ctx.mat_of(level, 'GlossBlack'), True)
+        ctx.mark_sharp(o2.data, 30)
+        ob = ctx.join([o1, o2], 'Wing')
+    ob.data.transform(Matrix.Translation(-P))
+    ob.location = P
+    if not lo:
+        kids = ctx.cb_obj(wing17_links(ctx, level), 'WingPlates', 'Carbon', sharp=30)
+        kids.parent = ob        # struts and linkage: the game drops them in (scaleY) as the wing deploys
+    # the tips and the endplates
+    parts = []
+    for s, F in fac.items():
+        je = nv - 1 if s > 0 else 0
+        sd = 'R' if s > 0 else 'L'
+        nk = len(F[0])
+        edge = [top[i][je][0] for i in range(nu) if top[i][je] is not None]
+        A, B = edge[0], edge[-1]
+        H = 0.5 * (A + B)
+        ax = (B - A).normalized()
+        Me = Mesh()
+        Mf = Me if lo else Mesh()                                     # endplate: the facet, paint outside, gloss black inside and on its rims
+        Mt = Me if lo else Mesh()                                     # tip blade: under the panel's side edge, 6 .. 14 mm below it, reaching W17_END['out'] + 3 cm in
+        org = Vector((0, 0, 0)) if lo else P
+        rings = []
+        for p in edge:
+            o = p + Vector((0, 0, -0.006))
+            q = o - Vector((0, s * (W17_END['out'] + 0.03), 0))
+            rings.append([tuple(o - org), tuple(q - org), tuple(q - org + Vector((0, 0, -0.008))), tuple(o - org + Vector((0, 0, -0.008)))])
+        prism(Mt, rings)
+        if lo:
+            tip = bpy.data.objects.new('WingTip' + sd, None)
+            ctx.link(tip)
+        else:
+            tip = ctx.mk(Mt.bm, 'WingTip' + sd, 'Paint', False)
+        tip.parent = ob
+        w17_sheets(Me, top, {s: F}, with_top=False)
+        w17_sheets(Mf, top, {s: F}, IT, IF, with_top=False)
+        for i in range(nu - 1):                                       # its front (the side seam) and bottom (l3) edge, and its top edge (L)
+            if F[i][nk - 2] is not None:
+                rim(Mf, F[i][nk - 1], IF[s][i][nk - 1], F[i + 1][nk - 1], IF[s][i + 1][nk - 1], F[i][nk - 2][0])
+            if F[i][1] is not None:
+                rim(Mf, F[i][0], IF[s][i][0], F[i + 1][0], IF[s][i + 1][0], F[i][1][0])
+        for i, i2 in ((0, 1), (nu - 1, nu - 2)):                     # its first column (at the top seam) and its rear edge (the tail corner)
+            for k in range(nk - 1):
+                if F[i2][k] is not None:
+                    rim(Mf, F[i][k], IF[s][i][k], F[i][k + 1], IF[s][i][k + 1], F[i2][k][0])
+        if lo:
+            end = ctx.mk(Me.bm, 'WingEnd' + sd, 'Paint', True)
+        else:
+            e1 = ctx.mk(Me.bm, 'WingEnd' + sd, 'Paint', True)
+            e2 = ctx.mk(Mf.bm, 'WingEndIn' + sd, ctx.mat_of(level, 'GlossBlack'), True)
+            ctx.mark_sharp(e2.data, 30)
+            end = ctx.join([e1, e2], 'WingEnd' + sd)
+        end.data.transform(Matrix.Translation(-H))
+        end.parent = tip
+        end.location = H - P                                          # (the tip sits at the node origin: the endplate's origin is on its hinge)
+        g = lambda v: [float(v.x), float(v.z), float(-v.y)]           # Blender -> GLB frame
+        parts.append(dict(tip='WingTip' + sd, end='WingEnd' + sd, out=g(Vector((0, s * W17_END['out'], 0))), axis=g(ax), angle=s * W17_END['flare']))
+    if level == 0:
+        ctx.cache['w17_parts'] = parts
+    return ob
+
+
+def wing17_links(ctx, level):
+    """the two struts (high, 012: |y| 0.49) and the linkage arms under the piece's front (001), pivot-local.  Raised (W17_DEP) the piece hovers behind the tail (001: it slides
+    0.28 m aft), so each link runs from the piece's underside near its front forward and down into the body's well: built between the attach point (piece frame) and the body
+    anchor carried into the piece's frame by the inverse of the deploy pose, it meets the body exactly when the wing is fully up"""
+    cs = ctx.CB()
+    P, d = WING_P, W17_DEP
+    c, sn = math.cos(d['rot']), math.sin(d['rot'])
+
+    def to_piece(w):                    # world (deployed) -> the piece's own (stowed) frame
+        x, z = w.x - d['dx'] - P.x, w.z - d['dy'] - 0.003 - P.z
+        return Vector((P.x + x * c + z * sn, w.y, P.z - x * sn + z * c))
+
+    def link(xa, yy, xb, half, depth):
+        za = (deck_z(ctx.surf, xa, yy) or 1.05) - W17_T - 0.002
+        zb = (deck_z(ctx.surf, xb, yy) or 1.0) - 0.012
+        A, B = Vector((xa, yy, za)), to_piece(Vector((xb, yy, zb)))
+        t = (B - A).normalized()
+        nn = t.cross(Vector((0, 1, 0))).normalized()
+        sec = [(A + nn * u - P, B + nn * u * 0.7 - P) for u in (-half, half)]
+        ring = lambda dy: [tuple(sec[0][0] + Vector((0, dy, 0))), tuple(sec[1][0] + Vector((0, dy, 0))), tuple(sec[1][1] + Vector((0, dy, 0))), tuple(sec[0][1] + Vector((0, dy, 0)))]
+        r0, r1 = ring(-depth), ring(depth)
+        cs.prism([r0 + [r0[0]], r1 + [r1[0]]], [W_DARK] * 4, cap=W_DARK)
+    for s_ in (-1, 1):
+        link(2.13, s_ * STRUT_Y, 2.24, 0.016, 0.008)                  # strut
+        if level == 0:
+            for yy, xb in ((0.62, 2.17), (0.80, 2.12)):               # linkage arms
+                link(2.08, s_ * yy, xb, 0.010, 0.006)
+    return cs
+
+
+def wing17_well(ctx, level):
+    """WingWell: the outline (top and the side cut-outs) in gloss black, 1.5 mm off the body"""
+    top, fac = w17_skin(ctx, level, 0.0015 if level == 0 else 0.004)
+    M = Mesh()
+    w17_sheets(M, top, fac)
+    return ctx.mk(M.bm, 'WingWell', ctx.mat_of(level, 'GlossBlack'), True)
+
+
 # ----------------------------------------------------------------------------- region hooks (regions/ctx.py)
 def shell_post(ctx):
     """tail colour split on the HI body: the black / body-colour outline (lobe bell + cheek line, see bound_z) is cut into the dense mesh, THEN the arches"""
@@ -757,7 +1081,7 @@ def lod_post(ctx, level, body):
 def build(ctx, level):
     """-> static objects for the body.  level 2 merges everything static (no node): the nozzle ring, the plain walls and the deployed wing come here too."""
     K = consts(ctx)
-    stat = build_tail_skin(ctx, level) + [build_tail_lip(ctx, level)]
+    stat = build_tail_skin(ctx, level) + [build_tail_lip(ctx, level)] + wing_seam(ctx, level)
     cm = 'GlossBlack' if level < 2 else 'Trim'          # round 5: the diffuser is black (Carbon read mid-grey in the studio light)
     cb = ctx.CB()
     build_diffuser(cb, level)
@@ -769,7 +1093,7 @@ def build(ctx, level):
     pc = fascia(ctx, sum(PLATE['z']) / 2, off=0.006)
     B.rbox('Trim' if level < 2 else 'Paint', tuple(pc), (0.012, 0.356, 0.182), rot=(0, K.FAS_LEAN, 0), bev=0.003 if level < 2 else 0, seg=1)
     if level < 2:        # camera pod above the plate with a small plate lamp each side (thrusters photo)
-        zc = 0.866
+        zc = 0.866 + DZ_TAIL
         B.rbox('Trim', tuple(fascia(ctx, zc, off=0.014)), (0.030, 0.092, 0.036), rot=(0, K.FAS_LEAN, 0), bev=0.007 if level == 0 else 0.0, seg=2 if level == 0 else 1)
         if level == 0:
             B.cylinder('GlossBlack', tuple(fascia(ctx, zc - 0.004, y=0.018, off=0.0305)), (0, 90 + K.FAS_LEAN, 0), 0.0105, 0.006, seg=16)
@@ -835,8 +1159,11 @@ def nodes(ctx, level):
     build_endplates(cbj, level, N_WALL)    # (final frame: not warped)
     plane_cover(ctx, cbj, level)
     glass_cover(ctx, cbj, level)
+    thr = ctx.cb_obj(cbj, 'Thrusters', 'Nozzle', keep_color=True, sharp=35)
+    if REAR_T17:                    # step 3: the whole piece inside the seam
+        return {'Thrusters': thr, 'Wing': build_wing17(ctx, level), 'WingWell': wing17_well(ctx, level)}
     well = wing_footprint(ctx, 'WingWell', 'GlossBlack', level, 0.0015 if level == 0 else 0.004, hi_n=(30, 80), lo_n=(7, 26))
-    return {'Thrusters': ctx.cb_obj(cbj, 'Thrusters', 'Nozzle', keep_color=True, sharp=35), 'Wing': build_wing(ctx, level), 'WingWell': well}
+    return {'Thrusters': thr, 'Wing': build_wing(ctx, level), 'WingWell': well}
 
 
 def decals(ctx, level):
@@ -857,7 +1184,8 @@ def meta(ctx):
     return dict(
         decals={'plate': dict(uv=list(PLATE['uv']), x=[], y=list(PLATE['y']), z=list(PLATE['z']), side=0)},
         wing=dict(node='Wing', well='WingWell', pivot=[WING_P.x, WING_P.z, -WING_P.y], aoaDeg=0.0,
-                  deploy=dict(dx=WING_DEP['dx'], dy=WING_DEP['dy'], rotZ=WING_DEP['rot']),
+                  deploy=dict(dx=(W17_DEP if REAR_T17 else WING_DEP)['dx'], dy=(W17_DEP if REAR_T17 else WING_DEP)['dy'], rotZ=(W17_DEP if REAR_T17 else WING_DEP)['rot']),
                   stow=dict(WING_STOW_LEGACY),
-                  plates=dict(node='WingPlates', stow=dict(scaleX=1.0, scaleY=0.02, scaleZ=0.42))),
+                  plates=dict(node='WingPlates', stow=dict(scaleX=1.0, scaleY=0.02, scaleZ=1.0 if REAR_T17 else 0.42)),     # (step 3: only struts and linkage, they drop in)
+                  **(dict(ends=dict(k=list(W17_END['k']), parts=ctx.cache.get('w17_parts', []))) if REAR_T17 else {})),
     )
