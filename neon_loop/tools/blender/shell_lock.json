@@ -7,9 +7,9 @@
    "faces": 8050
   },
   "wall": {
-   "sha": "6578aa20749187c7",
-   "verts": 4635,
-   "faces": 4340
+   "sha": "aaea620e48fe65ad",
+   "verts": 4636,
+   "faces": 4341
   },
   "wall_black": {
    "sha": "1485f63743db340e",
@@ -52,9 +52,9 @@
    "faces": 792
   },
   "rear_shoulder": {
-   "sha": "3f94d5b546022cd1",
+   "sha": "4c182c5df3572131",
    "verts": 3110,
-   "faces": 3017
+   "faces": 3018
   },
   "glass": {
    "sha": "708a47918d7384c3",
@@ -62,19 +62,19 @@
    "faces": 9125
   },
   "ridge_inner": {
-   "sha": "47f27dd0b406380e",
+   "sha": "3b0b95b46c71f6c9",
    "verts": 1082,
    "faces": 952
   },
   "deck": {
-   "sha": "e701b52c332c61a6",
+   "sha": "aba72a4f92167121",
    "verts": 586,
    "faces": 556
   },
   "tail_upper": {
-   "sha": "48b8eeb7a9531044",
-   "verts": 720,
-   "faces": 649
+   "sha": "8bb383e11b79663a",
+   "verts": 840,
+   "faces": 767
   },
   "tail_lower": {
    "sha": "c58f1ed104e3bfac",
@@ -82,9 +82,9 @@
    "faces": 2242
   },
   "facet": {
-   "sha": "85a869bfc7cba168",
-   "verts": 335,
-   "faces": 302
+   "sha": "7c85a1986072aa63",
+   "verts": 390,
+   "faces": 357
   }
  }
 }
