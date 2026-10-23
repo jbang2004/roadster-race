@@ -271,17 +271,20 @@ def fascia(ctx, z, y=0.0, off=0.0):
     return Vector((x + off * math.cos(a), y, z - off * math.sin(a)))
 
 
-def tail_top_z(y):
-    """z of the tail face's top edge (shell edges tail_a / tail_b): the deck level 1.042 up to the ridge end (|y| 0.403), then falling linearly to the corner (|y| 0.945, z 1.005).
-    The black light band must stop under it: above it the rays would paint the rear shoulder (the jagged black wedges of the first round)."""
-    t = min(1.0, max(0.0, (abs(y) - 0.403) / (0.945 - 0.403)))
-    return 1.042 - 0.037 * t
+def tail_top_z(y, ctx):
+    """z of the tail face's top edge (shell edges tail_a / tail_b): the deck level at the ear tip E (|y| 0.403) out to the centre, then falling linearly to the corner (|y| 0.945), where it is
+    the shoulder line L's height.  Read from the shell (q16: L runs level aft of the window, the corner fell from 1.005 to 0.976; the old fixed 1.005 let the band's rays pass over the
+    tail's top edge and paint jagged black wedges on the rear shoulder).  The black light band must stop under it: above it the rays would paint the rear shoulder (as in the first round)."""
+    D = ctx.A.D
+    ye, ze, zc = (0.403, 1.042, 1.005) if D is None else (D.E_TARGET[1], D.E_TARGET[2], float(D.CURVES['L'].at(D.E_TARGET[0])[2]))
+    t = min(1.0, max(0.0, (abs(y) - ye) / (0.945 - ye)))
+    return ze + (zc - ze) * t
 
 
-def band_top():
+def band_top(ctx):
     """round 7 (SPEC DR-2, r81): the light band's top edge is ONE level line across the whole width: the shell's top edge at the corner (tail_top_z at the largest |y|) minus 5 mm.  Computed from
     tail_top_z, so it follows the shell if the lip is changed.  Above it the body-colour lip is 4 cm high in the middle and a thin strip at the corners."""
-    return tail_top_z(BAND_Y + 0.05) - 0.005
+    return tail_top_z(BAND_Y + 0.05, ctx) - 0.005
 
 
 SIL_K = 2.37 / (10.0 - 0.944)     # p018 is a pure side view from y = -10: the tail corner (x 2.37, |y| 0.944) is the nearest and aftmost point = the right end of the car's silhouette (px 1570);
@@ -362,7 +365,7 @@ def build_tail_skin(ctx, level):
     k = 2.0 if level == 2 else 1.0       # the LOD2 body is a coarse decimation: keep the overlays a little further off it
     keep = lambda p: p.x > 1.95
     gb = 'GlossBlack' if level < 2 else 'Trim'
-    bt = band_top()
+    bt = band_top(ctx)
     bar_z = 0.5 * (BAND[0] + bt)                      # round 7: the red bar sits in the middle of the band (r81), constant width to the ends (the old taper is gone)
     bar_t = lambda a: 1.0
     # TailLower: only a thin strip along the lobe outline (the faces below it are black in the body mesh itself): it hides the
@@ -423,7 +426,7 @@ def build_tail_lip(ctx, level):
         # visor (round 3: kept inside the shell's end silhouette in the side view p018, sil_x: no tab sticking aft past the corner)
         pr = 0.050 * (1.0 - 0.28 * (a / 0.95) ** 2) * smooth(1.01, 0.93, a)
         pr = min(pr, max(0.0, sil_x(a) - xb - 0.002))
-        zv = band_top() + 0.0005          # round 7: the visor's underside never dips into the band (it was a white wedge across the band's top at the corners): ONE edge there
+        zv = band_top(ctx) + 0.0005         # round 7: the visor's underside never dips into the band (it was a white wedge across the band's top at the corners): ONE edge there
         sec_v.append([(xb - 0.06, y, zt + 0.0015), (xb + pr, y, max(zt - 0.0175, zv + 0.0005)), (xb + pr, y, max(zt - 0.0225, zv)), (xb - 0.06, y, max(zt - 0.0125, zv))])
         # lip roll (bead): base on the band plane, full section to the band's end (its depth tapers to the end face: same clamp)
         sc = 1.0
