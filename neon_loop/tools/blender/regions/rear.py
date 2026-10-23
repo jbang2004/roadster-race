@@ -808,6 +808,8 @@ def build_wing(ctx, level):
 # linkage only (they drop in as it deploys; no tips sliding out, no separate endplates).
 W17_T, W17_TF = 0.016, 0.010             # thickness of the panel and of the endplates
 W17_N = ((24, 64, 9), (7, 22, 4))       # per level: rows seam -> tail edge, columns across, rows down each facet
+W17_DEP = dict(dx=0.28, dy=0.13, rot=0.45)   # raised: 0.28 m aft, 0.13 m up, 26 deg trailing edge up about WING_P (001 mapped onto the matched p018 camera by the wheel hubs: the deck's front edge and the
+                                            # tail corner of the raised piece); `high` shows it steeper still, ~57 deg = this + the game's airbrake pitch (index.js wingA, up to 0.55 rad)
 
 
 def w17_lines(ctx):
@@ -939,20 +941,32 @@ def build_wing17(ctx, level):
 
 
 def wing17_links(ctx, level):
-    """the two struts (high, 012: |y| 0.49) and, under the panel's front, the dark linkage arms (001), pivot-local"""
+    """the two struts (high, 012: |y| 0.49) and the linkage arms under the piece's front (001), pivot-local.  Raised (W17_DEP) the piece hovers behind the tail (001: it slides
+    0.28 m aft), so each link runs from the piece's underside near its front forward and down into the body's well: built between the attach point (piece frame) and the body
+    anchor carried into the piece's frame by the inverse of the deploy pose, it meets the body exactly when the wing is fully up"""
     cs = ctx.CB()
-    P = WING_P
+    P, d = WING_P, W17_DEP
+    c, sn = math.cos(d['rot']), math.sin(d['rot'])
+
+    def to_piece(w):                    # world (deployed) -> the piece's own (stowed) frame
+        x, z = w.x - d['dx'] - P.x, w.z - d['dy'] - 0.003 - P.z
+        return Vector((P.x + x * c + z * sn, w.y, P.z - x * sn + z * c))
+
+    def link(xa, yy, xb, half, depth):
+        za = (deck_z(ctx.surf, xa, yy) or 1.05) - W17_T - 0.002
+        zb = (deck_z(ctx.surf, xb, yy) or 1.0) - 0.012
+        A, B = Vector((xa, yy, za)), to_piece(Vector((xb, yy, zb)))
+        t = (B - A).normalized()
+        nn = t.cross(Vector((0, 1, 0))).normalized()
+        sec = [(A + nn * u - P, B + nn * u * 0.7 - P) for u in (-half, half)]
+        ring = lambda dy: [tuple(sec[0][0] + Vector((0, dy, 0))), tuple(sec[1][0] + Vector((0, dy, 0))), tuple(sec[1][1] + Vector((0, dy, 0))), tuple(sec[0][1] + Vector((0, dy, 0)))]
+        r0, r1 = ring(-depth), ring(depth)
+        cs.prism([r0 + [r0[0]], r1 + [r1[0]]], [W_DARK] * 4, cap=W_DARK)
     for s_ in (-1, 1):
-        x0, L = 2.14, 0.16
-        z0 = (deck_z(ctx.surf, x0, STRUT_Y) or 1.06) - W17_T - 0.004
-        st = [(x0 - 0.016 - P.x, z0 - P.z), (x0 + 0.016 - P.x, z0 - P.z), (x0 + 0.010 - P.x, z0 - L - P.z), (x0 - 0.010 - P.x, z0 - L - P.z)]
-        cs.prism([[(a, s_ * STRUT_Y + dy, b) for a, b in st + [st[0]]] for dy in (-0.008, 0.008)], [W_DARK] * len(st), cap=W_DARK)
+        link(2.13, s_ * STRUT_Y, 2.24, 0.016, 0.008)                  # strut
         if level == 0:
-            for yy in (0.62, 0.80):                              # linkage arms: from under the panel's front edge forward and down into the body
-                xa = 2.09
-                za = (deck_z(ctx.surf, xa, yy) or 1.05) - W17_T - 0.006
-                arm = [(xa - P.x, za - P.z), (xa + 0.03 - P.x, za - P.z), (xa - 0.05 - P.x, za - 0.13 - P.z), (xa - 0.075 - P.x, za - 0.12 - P.z)]
-                cs.prism([[(a, s_ * yy + dy, b) for a, b in arm + [arm[0]]] for dy in (-0.006, 0.006)], [W_DARK] * len(arm), cap=W_DARK)
+            for yy, xb in ((0.62, 2.17), (0.80, 2.12)):               # linkage arms
+                link(2.08, s_ * yy, xb, 0.010, 0.006)
     return cs
 
 
@@ -1104,7 +1118,7 @@ def meta(ctx):
     return dict(
         decals={'plate': dict(uv=list(PLATE['uv']), x=[], y=list(PLATE['y']), z=list(PLATE['z']), side=0)},
         wing=dict(node='Wing', well='WingWell', pivot=[WING_P.x, WING_P.z, -WING_P.y], aoaDeg=0.0,
-                  deploy=dict(dx=WING_DEP['dx'], dy=WING_DEP['dy'], rotZ=WING_DEP['rot']),
+                  deploy=dict(dx=(W17_DEP if REAR_T17 else WING_DEP)['dx'], dy=(W17_DEP if REAR_T17 else WING_DEP)['dy'], rotZ=(W17_DEP if REAR_T17 else WING_DEP)['rot']),
                   stow=dict(WING_STOW_LEGACY),
                   plates=dict(node='WingPlates', stow=dict(scaleX=1.0, scaleY=0.02, scaleZ=1.0 if REAR_T17 else 0.42))),     # (step 3: only struts and linkage, they drop in; nothing slides out)
     )
