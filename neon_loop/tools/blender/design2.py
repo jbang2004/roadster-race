@@ -652,6 +652,7 @@ QF_WE_K = int(os.environ.get('QF_WE_K', '3'))       # nodes on each side of the 
 QF_Q16 = os.environ.get('QF_Q16', '0') == '1'      # PREVIEW (off until the user accepts it): QF_Q16=1 builds the q16 rear
 QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '0.85,1.0').split(','))
 QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '1.14'))
+QF_Q16_AX = os.environ.get('QF_Q16_AX', 'y')      # wl / U move in plan ('y', the user's choice) or in side view ('z', variant)
 QF_Q16_UC = os.environ.get('QF_Q16_UC', 'auto')      # the depth's curvature (1/m) at the tip: 'auto' = the one with the smallest peak; 0 = U meets the plane to second order
 QF_Q16_P2 = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_Q16_P2', '1.4:19.5,1.55:13.8,1.7:8.8,1.85:5.0,2.0:4.2').split(',')]
 QF_Q16_R = tuple(float(v) for v in os.environ.get('QF_Q16_R', '0.25,0.25').split(','))      # radius (m) of the soft arc at the tip and aft (smoothstep between, over the 3rd value's length or to E)
@@ -2763,7 +2764,16 @@ def build_all():
             x = np.asarray(x, float)
             p = _w.at(x)
             return p[..., 1] + (_yon_(x, p[..., 2]) - p[..., 1]) * sstep(QF_Q16_WL[0], QF_Q16_WL[1], x)
-        _qWn_ = Fn(_qW_.x0, _qW_.x1, _q16_wly, lambda x, _w=_qW_: _w.at(x)[..., 2], 'wl')
+        _pz_ = lambda x, y: (_qd_ - _qn_[0] * x - _qn_[1] * y) / _qn_[2]
+
+        def _q16_wlz(x, _w=_qW_):
+            x = np.asarray(x, float)
+            p = _w.at(x)
+            return p[..., 2] + (_pz_(x, p[..., 1]) - p[..., 2]) * sstep(QF_Q16_WL[0], QF_Q16_WL[1], x)
+        if QF_Q16_AX == 'z':          # (variant: side view instead of plan)
+            _qWn_ = Fn(_qW_.x0, _qW_.x1, lambda x, _w=_qW_: _w.at(x)[..., 1], _q16_wlz, 'wl')
+        else:
+            _qWn_ = Fn(_qW_.x0, _qW_.x1, _q16_wly, lambda x, _w=_qW_: _w.at(x)[..., 2], 'wl')
         _qdep_ = lambda x: float(_qd_ - _qn_[0] * x - _qn_[1] * _qU_.at(x)[1]) / _qn_[2] - float(_qU_.at(x)[2])
         _qa_, _qe_ = QF_Q16_UX0, 1e-3
         _qv_ = _qdep_(_qa_)
@@ -2782,7 +2792,14 @@ def build_all():
             x = np.asarray(x, float)
             p = _u.at(x)
             return np.where(x < _q[0], p[..., 1], _yon_(x, p[..., 2] + quint1(np.clip(x, _q[0], _q[4]), *_q)))
-        _qUn_ = Fn(_qU_.x0, _qU_.x1, _q16_uy, lambda x, _u=_qU_: _u.at(x)[..., 2], 'U')
+        def _q16_uz(x, _u=_qU_, _q=_qq_):
+            x = np.asarray(x, float)
+            p = _u.at(x)
+            return np.where(x < _q[0], p[..., 2], _pz_(x, p[..., 1]) - quint1(np.clip(x, _q[0], _q[4]), *_q))
+        if QF_Q16_AX == 'z':
+            _qUn_ = Fn(_qU_.x0, _qU_.x1, lambda x, _u=_qU_: _u.at(x)[..., 1], _q16_uz, 'U')
+        else:
+            _qUn_ = Fn(_qU_.x0, _qU_.x1, _q16_uy, lambda x, _u=_qU_: _u.at(x)[..., 2], 'U')
         _qUn_.resid, _qUn_.dbg = getattr(_qU_, 'resid', None), getattr(_qU_, 'dbg', None)
         CURVES['wl'], CURVES['U'] = _qWn_, _qUn_
         _Q16['tip'] = np.asarray(_qUn_.at(X_TIP), float)
