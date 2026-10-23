@@ -126,6 +126,12 @@ export function createCarVisual(app, { livery = 0, isPlayer = false, envMap = nu
       rec.plates = rec.wing.getObjectByName(ASSETS.meta.wing?.plates?.node ?? 'WingPlates') ?? null;
       rec.well = ASSETS.meta.wing?.deploy ? root.getObjectByName(ASSETS.meta.wing?.well ?? 'WingWell') ?? null : null;
       if (ASSETS.meta.wing?.deploy) { rec.wing.visible = false; if (rec.well) rec.well.visible = false; }
+      // wing.ends (the one-piece wing): per side a tip blade that slides out from under the panel's side edge, carrying the endplate (the rear-corner facet), which swings
+      // out at the bottom about its top edge (axis in the wing's frame, origin on the hinge)
+      rec.ends = (ASSETS.meta.wing?.ends?.parts ?? []).map(e => {
+        const t = rec.wing.getObjectByName(e.tip), p = rec.wing.getObjectByName(e.end);
+        return t && p ? { t, p, t0: t.position.clone(), q0: p.quaternion.clone(), out: new THREE.Vector3(...e.out), ax: new THREE.Vector3(...e.axis).normalize(), a: e.angle } : null;
+      }).filter(Boolean);
     }
     root.traverse(o => {
       if (!o.isMesh) return;
@@ -185,12 +191,13 @@ export function createCarVisual(app, { livery = 0, isPlayer = false, envMap = nu
   pool.register(visual);
 
   // temporaries
-  const q = new THREE.Quaternion(), qa = new THREE.Quaternion(), qY = new THREE.Quaternion();
+  const q = new THREE.Quaternion(), qa = new THREE.Quaternion(), qY = new THREE.Quaternion(), qE = new THREE.Quaternion();
   const v = new THREE.Vector3(), nose = new THREE.Vector3(), tail = new THREE.Vector3(), dir = new THREE.Vector3();
   const AX_Y = new THREE.Vector3(0, 1, 0);
   const lightState = { nose, tail, dir, head: 0, brake: 0, reverse: 0, roadFade: 1 };
   let headS = 0, brakeS = 0, revS = 0, heat = 0, wetS = 0, wingA = 0, wingS = 1, wingUp = false;
   const WS = ASSETS.meta.wing?.stow ?? { dy: 0, rotZ: 0, spanScale: 1 }, PS = ASSETS.meta.wing?.plates?.stow ?? {}, WD = ASSETS.meta.wing?.deploy ?? null;
+  const EK = ASSETS.meta.wing?.ends?.k ?? [0.2, 0.9];
 
   function applyFade() {
     for (let i = 0; i < 3; i++) { lodU[i].uLodT.value = 1; lodU[i].uLodDir.value = 0; }
@@ -293,6 +300,13 @@ export function createCarVisual(app, { livery = 0, isPlayer = false, envMap = nu
         if (rec.plates) {
           rec.plates.scale.set(1, (PS.scaleY ?? 1) + (1 - (PS.scaleY ?? 1)) * dropK, (PS.scaleZ ?? 1) + (1 - (PS.scaleZ ?? 1)) * tipK);
           rec.plates.visible = dep > 0.03;
+        }
+        if (rec.ends.length) {
+          const k = smooth(EK[0], EK[1], dep);
+          for (const e of rec.ends) {
+            e.t.position.copy(e.t0).addScaledVector(e.out, k);
+            e.p.quaternion.copy(e.q0).premultiply(qE.setFromAxisAngle(e.ax, e.a * k));
+          }
         }
         continue;
       }

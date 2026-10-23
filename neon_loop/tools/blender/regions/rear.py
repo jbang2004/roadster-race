@@ -53,7 +53,7 @@ endplate foot sweeps forward on a large radius and tapers (build_diffuser); the 
 import math, os, types
 import bpy, bmesh
 from mathutils import Vector, Matrix
-from common import smooth, smoother, pchip, W_DARK, Mesh
+from common import smooth, smoother, pchip, W_DARK, Mesh, prism
 
 NAME = 'rear'
 
@@ -808,6 +808,8 @@ def build_wing(ctx, level):
 # linkage only (they drop in as it deploys; no tips sliding out, no separate endplates).
 W17_T, W17_TF = 0.016, 0.010             # thickness of the panel and of the endplates
 W17_N = ((24, 64, 9), (7, 22, 4))       # per level: rows seam -> tail edge, columns across, rows down each facet
+W17_END = dict(out=0.09, flare=math.radians(15.0), k=(0.2, 0.9))   # raised, the endplates stand out of the body (high / 012: tops at |y| ~1.04, bottoms ~1.09): each slides out by `out` on a tip blade and
+                                            # swings out at the bottom by `flare` about its top edge, over the deploy fraction k (user 2026-10-23: "端板做外张")
 W17_DEP = dict(dx=0.28, dy=0.13, rot=0.45)   # raised: 0.28 m aft, 0.13 m up, 26 deg trailing edge up about WING_P (001 mapped onto the matched p018 camera by the wheel hubs: the deck's front edge and the
                                             # tail corner of the raised piece); `high` shows it steeper still, ~57 deg = this + the game's airbrake pitch (index.js wingA, up to 0.55 rad)
 
@@ -875,18 +877,29 @@ def w17_skin(ctx, level, off):
     return top, fac
 
 
-def w17_sheets(M, top, fac, IT=None, IF=None):
-    """quads of the top grid and both facet grids into Mesh M: outer (the cast points, facing along the normals) or, with IT / IF, the inner points (facing in)"""
+def w17_sheets(M, top, fac, IT=None, IF=None, with_top=True):
+    """quads of the top grid and the facet grids in `fac` into Mesh M: outer (the cast points, facing along the normals) or, with IT / IF, the inner points (facing in).  Without
+    the top only the facets are made (their first row is the top's edge column)"""
     nu, nv = len(top), len(top[0])
     sg = 1.0 if IT is None else -1.0
-    VT = [[None if top[i][j] is None else M.v(top[i][j][0] if IT is None else IT[i][j]) for j in range(nv)] for i in range(nu)]
-    for i in range(nu - 1):
-        for j in range(nv - 1):
-            q = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)]
-            if all(VT[a][b] is not None for a, b in q):
-                M.face([VT[a][b] for a, b in q], sg * sum((top[a][b][1] for a, b in q), Vector((0, 0, 0))))
+    cols = range(nv) if with_top else sorted({nv - 1 if s > 0 else 0 for s in fac})
+    VT = [[None] * nv for _ in range(nu)]
+    for i in range(nu):
+        for j in cols:
+            if top[i][j] is not None:
+                VT[i][j] = M.v(top[i][j][0] if IT is None else IT[i][j])
+    if with_top:
+        for i in range(nu - 1):
+            for j in range(nv - 1):
+                q = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)]
+                if all(VT[a][b] is not None for a, b in q):
+                    M.face([VT[a][b] for a, b in q], sg * sum((top[a][b][1] for a, b in q), Vector((0, 0, 0))))
     for s, F in fac.items():
         je = nv - 1 if s > 0 else 0
+        if not with_top and IF is not None:          # (the endplate on its own: its top edge's inner points are its own, not the panel's)
+            for i in range(nu):
+                if VT[i][je] is not None and IF[s][i][0] is not None:
+                    VT[i][je].co = IF[s][i][0]
         V = [[VT[i][je] if k == 0 else (None if F[i][k] is None else M.v(F[i][k][0] if IF is None else IF[s][i][k])) for k in range(len(F[i]))] for i in range(nu)]
         for i in range(nu - 1):
             for k in range(len(F[i]) - 1):
@@ -896,47 +909,83 @@ def w17_sheets(M, top, fac, IT=None, IF=None):
 
 
 def build_wing17(ctx, level):
-    """-> Wing: the piece inside the seam (paint outside; gloss black underside and rims), pivot-local, with the child WingPlates (struts + linkage)"""
+    """-> Wing: the panel inside the seam (paint outside; gloss black underside and rims), pivot-local, with the children WingPlates (struts + linkage) and, per side, WingTipL / R
+    (a tip blade under the panel's side edge, which slides out) carrying WingEndL / R (the endplate = the corner facet, hinged on its top edge, which swings out at the bottom)"""
     top, fac = w17_skin(ctx, level, 0.0 if level == 0 else 0.002)
     nu, nv = len(top), len(top[0])
     IT = [[None if q is None else q[0] - q[1] * W17_T for q in row] for row in top]
     IF = {}
     for s, F in fac.items():
-        je = nv - 1 if s > 0 else 0
-        for i in range(nu):
-            if top[i][je] is not None and F[i][1] is not None:          # on L: off along both the panel's and the endplate's normal
-                IT[i][je] = top[i][je][0] - top[i][je][1] * W17_T - F[i][1][1] * W17_TF
-        IF[s] = [[IT[i][je] if k == 0 else (None if F[i][k] is None else F[i][k][0] - F[i][k][1] * W17_TF) for k in range(len(F[i]))] for i in range(nu)]
-    Mo, Mi = Mesh(), Mesh()
-    w17_sheets(Mo, top, fac)
-    w17_sheets(Mi, top, fac, IT, IF)
+        IF[s] = [[None if F[i][k] is None or F[i][max(k, 1)] is None else F[i][k][0] - F[i][max(k, 1)][1] * W17_TF for k in range(len(F[i]))] for i in range(nu)]
+    P = WING_P
 
-    def rim(a, ia, b, ib, ref):
-        """a thickness face from the outer edge a -> b to the inner one (dark mesh, own copies), facing away from ref (a point inside the outline)"""
+    def rim(M, a, ia, b, ib, ref):
+        """a thickness face from the outer edge a -> b to the inner one (own copies of the points), facing away from ref (a point inside the outline)"""
         if a is None or b is None or ia is None or ib is None:
             return
-        Mi.face([Mi.v(a[0]), Mi.v(b[0]), Mi.v(ib), Mi.v(ia)], 0.5 * (a[0] + b[0]) - ref)
+        M.face([M.v(a[0]), M.v(b[0]), M.v(ib), M.v(ia)], 0.5 * (a[0] + b[0]) - ref)
+    # the panel
+    Mo, Mi = Mesh(), Mesh()
+    w17_sheets(Mo, top, {})
+    w17_sheets(Mi, top, {}, IT, {})
     for i, i2 in ((0, 1), (nu - 1, nu - 2)):                   # leading edge (the top seam), trailing edge (the tail's top edge)
         for j in range(nv - 1):
             if top[i2][j] is not None:
-                rim(top[i][j], IT[i][j], top[i][j + 1], IT[i][j + 1], top[i2][j][0])
-    for s, F in fac.items():
-        nk = len(F[0])
-        for i in range(nu - 1):                                  # each endplate's front (the side seam) and bottom (l3) edge
-            if F[i][nk - 2] is not None:
-                rim(F[i][nk - 1], IF[s][i][nk - 1], F[i + 1][nk - 1], IF[s][i + 1][nk - 1], F[i][nk - 2][0])
-        for i, i2 in ((0, 1), (nu - 1, nu - 2)):                # its first column (at the top seam) and its rear edge (the tail corner)
-            for k in range(nk - 1):
-                if F[i2][k] is not None:
-                    rim(F[i][k], IF[s][i][k], F[i][k + 1], IF[s][i][k + 1], F[i2][k][0])
+                rim(Mi, top[i][j], IT[i][j], top[i][j + 1], IT[i][j + 1], top[i2][j][0])
+    for j, j2 in ((0, 1), (nv - 1, nv - 2)):                   # the side edges (on L)
+        for i in range(nu - 1):
+            if top[i][j2] is not None:
+                rim(Mi, top[i][j], IT[i][j], top[i + 1][j], IT[i + 1][j], top[i][j2][0])
     o1 = ctx.mk(Mo.bm, 'Wing', 'Paint', True)
     o2 = ctx.mk(Mi.bm, 'WingUnder', ctx.mat_of(level, 'GlossBlack'), True)
     ctx.mark_sharp(o2.data, 30)
     ob = ctx.join([o1, o2], 'Wing')
-    ob.data.transform(Matrix.Translation(-WING_P))
-    ob.location = WING_P
+    ob.data.transform(Matrix.Translation(-P))
+    ob.location = P
     kids = ctx.cb_obj(wing17_links(ctx, level), 'WingPlates', 'Carbon' if level == 0 else 'Paint', sharp=30)
     kids.parent = ob            # struts and linkage: the game drops them in (scaleY) as the wing deploys
+    # the tips and the endplates
+    parts = []
+    for s, F in fac.items():
+        je = nv - 1 if s > 0 else 0
+        sd = 'R' if s > 0 else 'L'
+        nk = len(F[0])
+        edge = [top[i][je][0] for i in range(nu) if top[i][je] is not None]
+        A, B = edge[0], edge[-1]
+        H = 0.5 * (A + B)
+        ax = (B - A).normalized()
+        Mt = Mesh()                                                   # tip blade: under the panel's side edge, 6 .. 14 mm below it, reaching W17_END['out'] + 3 cm in
+        rings = []
+        for p in edge:
+            o = p + Vector((0, 0, -0.006))
+            q = o - Vector((0, s * (W17_END['out'] + 0.03), 0))
+            rings.append([tuple(o - P), tuple(q - P), tuple(q - P + Vector((0, 0, -0.008))), tuple(o - P + Vector((0, 0, -0.008)))])
+        prism(Mt, rings)
+        tip = ctx.mk(Mt.bm, 'WingTip' + sd, 'Paint', False)
+        tip.parent = ob
+        Me, Mf = Mesh(), Mesh()                                       # endplate: the facet, paint outside, gloss black inside and on its rims
+        w17_sheets(Me, top, {s: F}, with_top=False)
+        w17_sheets(Mf, top, {s: F}, IT, IF, with_top=False)
+        for i in range(nu - 1):                                       # its front (the side seam) and bottom (l3) edge, and its top edge (L)
+            if F[i][nk - 2] is not None:
+                rim(Mf, F[i][nk - 1], IF[s][i][nk - 1], F[i + 1][nk - 1], IF[s][i + 1][nk - 1], F[i][nk - 2][0])
+            if F[i][1] is not None:
+                rim(Mf, F[i][0], IF[s][i][0], F[i + 1][0], IF[s][i + 1][0], F[i][1][0])
+        for i, i2 in ((0, 1), (nu - 1, nu - 2)):                     # its first column (at the top seam) and its rear edge (the tail corner)
+            for k in range(nk - 1):
+                if F[i2][k] is not None:
+                    rim(Mf, F[i][k], IF[s][i][k], F[i][k + 1], IF[s][i][k + 1], F[i2][k][0])
+        e1 = ctx.mk(Me.bm, 'WingEnd' + sd, 'Paint', True)
+        e2 = ctx.mk(Mf.bm, 'WingEndIn' + sd, ctx.mat_of(level, 'GlossBlack'), True)
+        ctx.mark_sharp(e2.data, 30)
+        end = ctx.join([e1, e2], 'WingEnd' + sd)
+        end.data.transform(Matrix.Translation(-H))
+        end.parent = tip
+        end.location = H - P                                          # (the tip sits at the node origin: the endplate's origin is on its hinge)
+        g = lambda v: [float(v.x), float(v.z), float(-v.y)]           # Blender -> GLB frame
+        parts.append(dict(tip='WingTip' + sd, end='WingEnd' + sd, out=g(Vector((0, s * W17_END['out'], 0))), axis=g(ax), angle=s * W17_END['flare']))
+    if level == 0:
+        ctx.cache['w17_parts'] = parts
     return ob
 
 
@@ -1120,5 +1169,6 @@ def meta(ctx):
         wing=dict(node='Wing', well='WingWell', pivot=[WING_P.x, WING_P.z, -WING_P.y], aoaDeg=0.0,
                   deploy=dict(dx=(W17_DEP if REAR_T17 else WING_DEP)['dx'], dy=(W17_DEP if REAR_T17 else WING_DEP)['dy'], rotZ=(W17_DEP if REAR_T17 else WING_DEP)['rot']),
                   stow=dict(WING_STOW_LEGACY),
-                  plates=dict(node='WingPlates', stow=dict(scaleX=1.0, scaleY=0.02, scaleZ=1.0 if REAR_T17 else 0.42))),     # (step 3: only struts and linkage, they drop in; nothing slides out)
+                  plates=dict(node='WingPlates', stow=dict(scaleX=1.0, scaleY=0.02, scaleZ=1.0 if REAR_T17 else 0.42)),     # (step 3: only struts and linkage, they drop in)
+                  **(dict(ends=dict(k=list(W17_END['k']), parts=ctx.cache.get('w17_parts', []))) if REAR_T17 else {})),
     )
