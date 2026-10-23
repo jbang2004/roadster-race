@@ -1,5 +1,5 @@
 """
-SIDE region: the flank between the wheel arches -- side-marker assembly (blade, reflector, amber lamp, camera) and the carbon side skirt.
+SIDE region: the flank between the wheel arches -- side-marker assembly (blade, reflector, amber lamp, camera) and the gloss-black side skirt.
 Still to come (REGIONS.md section 4): door seams L13, glass splits L8, black arch liners.   Interface: REGIONS.md section 2 and regions/ctx.py.
 
   build(ctx, level)   level 0 = hi, 1 = lod1, 2 = lod2 -> [objects]:  the skirt always; the side-marker assembly only with --front (as before the split)
@@ -350,7 +350,7 @@ def _interp(prof, z):
 
 
 def build_skirt(ctx, level):
-    """thin black skirt along the sill between the arches, with a small outward lip at the bottom."""
+    """thin gloss-black skirt along the sill between the arches, with a small outward lip at the bottom."""
     cb = ctx.CB()
     x0, x1 = round(ctx.HUBS[0][0] + SKIRT_IN, 6), round(ctx.HUBS[2][0] - SKIRT_OUT, 6)      # -0.99 .. 1.10 for hubs at -1.487 / 1.61
     nx = (60, 16, 8)[level]
@@ -379,7 +379,7 @@ def build_skirt(ctx, level):
     me = cb.mesh('Skirt', keep_color=False)
     ob = bpy.data.objects.new('Skirt', me)
     ctx.link(ob)
-    me.materials.append(ctx.mat('Carbon' if level < 2 else 'Trim'))
+    me.materials.append(ctx.mat('GlossBlack' if level < 2 else 'Trim'))      # (review 2026-10-23: the photos' sill is bright black, Carbon read as a matt grey band)
     ctx.mark_sharp(me, 40)
     return ob
 

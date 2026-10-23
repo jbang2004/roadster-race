@@ -2,12 +2,12 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "8988d90f93164880",
+   "sha": "f604fb5fee33ca55",
    "verts": 8281,
    "faces": 8050
   },
   "wall": {
-   "sha": "aaea620e48fe65ad",
+   "sha": "fa0186b19d7ebadf",
    "verts": 4636,
    "faces": 4341
   },
@@ -52,9 +52,9 @@
    "faces": 792
   },
   "rear_shoulder": {
-   "sha": "4c182c5df3572131",
+   "sha": "93b1331eac287ae2",
    "verts": 3110,
-   "faces": 3018
+   "faces": 3000
   },
   "glass": {
    "sha": "708a47918d7384c3",
