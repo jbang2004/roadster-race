@@ -657,6 +657,8 @@ QF_Q16 = os.environ.get('QF_Q16', '0') == '1'      # PREVIEW (off until the user
 QF_Q16_P1 = os.environ.get('QF_Q16_P1', 'plane')      # 'plane' (preview 3) | 'ruled' (option 1b)
 QF_Q16_KD = float(os.environ.get('QF_Q16_KD', '0.15'))      # 'ruled': the roll under the window takes on the rate of the roll behind the tip over this length before the tip
 QF_Q16_XC = float(os.environ.get('QF_Q16_XC', '2.2'))      # 'ruled': both faces follow the reading up to here; aft of it a C2 continuation (the reading's fit bends off near the ear tip)
+QF_Q16_WLP = float(os.environ.get('QF_Q16_WLP', '0'))      # 'ruled': > 0 = wl's plan moves by one quintic from this x onto the beam face at the tip (instead of QF_Q16_WL's depth closure)
+QF_Q16_DR = float(os.environ.get('QF_Q16_DR', str(1.2 - (0.65 + 11 * 0.55 / 27))))      # 'ruled': the rows under the window take on the densification over the arc over this length from X_FOLD0
 QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '0.9' if QF_Q16_P1 == 'ruled' else '1.0').split(','))      # wl: one value = its distance to P1 closes with zero slope from this x to the tip (plan only); two = the old sstep ramp onto P1
 QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '0.9' if QF_Q16_P1 == 'ruled' else '1.14'))
 QF_Q16_L = tuple(float(v) for v in os.environ.get('QF_Q16_L', '1.65,0.976').split(','))      # L aft of the window tip (p018, user 2026-10-23 "原车窗[后肩线]应该是水平的"): rises from the tip (G2) to this x / height and runs level to the tail; 0 = off
@@ -1454,7 +1456,7 @@ def fold_row(a, c, M, u0=None, w=0.0, ja=None):
             sj = np.linspace(0.0, sol['S'], M + 1)
         else:
             # ('ruled': under the window the densification grows with the strip, from the uniform rows ahead of X_FOLD0)
-            wr = float(sstep(X_FOLD0, X_TIP, x)) if QF_Q16_P1 == 'ruled' and x <= X_TIP + 1e-9 else 1.0
+            wr = float(sstep(X_FOLD0, X_FOLD0 + QF_Q16_DR, x)) if QF_Q16_P1 == 'ruled' and x <= X_TIP + 1e-9 else 1.0
             sj = fold_nodes(sol, M, rho=QF_Q16_RHO[0] * min(1.0, sol['th'] / math.radians(QF_Q16_RHO[1])) * wr)
         if u0 is not None:
             sj = sol['S'] * ((1.0 - w) * np.asarray(u0) + w * sj / sol['S'])
@@ -2940,6 +2942,23 @@ def build_all():
             _qWn_ = Fn(_qW_.x0, _qW_.x1, _q16_wly2, lambda x, _w=_qW_: _w.at(x)[..., 2], 'wl')
         else:
             _qWn_ = Fn(_qW_.x0, _qW_.x1, _q16_wly, lambda x, _w=_qW_: _w.at(x)[..., 2], 'wl')
+        if QF_Q16_P1 == 'ruled' and QF_Q16_WLP > 0.0:
+            # the roof beam (user 2026-10-23 "这个顶梁有点不规则"): closing wl's depth from x 0.9 pulled it 4.3 cm inboard over the last 0.3 m and the beam strip (wl -> R-1 -> rear glass)
+            # first widened, then narrowed, then widened again (a waist seen from behind; official-02 shows both edges straight, the strip widening steadily to the window's end).  wl's plan
+            # moves instead by ONE quintic in x from QF_Q16_WLP (G2, nothing changes ahead of it) onto the beam face at the tip, arriving along it (the depth and its slope 0 there)
+            _we_ = 1e-3
+            _wyT_ = float(_yon_(X_TIP, float(_qW_.at(X_TIP)[2])))
+            _fzx_ = (float(_pz_(X_TIP + _we_, _wyT_)) - float(_pz_(X_TIP - _we_, _wyT_))) / (2 * _we_)
+            _fzy_ = (float(_pz_(X_TIP, _wyT_ + _we_)) - float(_pz_(X_TIP, _wyT_ - _we_))) / (2 * _we_)
+            _wzp_ = float(_qW_.at(X_TIP)[2] - _qW_.at(X_TIP - _we_)[2]) / _we_
+            _wyp_ = float(_qW_.at(X_TIP)[1] - _qW_.at(X_TIP - _we_)[1]) / _we_
+            _wpD_, _wpS_ = _wyT_ - float(_qW_.at(X_TIP)[1]), (_wzp_ - _fzx_) / _fzy_ - _wyp_
+            _wpx_ = np.linspace(QF_Q16_WLP, X_TIP, 301)
+            _wpc_ = min(((float(np.abs(np.gradient(np.gradient(quint1(_wpx_, QF_Q16_WLP, 0.0, 0.0, 0.0, X_TIP, _wpD_, _wpS_, _ct), _wpx_), _wpx_))[3:-3].max()), _ct)
+                         for _ct in np.linspace(-40.0, 40.0, 801)))[1]
+            _wpq_ = (QF_Q16_WLP, 0.0, 0.0, 0.0, X_TIP, _wpD_, _wpS_, _wpc_)
+            _qWn_ = Fn(_qW_.x0, _qW_.x1, lambda x, _w=_qW_, _q=_wpq_: _w.at(x)[..., 1] + np.where(np.asarray(x, float) < _q[0], 0.0, quint1(np.clip(x, _q[0], _q[4]), *_q)),
+                       lambda x, _w=_qW_: _w.at(x)[..., 2], 'wl')
         _qdep_ = lambda x: float(_pz_(x, float(_qU_.at(x)[1]))) - float(_qU_.at(x)[2])
         _qa_, _qe_ = QF_Q16_UX0, 1e-3
         _qv_ = _qdep_(_qa_)
