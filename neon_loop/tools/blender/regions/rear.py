@@ -62,7 +62,8 @@ NAME = 'rear'
 # with the matched r81 camera, which reads 5 - 10 px high on anchors that have nothing to do with the tail (roof apex, rear glass corners, ear tips, ground; see REFS r81).  p018 puts the
 # tail corner at ~0.99 and the diffuser endplates ~6 cm under the old ones; the r81 layout (box, red bar, lip, plate, nozzles, module) keeps its proportions and drops by DZ_TAIL.
 REAR_T17 = os.environ.get('REAR_T17', '0') == '1'      # preview switch (with design2 QF_Q16_LT): the side-group tail layout below; off = the accepted tail
-DZ_TAIL = -0.060 if REAR_T17 else 0.0
+# (with design2 QF_Q17 the tail's top edge is level at 1.015, the box's top 1.010: the r81 layout (box top 1.056) drops 4.6 cm; with the side-group corner alone (0.986) it was 6 cm)
+DZ_TAIL = -0.046 if REAR_T17 else 0.0
 LIP_BOT = 0.893 + DZ_TAIL        # underside of the lip roll
 
 
@@ -281,7 +282,7 @@ def tail_top_z(y, ctx):
     the shoulder line L's height.  Read from the shell (q16: L runs level aft of the window, the corner fell from 1.005 to 0.976; the old fixed 1.005 let the band's rays pass over the
     tail's top edge and paint jagged black wedges on the rear shoulder).  The black light band must stop under it: above it the rays would paint the rear shoulder (as in the first round)."""
     D = ctx.A.D
-    ye, ze, zc = (0.403, 1.042, 1.005) if D is None else (D.E_TARGET[1], D.E_TARGET[2], float(D.CURVES['L'].at(D.E_TARGET[0])[2]))
+    ye, ze, zc = (0.403, 1.042, 1.005) if D is None else (D.E_TARGET[1], float(D.CURVES['rail'].at(D.E_TARGET[0])[2]), float(D.CURVES['L'].at(D.E_TARGET[0])[2]))      # (E's height from R-1's end: q17 levels it)
     t = min(1.0, max(0.0, (abs(y) - ye) / (0.945 - ye)))
     return ze + (zc - ze) * t
 

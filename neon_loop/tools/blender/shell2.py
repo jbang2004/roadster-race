@@ -200,6 +200,14 @@ QF_LB_LENZ = float(os.environ.get('QF_LB_LENZ', '0.50'))    # m: ... and in heig
 def facet_L(R, P):
     """aft of the sample I_FS the character line L runs on a STRAIGHT line S' -> TL that lies in the facet's plane (S' = L[I_FS] moved into the plane: < 1 mm); samples keep their x"""
     P = P.copy()
+    q17 = bool(D.QF_Q16 and D.QF_Q17)
+    if q17:
+        # q17 (the level tail edge): the corner TL is raised to the edge's height.  It moves (in y only, 2.4 mm outboard) into the facet's plane as it was with TL at L's level: raised on its own
+        # it tilted the plane about l3, and S, 0.4 m ahead, fell 3 mm outside it (a plan jog in L at S)
+        t0 = P[-1].copy()
+        t0[2] = D.QF_Q16_L[1]
+        n0, t3 = facet_plane(R, t0)
+        P[-1, 1] -= float((P[-1] - t3) @ n0) / n0[1]
     n, t3 = facet_plane(R, P[-1])
     s = P[I_FS] - n * float((P[I_FS] - t3) @ n)
     x = P[I_FS:, 0].copy()
@@ -219,7 +227,7 @@ def facet_L(R, P):
         d0 = (q[1] - q[0]) / (xo[1] - xo[0])
         dd = (d1 - d0) / (0.5 * (xo[2] - xo[0]))                                  # the old curvature vector (second derivative in x) at S
         A = np.array([[1.0, 1.0, 1.0], [3.0, 4.0, 5.0], [6.0, 12.0, 20.0]])
-        for ax, ln in ((1, QF_LB_LEN), (2, QF_LB_LENZ)):                          # plan (y) and height (z) are bent over their own lengths
+        for ax, ln in ((1, QF_LB_LEN), (2, 0.0 if q17 else QF_LB_LENZ)):          # plan (y) and height (z) are bent over their own lengths (q17: design2's L already bends into the segment, S rising)
             if ln <= 0.0:
                 continue
             xb = xS - ln
