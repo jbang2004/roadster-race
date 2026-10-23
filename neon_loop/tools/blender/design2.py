@@ -664,6 +664,7 @@ QF_Q16_DR = float(os.environ.get('QF_Q16_DR', str(1.2 - (0.65 + 11 * 0.55 / 27))
 QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '0.9' if QF_Q16_P1 == 'ruled' else '1.0').split(','))      # wl: one value = its distance to P1 closes with zero slope from this x to the tip (plan only); two = the old sstep ramp onto P1
 QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '0.9' if QF_Q16_P1 == 'ruled' else '1.14'))
 QF_Q16_L = tuple(float(v) for v in os.environ.get('QF_Q16_L', '1.65,0.976').split(','))      # L aft of the window tip (p018, user 2026-10-23 "原车窗[后肩线]应该是水平的"): rises from the tip (G2) to this x / height and runs level to the tail; 0 = off
+QF_Q16_LT = tuple(float(v) for v in os.environ.get('QF_Q16_LT', '0,2.37,0.986').split(','))      # the tail corner (user 2026-10-23, "按侧视组"): p018's corner top reads 0.993 (0.984 less the same tonal-edge offset as the level part): L leaves its level at [0] and reaches [2] at [1] (quintic, level at both ends); the light box's top is 5 mm under it; [0] = 0: off (preview: QF_Q16_LT=2.15,2.37,0.986, with REAR_T17=1)
 QF_Q16_R1 = tuple(float(v) for v in os.environ.get('QF_Q16_R1', '0.85,0.013').split(','))      # R-1 raised (p018 top outline, user 2026-10-23 "R-1 和后窗玻璃边一起抬高"): by [1] at the tip, a quintic from [0] (G2), straight to E aft; the rear glass edge and centre line rise with it; 0 = off
 QF_Q16_U = os.environ.get('QF_Q16_U', 'depth' if QF_Q16_P1 == 'ruled' else 'face')      # 'face': U = where the one ruled face from L (under and behind the window) reaches U's side view (the window is an opening in it); 'depth': U's depth below P1 closes (preview 1)
 QF_Q16_FX0 = float(os.environ.get('QF_Q16_FX0', str(0.65 + 11 * 0.55 / 27)))      # 'face': the face's angle law starts here (G2 with the ruled rows L -> U ahead of it)
@@ -2891,10 +2892,13 @@ def build_all():
             _lc_ = float(_L0_.at(_la_ + 1e-2)[2] - 2 * _lv_ + _L0_.at(_la_ - 1e-2)[2]) / 1e-4
             _lq_ = (_la_, _lv_, _ls_, _lc_, QF_Q16_L[0], QF_Q16_L[1], 0.0, 0.0)
 
-            def _q16_lz(x, _l=_L0_, _q=_lq_):
+            _lt_ = (QF_Q16_LT[0], QF_Q16_L[1], 0.0, 0.0, QF_Q16_LT[1], QF_Q16_LT[2], 0.0, 0.0) if QF_Q16_LT[0] > 0.0 else None
+
+            def _q16_lz(x, _l=_L0_, _q=_lq_, _t=_lt_):
                 x = np.asarray(x, float)
                 z0 = _l.at(x)[..., 2]
-                return np.where(x <= _q[0], z0, np.where(x <= _q[4], quint1(np.clip(x, _q[0], _q[4]), *_q), _q[5]))
+                aft = _q[5] if _t is None else np.where(x <= _t[0], _q[5], quint1(np.clip(x, _t[0], _t[4]), *_t))
+                return np.where(x <= _q[0], z0, np.where(x <= _q[4], quint1(np.clip(x, _q[0], _q[4]), *_q), aft))
             CURVES['L'] = Fn(_L0_.x0, _L0_.x1, lambda x, _l=_L0_: _l.at(x)[..., 1], _q16_lz, 'L')
         _qn_, _qd_ = q16_plane()
         _yon_ = lambda x, z: (_qd_ - _qn_[0] * x - _qn_[2] * z) / _qn_[1]
