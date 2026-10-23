@@ -650,11 +650,18 @@ QF_WE_K = int(os.environ.get('QF_WE_K', '3'))       # nodes on each side of the 
 # The side window is a recess in P1: the rail band above it lies in P1 (wl moved onto it, plan only, QF_Q16_WL) and U's depth below P1 closes with zero slope at the tip (U moved in plan
 # only, QF_Q16_UX0 .. tip): the rows under the window run into the plane with no step, no crease and no triangle.  No solving, no switches.
 QF_Q16 = os.environ.get('QF_Q16', '0') == '1'      # PREVIEW (off until the user accepts it): QF_Q16=1 builds the q16 rear
-QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '1.0').split(','))      # wl: one value = its distance to P1 closes with zero slope from this x to the tip (plan only); two = the old sstep ramp onto P1
-QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '1.14'))
+# q16 'ruled' (option 1b, user 2026-10-23 "按方案 1b 建模，出预览"): the arc READING (ARC_K, y and z) is the soft arc itself.  The photos put it on no plane through R-1 (through C0, E and the
+# reading at x 1.2 / 1.55 / 2.15: 42.8 / 32.7 / 21.6 deg), so P1 becomes the RULED surface reading -> R-1 (43 -> 22 deg aft of the tip, monotone) and the platform the ruled surface
+# L -> reading (24 -> 7 deg, monotone): no face twists back anywhere.  Under the window the strip reading -> U is part of the beam face; the window is an opening in it (U and wl close onto
+# it, plan only): the window tip moves 4.3 cm inboard, its side view does not change.
+QF_Q16_P1 = os.environ.get('QF_Q16_P1', 'plane')      # 'plane' (preview 3) | 'ruled' (option 1b)
+QF_Q16_KD = float(os.environ.get('QF_Q16_KD', '0.15'))      # 'ruled': the roll under the window takes on the rate of the roll behind the tip over this length before the tip
+QF_Q16_XC = float(os.environ.get('QF_Q16_XC', '2.2'))      # 'ruled': both faces follow the reading up to here; aft of it a C2 continuation (the reading's fit bends off near the ear tip)
+QF_Q16_WL = tuple(float(v) for v in os.environ.get('QF_Q16_WL', '0.9' if QF_Q16_P1 == 'ruled' else '1.0').split(','))      # wl: one value = its distance to P1 closes with zero slope from this x to the tip (plan only); two = the old sstep ramp onto P1
+QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '0.9' if QF_Q16_P1 == 'ruled' else '1.14'))
 QF_Q16_L = tuple(float(v) for v in os.environ.get('QF_Q16_L', '1.65,0.976').split(','))      # L aft of the window tip (p018, user 2026-10-23 "原车窗[后肩线]应该是水平的"): rises from the tip (G2) to this x / height and runs level to the tail; 0 = off
 QF_Q16_R1 = tuple(float(v) for v in os.environ.get('QF_Q16_R1', '0.85,0.013').split(','))      # R-1 raised (p018 top outline, user 2026-10-23 "R-1 和后窗玻璃边一起抬高"): by [1] at the tip, a quintic from [0] (G2), straight to E aft; the rear glass edge and centre line rise with it; 0 = off
-QF_Q16_U = os.environ.get('QF_Q16_U', 'face')      # 'face': U = where the one ruled face from L (under and behind the window) reaches U's side view (the window is an opening in it); 'depth': U's depth below P1 closes (preview 1)
+QF_Q16_U = os.environ.get('QF_Q16_U', 'depth' if QF_Q16_P1 == 'ruled' else 'face')      # 'face': U = where the one ruled face from L (under and behind the window) reaches U's side view (the window is an opening in it); 'depth': U's depth below P1 closes (preview 1)
 QF_Q16_FX0 = float(os.environ.get('QF_Q16_FX0', str(0.65 + 11 * 0.55 / 27)))      # 'face': the face's angle law starts here (G2 with the ruled rows L -> U ahead of it)
 QF_Q16_AX = os.environ.get('QF_Q16_AX', 'y')      # wl / U move in plan ('y', the user's choice) or in side view ('z', variant)
 QF_Q16_UC = os.environ.get('QF_Q16_UC', 'auto')      # the depth's curvature (1/m) at the tip: 'auto' = the one with the smallest peak; 0 = U meets the plane to second order
@@ -1223,6 +1230,92 @@ def q16_p2(x):
     return float(_Q16['p2'](min(x, _Q16['xe'])))
 
 
+def _q16_raw(x):
+    """q16 'ruled': the section angles (rad) of L -> reading (platform) and reading -> R-1 (beam face) at x"""
+    L, A, R = CURVES['L'].at(x), _Q16['rd'].at(x), CURVES['rail'].at(x)
+    return np.arctan2(A[..., 2] - L[..., 2], L[..., 1] - A[..., 1]), np.arctan2(R[..., 2] - A[..., 2], A[..., 1] - R[..., 1])
+
+
+def q16_ruled(x):
+    """q16 'ruled': (platform angle, beam face angle) in section at x (rad, arrays like x): the reading's own up to QF_Q16_XC; aft of it the platform goes on (C2) to L -> E at the ear tip
+    (zero rate there, as in 'plane') and the beam face carries on its own trend (C2, quadratic)"""
+    x = np.asarray(x, float)
+    if 'rc' not in _Q16:
+        xc, e = QF_Q16_XC, 5e-3
+        t2, t1 = _q16_raw(np.array([xc - e, xc, xc + e]))
+        dd = lambda t: (float(t[1]), float(t[2] - t[0]) / (2 * e), float(t[2] - 2 * t[1] + t[0]) / e ** 2)
+        E = np.asarray(E_TARGET, float)
+        LE = CURVES['L'].at(E[0])
+        _Q16['rc'] = (xc, dd(t2), dd(t1), float(E[0]), math.atan2(E[2] - LE[2], LE[1] - E[1]))
+    xc, p2, p1, xe, thE = _Q16['rc']
+    t2, t1 = _q16_raw(np.minimum(x, xc))
+    dx = np.maximum(x - xc, 0.0)
+    return (np.where(x <= xc, t2, quint1(np.minimum(x, xe), xc, *p2, xe, thE, 0.0, 0.0)),
+            np.where(x <= xc, t1, p1[0] + p1[1] * dx + 0.5 * p1[2] * dx * dx))
+
+
+def q16_face(x):
+    """q16 'ruled': the beam face's line in section x: (y_R, z_R, slope) with z = z_R + (y_R - y) * slope"""
+    R = CURVES['rail'].at(x)
+    return R[..., 1], R[..., 2], np.tan(q16_ruled(x)[1])
+
+
+def q16_section_ruled(x, a, c):
+    """q16 'ruled': the row between a = L and c = U (forward of / at the tip) or R-1 (aft): smooth max of the platform (through L) and the beam face (through c), which meet on the arc
+    reading.  Forward of the tip the face is the strip reading -> U (the window is an opening in the face); the roll there is sized to the strip (kf of its width, the size behind the tip
+    at the tip) and so grows from nothing where the reading leaves U"""
+    u = np.linspace(0.0, 1.0, 2401)
+    y = a[0] + (c[0] - a[0]) * u
+    if x <= X_TIP + 1e-9:
+        A = np.asarray(_Q16['rd'].at(x), float)[1:]
+        ws = A[0] - c[0]
+        if ws < 2e-4 or a[0] - A[0] < 2e-4:
+            return None
+        t2, t1 = (A[1] - a[1]) / (a[0] - A[0]), (c[1] - A[1]) / ws
+        if 'kf' not in _Q16:
+            # kf: the roll's size under the window per strip width and slope step, so that it equals the size behind the tip at the tip; and a bump (C1) in the last QF_Q16_KD before
+            # the tip that hands its RATE over too (the strip widens fast there, the roll behind the tip shrinks: kf alone left a 2.2 deg lengthwise kink across the roll at the tip row)
+            def gap(xv):
+                L_, A_, U_ = CURVES['L'].at(xv), np.asarray(_Q16['rd'].at(xv), float), CURVES['U'].at(xv)
+                g2_, g1_ = (A_[2] - L_[2]) / (L_[1] - A_[1]), (U_[2] - A_[2]) / (A_[1] - U_[1])
+                return (A_[1] - U_[1]) * (g1_ - g2_)
+
+            def kaft(xv):
+                th2_, th1_ = q16_ruled(xv)
+                g2_, g1_ = math.tan(float(th2_)), math.tan(float(th1_))
+                w_ = float(sstep(X_TIP, X_TIP + QF_Q16_R[2] if len(QF_Q16_R) > 2 else float(E_TARGET[0]), xv))
+                return (QF_Q16_R[0] + (QF_Q16_R[1] - QF_Q16_R[0]) * w_) * (g1_ - g2_) ** 2 / (1.0 + (0.5 * (g1_ + g2_)) ** 2) ** 1.5
+            e = 2e-3
+            kt, gt = kaft(X_TIP), gap(X_TIP)
+            _Q16['kf'] = kt / gt
+            _Q16['kc'] = (kt / gt * (gt - gap(X_TIP - e)) / e - (kaft(X_TIP + e) - kt) / e) / kt
+        um = X_TIP - x
+        k = _Q16['kf'] * ws * max(t1 - t2, 0.0) * ((1.0 + _Q16['kc'] * um * (1.0 - um / QF_Q16_KD) ** 2) if um < QF_Q16_KD else 1.0)
+    else:
+        th2, th1 = q16_ruled(x)
+        t2, t1 = math.tan(float(th2)), math.tan(float(th1))
+        w = float(sstep(X_TIP, X_TIP + QF_Q16_R[2] if len(QF_Q16_R) > 2 else float(E_TARGET[0]), x))
+        r = QF_Q16_R[0] + (QF_Q16_R[1] - QF_Q16_R[0]) * w
+        k = r * max(t1 - t2, 0.0) ** 2 / (1.0 + (0.5 * (t1 + t2)) ** 2) ** 1.5
+    z2 = a[1] + (a[0] - y) * t2
+    z1 = c[1] + (c[0] - y) * t1
+    smax = lambda p, q: -_smin(-np.atleast_1d(p), -np.atleast_1d(q), k)
+    dl = 0.0
+    if float(smax(z2[-1], z1[-1])[0]) > c[1] + 1e-12:
+        lo, hi = 0.0, k + abs(z1[-1] - z2[-1])
+        for _ in range(60):
+            dl = 0.5 * (lo + hi)
+            lo, hi = (dl, hi) if float(smax(z2[-1], z1[-1] - dl)[0]) > c[1] else (lo, dl)
+        dl = 0.5 * (lo + hi)
+    z = smax(z2, z1 - dl)
+    s = np.r_[0.0, np.cumsum(np.hypot(np.diff(y), np.diff(z)))]
+    up = z1 - dl
+    i = int(np.argmax(up >= z2)) if np.any(up >= z2) else len(s) - 1
+    blend = np.abs(z2 - up) < k
+    sc, ell = float(s[i]), (float(s[blend].max() - s[blend].min()) if blend.any() else 0.0)
+    return dict(x=float(x), a=a, c=c, phi0=math.atan(t2), S=float(s[-1]), sc=sc, ell=ell, th=math.atan(t1) - math.atan(t2), s=s, y=y - a[0], z=z - a[1], dl=dl, k=k)
+
+
 def q16_section(x, a, c, ax=None, cx=None):
     """q16: the row between a = L (y, z) and c = U (forward of / at the tip: the straight ruling) or R-1 (aft: smooth max(platform, plane), the plane lowered by dl only where the arc reaches
     R-1 at the ear, so that the row ends on it); a solution dict like fold_solve_q14's"""
@@ -1231,6 +1324,13 @@ def q16_section(x, a, c, ax=None, cx=None):
     cx = x if cx is None else cx
     u = np.linspace(0.0, 1.0, 2401)
     y = a[0] + (c[0] - a[0]) * u
+    if QF_Q16_P1 == 'ruled':
+        sol = q16_section_ruled(x, a, c)
+        if sol is not None:
+            return sol
+        z = a[1] + (c[1] - a[1]) * u
+        s = u * float(np.hypot(*(c - a)))
+        return dict(x=float(x), a=a, c=c, phi0=math.atan2(c[1] - a[1], a[0] - c[0]), S=float(s[-1]), sc=float(s[-1]), ell=0.0, th=0.0, s=s, y=y - a[0], z=z - a[1], straight=True)
     n, d = q16_plane()
     th1 = math.atan2(n[1], n[2])
     if x <= X_TIP + 1e-9:
@@ -1353,7 +1453,9 @@ def fold_row(a, c, M, u0=None, w=0.0, ja=None):
         if sol.get('straight'):
             sj = np.linspace(0.0, sol['S'], M + 1)
         else:
-            sj = fold_nodes(sol, M, rho=QF_Q16_RHO[0] * min(1.0, sol['th'] / math.radians(QF_Q16_RHO[1])))
+            # ('ruled': under the window the densification grows with the strip, from the uniform rows ahead of X_FOLD0)
+            wr = float(sstep(X_FOLD0, X_TIP, x)) if QF_Q16_P1 == 'ruled' and x <= X_TIP + 1e-9 else 1.0
+            sj = fold_nodes(sol, M, rho=QF_Q16_RHO[0] * min(1.0, sol['th'] / math.radians(QF_Q16_RHO[1])) * wr)
         if u0 is not None:
             sj = sol['S'] * ((1.0 - w) * np.asarray(u0) + w * sj / sol['S'])
         P = fold_points(sol, sj, a[0], c[0])
@@ -2792,13 +2894,25 @@ def build_all():
             CURVES['L'] = Fn(_L0_.x0, _L0_.x1, lambda x, _l=_L0_: _l.at(x)[..., 1], _q16_lz, 'L')
         _qn_, _qd_ = q16_plane()
         _yon_ = lambda x, z: (_qd_ - _qn_[0] * x - _qn_[2] * z) / _qn_[1]
+        _pz_ = lambda x, y: (_qd_ - _qn_[0] * x - _qn_[1] * y) / _qn_[2]
+        if QF_Q16_P1 == 'ruled':
+            # option 1b: the reading of the soft arc (built here from the unchanged U, exactly as CURVES['arc_reading'] below) carries both faces; wl and U close onto the beam face
+            _u0_ = np.asarray(CURVES['U'].at(X_FOLD0), float)
+            _Q16['rd'] = fit3(dense([(X_FOLD0, _u0_[1], _u0_[2])] + [k for k in ARC_K[1:]], X_FOLD0, 2.41, 60), 6, 'arc_reading')
+
+            def _yon_(x, z):
+                yr, zr, t = q16_face(x)
+                return yr - (z - zr) / t
+
+            def _pz_(x, y):
+                yr, zr, t = q16_face(x)
+                return zr + (yr - y) * t
         _qW_, _qU_ = CURVES['wl'], CURVES['U']
 
         def _q16_wly(x, _w=_qW_):
             x = np.asarray(x, float)
             p = _w.at(x)
             return p[..., 1] + (_yon_(x, p[..., 2]) - p[..., 1]) * sstep(QF_Q16_WL[0], QF_Q16_WL[1], x)
-        _pz_ = lambda x, y: (_qd_ - _qn_[0] * x - _qn_[1] * y) / _qn_[2]
 
         def _q16_wlz(x, _w=_qW_):
             x = np.asarray(x, float)
@@ -2826,7 +2940,7 @@ def build_all():
             _qWn_ = Fn(_qW_.x0, _qW_.x1, _q16_wly2, lambda x, _w=_qW_: _w.at(x)[..., 2], 'wl')
         else:
             _qWn_ = Fn(_qW_.x0, _qW_.x1, _q16_wly, lambda x, _w=_qW_: _w.at(x)[..., 2], 'wl')
-        _qdep_ = lambda x: float(_qd_ - _qn_[0] * x - _qn_[1] * _qU_.at(x)[1]) / _qn_[2] - float(_qU_.at(x)[2])
+        _qdep_ = lambda x: float(_pz_(x, float(_qU_.at(x)[1]))) - float(_qU_.at(x)[2])
         _qa_, _qe_ = QF_Q16_UX0, 1e-3
         _qv_ = _qdep_(_qa_)
         _qs_ = (_qdep_(_qa_ + _qe_) - _qdep_(_qa_ - _qe_)) / (2 * _qe_)
