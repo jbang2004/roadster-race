@@ -7,8 +7,8 @@
 // same from the side as end-on) with a little of the integral (a column seen down its axis is denser). 4 hulls, 1 draw call.
 import * as THREE from 'three';
 
-// nozzle exits in the car frame (−Z forward, +X right, +Y up): see tools/blender/regions/rear.py JET_Y / JET_Z (0.532: r81 / 012 ring centres 0.578, the tail layout lowered 4.6 cm with the level tail edge) / JET_X (2.318 = the lip face; exit plane 2 cm behind it)
-export const JET_EXITS = [-0.405, -0.135, 0.135, 0.405].map(x => new THREE.Vector3(x, 0.532, 2.338));      // JET_X 2.318 (round 2: the rings are recessed under the crossbeam) + 2 cm
+// nozzle exits in the car frame (−Z forward, +X right, +Y up): see tools/blender/regions/rear.py JET_Y / JET_Z (0.512: r81 / 012 ring centres 0.578, the tail layout lowered 6.6 cm with the level tail edge at 0.995) / JET_X (2.318 = the lip face; exit plane 2 cm behind it)
+export const JET_EXITS = [-0.405, -0.135, 0.135, 0.405].map(x => new THREE.Vector3(x, 0.512, 2.338));      // JET_X 2.318 (round 2: the rings are recessed under the crossbeam) + 2 cm
 const Z0 = 2.346, LEN = 1.9, HULL_R = 0.34, SIDES = 14;
 
 let GEO = null;

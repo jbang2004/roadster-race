@@ -2,14 +2,14 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "d296a0c6d3bd8948",
-   "verts": 8281,
-   "faces": 8050
+   "sha": "14bca9ba3592fa07",
+   "verts": 8511,
+   "faces": 8280
   },
   "wall": {
-   "sha": "ffd8ed459a098a03",
-   "verts": 4636,
-   "faces": 4341
+   "sha": "fe64a7198561bf5a",
+   "verts": 4635,
+   "faces": 4340
   },
   "wall_black": {
    "sha": "4614f58c202f2eac",
@@ -17,19 +17,19 @@
    "faces": 4575
   },
   "pillar": {
-   "sha": "bbcc40629d8ffe83",
+   "sha": "397f96320d433044",
    "verts": 1056,
    "faces": 936
   },
   "door_glass": {
-   "sha": "3c50893ffb99836d",
+   "sha": "8ff9e3a61498df36",
    "verts": 3535,
    "faces": 3404
   },
   "rail_band": {
-   "sha": "33b4d67f61e872cd",
-   "verts": 330,
-   "faces": 291
+   "sha": "4aa994a8543c09d9",
+   "verts": 329,
+   "faces": 289
   },
   "front_face": {
    "sha": "5951cc5d0beac59e",
@@ -52,29 +52,29 @@
    "faces": 792
   },
   "rear_shoulder": {
-   "sha": "93b1331eac287ae2",
+   "sha": "67fc6c87a755723f",
    "verts": 3110,
-   "faces": 3000
+   "faces": 3016
   },
   "glass": {
-   "sha": "708a47918d7384c3",
+   "sha": "8f0eb28cd5bedec1",
    "verts": 9331,
    "faces": 9125
   },
   "ridge_inner": {
-   "sha": "3b0b95b46c71f6c9",
+   "sha": "eb7ef6c2d085efa8",
    "verts": 1082,
    "faces": 952
   },
   "deck": {
-   "sha": "aba72a4f92167121",
+   "sha": "b23e9776eed0f39e",
    "verts": 586,
    "faces": 556
   },
   "tail_upper": {
-   "sha": "8bb383e11b79663a",
-   "verts": 840,
-   "faces": 767
+   "sha": "58cb88f7a4e91023",
+   "verts": 780,
+   "faces": 708
   },
   "tail_lower": {
    "sha": "c58f1ed104e3bfac",
@@ -82,9 +82,9 @@
    "faces": 2242
   },
   "facet": {
-   "sha": "7c85a1986072aa63",
-   "verts": 390,
-   "faces": 357
+   "sha": "54b346a865f8ee11",
+   "verts": 362,
+   "faces": 328
   }
  }
 }

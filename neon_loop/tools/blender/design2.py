@@ -669,17 +669,37 @@ QF_Q16_UX0 = float(os.environ.get('QF_Q16_UX0', '0.9' if QF_Q16_P1 == 'ruled' el
 QF_Q16_L = tuple(float(v) for v in os.environ.get('QF_Q16_L', '1.65,0.976').split(','))      # L aft of the window tip (p018, user 2026-10-23 "原车窗[后肩线]应该是水平的"): rises from the tip (G2) to this x / height and runs level to the tail; 0 = off
 QF_Q16_LT = tuple(float(v) for v in os.environ.get('QF_Q16_LT', '0,2.37,0.986').split(','))      # the tail corner (user 2026-10-23, "按侧视组"): p018's corner top reads 0.993 (0.984 less the same tonal-edge offset as the level part): L leaves its level at [0] and reaches [2] at [1] (quintic, level at both ends); the light box's top is 5 mm under it; [0] = 0: off (preview: QF_Q16_LT=2.15,2.37,0.986, with REAR_T17=1)
 _q17_ = os.environ.get('QF_Q17', '1')
-QF_Q17 = (1.015, 2.345, 2.10) if _q17_ == '1' else (tuple(float(v) for v in _q17_.split(',')) if ',' in _q17_ else None)      # the level tail top edge (user 2026-10-23, "取中 ≈1.015": the tail seen from behind is flat in r81, the model showed a trapezoid of paint over the light box): (height of the tail's top edge, x where R-1 meets the deck = p013's ear triangle closing 4.6 cm before the tail edge, x where R-1 leaves its line and the platform's angle leaves the reading); QF_Q17=0: off (the tail before 2026-10-23)
+# 2026-10-24 (user: "车尾在斜前视角看去也翘起得比实车更多更尖，不够浑厚专业"): the level edge 1.015 -> 0.995 with the corner (QF_Q17_ZC), R-1 leaves its line at 2.22 (was 2.10) and the deck
+# drop is end-loaded (QF_Q17_N 9): the deck and R-1 stay up to ~2.3 and roll down to the edge.  p018: the corner read 0.987 (the 1.015 corner stood 2 - 3 cm over the photo, with L rising
+# 3.9 cm into it: the upturned, pointed tail of p016); r81 keeps its level edge (the light band follows it down 2 cm; regions/rear.py DZ_TAIL)
+QF_Q17 = (0.995, 2.345, 2.22) if _q17_ == '1' else (tuple(float(v) for v in _q17_.split(',')) if ',' in _q17_ else None)      # the level tail top edge (user 2026-10-23, "取中 ≈1.015": the tail seen from behind is flat in r81, the model showed a trapezoid of paint over the light box): (height of the tail's top edge, x where R-1 meets the deck = p013's ear triangle closing 4.6 cm before the tail edge, x where R-1 leaves its line and the platform's angle leaves the reading); QF_Q17=0: off (the tail before 2026-10-23)
 _tw_ = os.environ.get('QF_Q17_TW', '1')
 QF_Q17_TW = (0.05, 1e-6) if _tw_ == '1' else (tuple(float(v) for v in _tw_.split(',')) if ',' in _tw_ else None)      # q17 tail twist (review 2026-10-23, item 2): (the beam face's width at the level edge, third-difference weight of the platform angle's fit); 0: the platform meets the ruling L -> R-1 at the edge and the face lies down onto it
 QF_Q17_L = tuple(float(v) for v in os.environ.get('QF_Q17_L', '1.9709,2.3685,0.25,0,2.20').split(','))      # q17, L to the raised corner: (x of the facet apex S = shell2 L sample I_FS, x of the tail corner = L's last sample, length of L's bend into the facet's straight edge before S, the platform's pivot: the width from L over which it rises into the corner with L, inboard of it it falls to the tail edge (0: where a ruling L -> R-1 at the edge has it); x from which the beam face lies down onto the platform, flat at the edge)
-QF_Q16_R1 = tuple(float(v) for v in os.environ.get('QF_Q16_R1', '0.85,0.013').split(','))      # R-1 raised (p018 top outline, user 2026-10-23 "R-1 和后窗玻璃边一起抬高"): by [1] at the tip, a quintic from [0] (G2), straight to E aft; the rear glass edge and centre line rise with it; 0 = off
+QF_Q17_ZC = float(os.environ.get('QF_Q17_ZC', '0.995'))      # q17, the tail corner's height (L's end). 2026-10-24 (user: "车尾在斜前视角看去也翘起得比实车更多更尖，不够浑厚"): it was QF_Q17[0], the level edge's
+#   1.015: L rose 3.9 cm from its level over the last 0.6 m into a pointed corner (p018's tail end lies up to 7.6 px under it, more towards the near corner: the corner reads 0.987).
+#   Now the corner and the level edge are both 0.995 (a lower corner alone left a 2.5 cm paint strip over the light band in the middle, the r81 trapezoid of 2026-10-23); L rises
+#   1.9 cm from S instead of 3.9.  (A separate value keeps the option of a corner under the edge: the platform's end chord then rises from the corner to E.)
+QF_Q17_N = float(os.environ.get('QF_Q17_N', '9'))      # q17 deck drop w(t) = (n+1)/2 t^n - (n-1)/2 t^(n+1) (seam -> edge): n = 3 is the original 2t^3 - t^4; larger n holds the deck up longer and rolls it
+#   down at the end (convex throughout, no curvature at the edge)
+QF_Q17_XT = float(os.environ.get('QF_Q17_XT', '2.00'))      # q17, where the platform leaves the reading and starts its twist to the level edge (_q17_twist).  It was QF_Q17[2] (capped by
+#   QF_Q16_XC 2.2).  With R-1 leaving its line at 2.22 and the edge at 0.995 the platform kept the reading's angle to 2.2 and had 17 cm to lie flat: its lengthwise profiles went flatter,
+#   then steeper (y 0.65: -4.8 -> -3.7 -> -11.9 deg; 1 - 2 inflections at y 0.55 - 0.92, the S of review item 2).  From 2.00 they steepen steadily (y 0.65: -4.9 -6.3 -7.3 -7.7 -8.1 deg,
+#   y 0.65 - 0.85 without inflection; 2.05 / 2.10 keep one); the cost: the arc leaves the reading by up to 3.9 cm out / 2 cm down at x 2.2 - 2.25 (2.2: 1.7 cm at 2.3; tolerance 6 cm, and
+#   at 0.5 m radius the arc is no line).  R-1 holds its line to QF_Q17[2] all the same.
+QF_Q16_R1 = tuple(float(v) for v in os.environ.get('QF_Q16_R1', '0.80,0.013,1.50').split(','))      # R-1 raised (p018 top outline, user 2026-10-23 "R-1 和后窗玻璃边一起抬高"): by [1] at the tip, a quintic from [0] (G2), straight to E aft; the rear glass edge and centre line rise with it; 0 = off.
+#   [2] (2026-10-24, user: "顶梁尾部上边还是有点拱起，应该调成跟实车一样完全平滑"): the quintic runs on past the tip to x [2], G2 with R-1's raised straight line there (the line itself, E and
+#   the raise at E unchanged).  Ending at the tip with the line's slope, it flattened the roof rail to -0.074 at x 1.0 before steepening to -0.172 (a hump; p018's top outline is 6 - 9 mm
+#   lower over x 1.1 - 1.25); now the slope steepens monotonically from the rail's -0.11 to -0.172.
 QF_Q16_U = os.environ.get('QF_Q16_U', 'depth' if QF_Q16_P1 == 'ruled' else 'face')      # 'face': U = where the one ruled face from L (under and behind the window) reaches U's side view (the window is an opening in it); 'depth': U's depth below P1 closes (preview 1)
 QF_Q16_FX0 = float(os.environ.get('QF_Q16_FX0', str(0.65 + 11 * 0.55 / 27)))      # 'face': the face's angle law starts here (G2 with the ruled rows L -> U ahead of it)
 QF_Q16_AX = os.environ.get('QF_Q16_AX', 'y')      # wl / U move in plan ('y', the user's choice) or in side view ('z', variant)
 QF_Q16_UC = os.environ.get('QF_Q16_UC', 'auto')      # the depth's curvature (1/m) at the tip: 'auto' = the one with the smallest peak; 0 = U meets the plane to second order
 QF_Q16_P2 = [tuple(float(u) for u in k.split(':')) for k in os.environ.get('QF_Q16_P2', '1.4:20.7,1.55:16.1,1.7:12.6,1.85:9.7,2.0:7.7').split(',')]
-QF_Q16_R = tuple(float(v) for v in os.environ.get('QF_Q16_R', '0.12,0.25,0.5' if QF_Q16_P1 == 'ruled' else '0.25,0.25').split(','))      # radius (m) of the soft arc at the tip and aft (smoothstep between, over the 3rd value's length or to E); 'ruled' (user 2026-10-23 "按第 1 种做，窗尖处圆角收紧"): 0.12 m at the tip, 0.25 m from x 1.7 on: the front rim light's reflection on the roll under the window (p017) is half as wide
+# 2026-10-24 (user: "窗尖下方的过渡地带似乎也不够平缓"): 0.12 / 0.25 -> 0.45 / 0.50 m.  p017 has the same tone from the beam face over the arc to the platform under the window tip (175 -> 179,
+#   a 5 - 8 level dip at the bottom); the model stepped by 20 levels over 12 px there (blend 10 cm wide at x 1.25), at 0.30 / 0.50 over ~24 px (25 cm), at 0.45 over 37 cm: the reflection lines
+#   run on long and regular instead of closing in blobs.  Aft not over 0.50: at 0.60 the arc reaches R-1 at the ear and lowers the beam face 18 mm at x 2.3 (11.5 mm at 0.50, 1 mm at 0.25)
+QF_Q16_R = tuple(float(v) for v in os.environ.get('QF_Q16_R', '0.45,0.50,0.5' if QF_Q16_P1 == 'ruled' else '0.25,0.25').split(','))      # radius (m) of the soft arc at the tip and aft (smoothstep between, over the 3rd value's length or to E); 'ruled' (user 2026-10-23 "按第 1 种做，窗尖处圆角收紧"): 0.12 m at the tip, 0.25 m from x 1.7 on: the front rim light's reflection on the roll under the window (p017) is half as wide
 QF_Q16_RHO = tuple(float(v) for v in os.environ.get('QF_Q16_RHO', '1.3,6').split(','))      # node densification over the arc, reached when the turn is this many degrees
 FOLD_SC_D = float(os.environ.get('FOLD_SC_D', '0.0'))            # extra slope (m/m) of the roll's centre sc(x) at the window tip, a smooth bump of half width X_SC_W (a free parameter for the G1 across tip_lo)
 X_SC_W = 0.25
@@ -1294,7 +1314,7 @@ def q16_ruled(x):
     if 'rc' not in _Q16:
         # (q17: the platform leaves the reading where R-1 and L start to move, and reaches the level tail edge still turning: at the rate that keeps the platform's lengthwise profiles
         # monotone, rising into the corner with L within QF_Q17_L[3] of it, falling to the edge inboard of that; arriving flat (rate 0) it put a 0.9 mm trough before the edge)
-        xc, e = (min(QF_Q16_XC, QF_Q17[2]) if QF_Q17 else QF_Q16_XC), 5e-3
+        xc, e = (min(QF_Q16_XC, QF_Q17_XT) if QF_Q17 else QF_Q16_XC), 5e-3
         t2, t1 = _q16_raw(np.array([xc - e, xc, xc + e]))
         dd = lambda t: (float(t[1]), float(t[2] - t[0]) / (2 * e), float(t[2] - 2 * t[1] + t[0]) / e ** 2)
         E = _e_tail()
@@ -3021,14 +3041,14 @@ def build_all():
             # the roof rail takes the rise up over QF_Q16_R1[0] .. tip (G2 at the start, the crest's new slope and zero curvature at the tip).  The window tip does not move (it hangs off
             # rail_roof); the rear glass edge and the centre line get the same rise (below, where they are built): R-1 stays flush with the glass
             _R0_, _Ex_ = CURVES['rail'], float(E_TARGET[0])
-            _ra_, _rz_ = QF_Q16_R1
-            _rq_ = (_ra_, 0.0, 0.0, 0.0, X_TIP, _rz_, -_rz_ / (_Ex_ - X_TIP), 0.0)
+            _ra_, _rz_ = QF_Q16_R1[:2]
+            _rx_ = QF_Q16_R1[2] if len(QF_Q16_R1) > 2 else X_TIP
+            _rl_ = lambda x: _rz_ * np.clip((_Ex_ - np.asarray(x, float)) / (_Ex_ - X_TIP), 0.0, 1.0)      # the raise along R-1's straight line (0 at E)
+            _rq_ = (_ra_, 0.0, 0.0, 0.0, _rx_, float(_rl_(_rx_)), -_rz_ / (_Ex_ - X_TIP), 0.0)
 
-            def _q16_r1d(x, _q=_rq_, _ex=_Ex_):
+            def _q16_r1d(x, _q=_rq_, _rl=_rl_):
                 x = np.asarray(x, float)
-                fwd = quint1(np.clip(x, _q[0], _q[4]), *_q)
-                aft = _q[5] * np.clip((_ex - x) / (_ex - _q[4]), 0.0, 1.0)
-                return np.where(x < _q[0], 0.0, np.where(x <= _q[4], fwd, aft))
+                return np.where(x < _q[0], 0.0, np.where(x <= _q[4], quint1(np.clip(x, _q[0], _q[4]), *_q), _rl(x)))
             _Q16['r1d'] = _q16_r1d
             CURVES['rail'] = Fn(_R0_.x0, _R0_.x1, lambda x, _r=_R0_: _r.at(x)[..., 1], lambda x, _r=_R0_: _r.at(x)[..., 2] + _q16_r1d(x), 'rail')
         if QF_Q16_L[0] > 0.0:
@@ -3048,7 +3068,7 @@ def build_all():
                 # p018 too); L bends into that line over QF_Q17_L[2] before S (sextic offset, G2 at both ends: level -> the line's slope) and S rises with it by half the slope times the bend.  (A
                 # quintic rise near the tail did not reach the shell, which straightens L from S, and with S held the bend before S had to sag: 12 mm at x 1.8, a dip in p018's shoulder line.)
                 _xs_, _xl_, _lb_ = QF_Q17_L[:3]
-                _l17_ = (_xs_ - _lb_, _lb_, (QF_Q17[0] - QF_Q16_L[1]) / (_xl_ - _xs_ + 0.5 * _lb_), _xs_, _xl_)
+                _l17_ = (_xs_ - _lb_, _lb_, (QF_Q17_ZC - QF_Q16_L[1]) / (_xl_ - _xs_ + 0.5 * _lb_), _xs_, _xl_)
                 _Q16['l17'] = _l17_
 
             def _q16_lz(x, _l=_L0_, _q=_lq_, _t=_lt_, _u=_l17_):
@@ -3322,7 +3342,8 @@ def build_all():
         _dg_ = float(_g0_.at(_xe_)[2]) - _ze_
         # (the drop is CONVEX all the way: w = 2t^3 - t^4, G2 with the body at the seam, steepest at the edge and no curvature there, carried on straight past E; a quintic, flat in its
         # rate at both ends, ran -10 -> -18 -> -10 deg in side view: an S, a little ducktail at the edge)
-        _wg_ = lambda x: (lambda t: np.where(t <= 1.0, 2.0 * t ** 3 - t ** 4, 2.0 * t - 1.0))(np.maximum((np.asarray(x, float) - X_SEAM) / (_xe_ - X_SEAM), 0.0))
+        _wn_ = QF_Q17_N
+        _wg_ = lambda x: (lambda t: np.where(t <= 1.0, 0.5 * (_wn_ + 1) * t ** _wn_ - 0.5 * (_wn_ - 1) * t ** (_wn_ + 1), 1.0 + 0.5 * (_wn_ + 1) * (t - 1.0)))(np.maximum((np.asarray(x, float) - X_SEAM) / (_xe_ - X_SEAM), 0.0))
         _Dg_ = lambda x: _dg_ * _wg_(x)
         _e_ = 1e-3
         _da_ = (float(_Dg_(_xa_)), float(_Dg_(_xa_ + _e_) - _Dg_(_xa_ - _e_)) / (2 * _e_), float(_Dg_(_xa_ + _e_) - 2 * _Dg_(_xa_) + _Dg_(_xa_ - _e_)) / _e_ ** 2)

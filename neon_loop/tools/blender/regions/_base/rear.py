@@ -62,8 +62,9 @@ NAME = 'rear'
 # with the matched r81 camera, which reads 5 - 10 px high on anchors that have nothing to do with the tail (roof apex, rear glass corners, ear tips, ground; see REFS r81).  p018 puts the
 # tail corner at ~0.99 and the diffuser endplates ~6 cm under the old ones; the r81 layout (box, red bar, lip, plate, nozzles, module) keeps its proportions and drops by DZ_TAIL.
 REAR_T17 = os.environ.get('REAR_T17', '1') == '1'      # the 2026-10-23 tail (with design2 QF_Q17, the level tail edge): the tail layout below, the wing seam and the one-piece wing; 0 = the tail before it
-# (with design2 QF_Q17 the tail's top edge is level at 1.015, the box's top 1.010: the r81 layout (box top 1.056) drops 4.6 cm; with the side-group corner alone (0.986) it was 6 cm)
-DZ_TAIL = -0.046 if REAR_T17 else 0.0
+# (with design2 QF_Q17 the tail's top edge is level (1.015 on 2026-10-23, 0.995 since 2026-10-24) and the box's top 5 mm under it: the r81 layout (box top 1.056) drops by the difference)
+import design2 as _D2
+DZ_TAIL = ((_D2.QF_Q17[0] - 0.005) - 1.056) if (REAR_T17 and _D2.QF_Q17) else 0.0      # the box's top 5 mm under the level edge: -0.046 at 1.015, -0.066 at 0.995 (2026-10-24)
 LIP_BOT = 0.893 + DZ_TAIL        # underside of the lip roll
 
 
