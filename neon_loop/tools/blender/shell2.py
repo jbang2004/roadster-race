@@ -257,7 +257,10 @@ def e_L5(R):
 def e_hood_cen(R):
     hc = np.array(D.HC, float)
     wc = np.array([D.W[0], 0.0, D.W[2]])
-    return hc + (wc - hc) * D.l5_tau(I_A)[:, None]          # the centre line sampled at L5's fractions (the hood's columns; uniform for the first TRI_K)
+    t = D.l5_tau(I_A)
+    P = hc + (wc - hc) * t[:, None]                          # the centre line sampled at L5's fractions (the hood's columns; uniform for the first TRI_K) ...
+    P[:, 2] += D.hood_sag(t)                                 # ... bowed up like L5 (2026-10-24, design2.QF_HOOD_SAG)
+    return P
 
 
 M_HOOD = int(round(0.67 / HC['hood']))
@@ -1805,9 +1808,13 @@ def cut_arches(ob, lmax=0.028):
     bm = bmesh.new()
     bm.from_mesh(ob.data)
     Lc = C['L']
+    # 2026-10-24: L's height tabulated once (0.5 mm steps, linear interpolation: < 1 micron off) instead of evaluated per vertex: each evaluation runs the whole chain of nose corrections (~55 ms) and near()
+    # asks for it for every vertex round the rear arches, which made this step take ~20 minutes
+    _lx = np.linspace(Lc.x0, Lc.x1, int(round((Lc.x1 - Lc.x0) / 0.0005)) + 1)
+    _lzt = np.asarray(Lc.fz(_lx), float)
 
     def lz(x):
-        return float(Lc.fz(min(max(x, Lc.x0), Lc.x1)))
+        return float(np.interp(x, _lx, _lzt))
     for xh, sg in HUBS:
         rim = QF_AR_ON and xh < 0.0 and QF_AR_D > 0.0           # q5: the front arches get the rolled edge (see _arch_rim)
         az = QF_AZ_ON and xh < 0.0                              # q5: ... and the photo outline (QF_AZ_K)

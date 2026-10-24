@@ -6,12 +6,13 @@ face_black_bot, F_bot, tri, tri_seam, L5, hood_seam_L7, cowl_edge ...); nothing 
   shell_post(ctx)        hi only: the intake pocket cut into the (black) front face of the dense body, after the wheel-arch cut
   build(ctx, level)      level 0 = hi, 1 = lod1, 2 = lod2 -> [objects]
 
-Layout of the face (top -> bottom, all on the raked, bowed front face of the shell; h = distance below the bar_top edge, z = 0.566 - h):
+Layout of the face (top -> bottom, all on the raked, bowed front face of the shell; h = distance below the bar_top edge, z = zN - h, zN = design2.NOSE_ZN = 0.541 since 2026-10-24):
   HeadDRL   the light bar, 16 mm tall, tapering to 1.3 mm at the corner vertex, corner to corner along bar_top (r2: the ONLY lit headlight line)  DF-1
   Paint     the thin body-colour lower lip under the bar (not lit)                                                           DF-1
   GlossBlack the bright-black panel down to face_black_bot (z 0.451), HeadLens dark strips on its upper edge, sensor dot    DF-2 DF-3
   intake    pocket cut into the face (hi) with louvre blades / ribs; liner, blades and the frame strips round it are PanelGap  DF-4
-  lip       F_Lip, PanelGap (lod2: GlossBlack): ONE black blade / skin under the paint edge (z 0.287), round the corner to the front arch   DF-5
+  lip       F_Lip, Carbon (lod2: GlossBlack): ONE black skin under the paint edge (z 0.300): a thin blade across the face, the deep side piece from the corner to the front arch;  DF-5
+            the face under the blade is recessed (UNDER, hi body)
   PanelGap  L7 hood seam (arc, p013), cowl seam, L5 seam (hood | fender top), corner-flap seams                             DF-6 DF-7
 No side-marker parts and no door cut here (they belong to side.py).  No other lamps (DF-8).
 Diagnostics (build args): --f-skip F_HeadDRL,F_Lip,...  leaves those parts out;  --f-lipmat <Material>  builds the lip in that material.
@@ -46,8 +47,13 @@ LIP_WALL = 0.0050               # r3: the lip's skin is at least this thick (rai
 LIP_R = 0.010                   # r3: radius of that rounded bottom edge, the same all the way from the nose to the arch: the thin bright line of the photos (p018: the lip's lower edge mirrors the floor)
 LIP_RT = 0.012                  # 2026-10-23: radius of the rounded top-front edge (p016: the lip's upper front edge catches the light all along; p018: its front end is round, not a blade tip)
 LIP_TOP_SLOPE = 0.20            # the blade's top surface falls towards its front edge by this much per metre of protrusion
-LIP_ZB_MID, LIP_ZB_SIDE = 0.185, 0.168   # 2026-10-23 (p018): ONE black bar of even height all round, its front face vertical from the paint edge to z 0.19 at the nose (photo px 690 -> 716 at the leading
-                                         # edge, rounded at both ends), bottom 0.187 at the front corner -> 0.165 at the arch; the thin blade over a recessed face (fr8) read as a wedge with a sharp tip
+LIP_ZB_C, LIP_ZB_K, LIP_ZB_SIDE = 0.262, 0.187, 0.168   # lower edge of the lip: across the middle / from the front corner / at the arch.  2026-10-24 (p016 + p018 + p001): a THIN blade across the
+                                         # face (3.8 cm: p016 shows the floor and the far tyre under it, p018 sees only 12 px = 4.4 cm of black at the very nose), stepping down at the face's corner into the deep
+                                         # side piece (p016: the lower edge's highlight drops between |y| 0.69 and 0.84; p018: down to z 0.19 from 4 cm behind the nose, 0.165 at the arch).  2026-10-23 had ONE
+                                         # bar of even height (0.185) all round, read from p018's side alone
+LIP_ZB_STEP = (0.64, 0.80)                # |y| over which the lower edge steps from LIP_ZB_C to LIP_ZB_K (smootherstep); from there to the arch it eases to LIP_ZB_SIDE
+UNDER = dict(y=LIP_ZB_STEP[0], z0=0.10, z1=LIP_ZB_C + 0.003, depth=0.120, zpad=0.02)     # the recess under the blade (hi body, like the intake pocket): the black face below the blade is set back 12 cm
+                                                                  # (zpad: only the faces near it are bisected, not the intake's floor above)
 LIP_SMOOTH = 0.016              # Gaussian smoothing (m of arc length) of the lip's plan outline: the corner is one rounded sweep
 LIP_E = 0.0012                  # offset of the lip's skin from the shell
 LIP_IN = 0.005                  # how far the lip's top / bottom inner edges sink into the body (hidden; kept small so the ring does not fold at the corner crease)
@@ -262,8 +268,9 @@ def cut_pocket(ob, I):
     bm.from_mesh(ob.data)
 
     def region():
+        zp = I.get('zpad', 0.15)
         g = [f for f in bm.faces if f.calc_center_median().x < -2.3 and f.normal.x < -0.4 and abs(f.calc_center_median().y) < I['y'] + 0.15
-             and I['z0'] - 0.15 < f.calc_center_median().z < I['z1'] + 0.15]
+             and I['z0'] - zp < f.calc_center_median().z < I['z1'] + zp]
         vs = {v for f in g for v in f.verts}
         es = {e for f in g for e in f.edges}
         return list(vs) + list(es) + g
@@ -284,12 +291,14 @@ def cut_pocket(ob, I):
     for f in caps:
         cen += f.calc_center_median()
     cen /= max(len(caps), 1)
+    zs = [v.co.z for f in caps for v in f.verts]
+    zthr = 0.3 * (max(zs) - min(zs)) if zs else 0.04                # (the walls' z test: 0.04 for the 12.6 cm intake; relative, so that the 5 cm recess under the lip works too)
     for f in caps:
         f.material_index = 2
     for f in walls:
         f.material_index = 2
         c = f.calc_center_median()
-        want = Vector((0.0, (cen.y - c.y) if abs(c.y) > 0.3 else 0.0, (cen.z - c.z) if abs(c.z - cen.z) > 0.04 else 0.0))     # a wall faces INTO the pocket
+        want = Vector((0.0, (cen.y - c.y) if abs(c.y) > 0.3 else 0.0, (cen.z - c.z) if abs(c.z - cen.z) > zthr else 0.0))     # a wall faces INTO the pocket
         if f.normal.dot(want) < 0:
             f.normal_flip()
     bm.to_mesh(ob.data)
@@ -299,9 +308,10 @@ def cut_pocket(ob, I):
 
 
 def shell_post(ctx):
-    """the intake pocket (DF-4), hi body only (the LOD bodies are decimated from this one)"""
+    """the intake pocket (DF-4) and the recess under the lip's blade (DF-5), hi body only (the LOD bodies are decimated from this one)"""
     if ctx.front_r2:
         ctx.report('intake_faces', cut_pocket(ctx.body, INTAKE))
+        ctx.report('under_lip_faces', cut_pocket(ctx.body, UNDER))
 
 
 # ----------------------------------------------------------------------------- the parts
@@ -531,7 +541,8 @@ def build(ctx, level):
         ay = abs(b1.y)
         pr = max(LIP_P * (1.0 - float(sstep(LIP_P_Y0, LIP_P_Y1, ay))), LIP_WALL - LIP_E)   # blade stands out of the face at the middle; along the wall it is a LIP_WALL plate (r3)
         zt = LIP_ZT
-        zb = LIP_ZB_MID + (LIP_ZB_SIDE - LIP_ZB_MID) * float(sstep(0.62, 1.00, ay))        # fr8 (was 0.40..0.90); r3: p018 has the lip's lower edge at z ~0.19 already at the front corner (was sstep 0.55 .. 1.0: floor showed through)
+        zb = (LIP_ZB_C + (LIP_ZB_K - LIP_ZB_C) * float(sstep(LIP_ZB_STEP[0], LIP_ZB_STEP[1], ay))     # thin blade across the face, stepping down at the corner (2026-10-24) ...
+              + (LIP_ZB_SIDE - LIP_ZB_K) * float(sstep(LIP_ZB_STEP[1], 1.00, ay)))                # ... and easing to the arch along the wall
 
         def P(off, z):
             t = min(max((z1 - z) / (z1 - z2), 0.0), 1.0)                # (the shell's slope between the two sample heights; straight down below the lower one)

@@ -93,16 +93,17 @@ for o in bpy.data.objects:
         o.hide_render = True
 
 # q8 (2026-10-21): the hood decal is livery vinyl (stripes / number, transparent elsewhere in the game); with no atlas here it rendered as a brushed-alu
-# plate on the hood (a light rectangle + a line parallel to L7).  Keep only the rear plate: drop Decal faces ahead of x -1.5 (car frame, world space).
+# plate on the hood (a light rectangle + a line parallel to L7).  Keep only the rear plate: drop Decal faces ahead of x 1.5 (car frame, world space).
+# 2026-10-24: the door decals (x -0.70 .. 0.22: race number / sponsor vinyl) were kept by the old x < -1.5 test and read as a grey plate stuck on each door.
 import bmesh
 for o in bpy.data.objects:
     if o.type != 'MESH' or not any(s.material and s.material.name.startswith('Decal') for s in o.material_slots):
         continue
     bm = bmesh.new(); bm.from_mesh(o.data); mw = o.matrix_world
     dead = [f for f in bm.faces if (o.material_slots[f.material_index].material or bpy.data.materials[0]).name.startswith('Decal')
-            and (mw @ f.calc_center_median()).x < -1.5]
+            and (mw @ f.calc_center_median()).x < 1.5]
     if dead:
-        bmesh.ops.delete(bm, geom=dead, context='FACES'); bm.to_mesh(o.data); print('[ref] hood decal faces dropped:', o.name, len(dead))
+        bmesh.ops.delete(bm, geom=dead, context='FACES'); bm.to_mesh(o.data); print('[ref] hood / door decal faces dropped:', o.name, len(dead))
     bm.free()
 
 def srgb_lin(h):

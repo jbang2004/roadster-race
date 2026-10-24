@@ -2,17 +2,17 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "f604fb5fee33ca55",
+   "sha": "e6483e3778bf09d3",
    "verts": 8281,
    "faces": 8050
   },
   "wall": {
-   "sha": "fa0186b19d7ebadf",
+   "sha": "4d045fd4544d22c5",
    "verts": 4636,
    "faces": 4341
   },
   "wall_black": {
-   "sha": "1485f63743db340e",
+   "sha": "bf09dff4d4456aad",
    "verts": 4871,
    "faces": 4575
   },
@@ -32,22 +32,22 @@
    "faces": 181
   },
   "front_face": {
-   "sha": "e02df9a5f256d537",
+   "sha": "0b7390e7b96bff91",
    "verts": 735,
    "faces": 680
   },
   "hood": {
-   "sha": "03ea64d7999ded92",
+   "sha": "11cc1371cf3305aa",
    "verts": 2730,
    "faces": 2618
   },
   "corner_tri": {
-   "sha": "4c97115936f8ba33",
+   "sha": "9277df2e05cc5285",
    "verts": 628,
    "faces": 594
   },
   "fender_top": {
-   "sha": "fd91df4bf49692f0",
+   "sha": "7780f9dc5e8132e9",
    "verts": 855,
    "faces": 792
   },

@@ -51,7 +51,10 @@ def sstep(a, b, x):
 # CENTRE of the edge further forward.  N_OLD is the R1c / R1e corner: every legacy curve below (L, U, l3, sill knots) is still defined from it and is then modified near the nose (build_all).
 N_OLD = (-2.39, 0.670, 0.545)
 NOSE_XN = float(os.environ.get('NOSE_XN', '-2.46'))
-NOSE_ZN = float(os.environ.get('NOSE_ZN', '0.566'))      # R1e3: the corner's height is the light bar's (p016 bar fit, R1e2: 0.566); it is no longer on the old hood plane when N moves forward
+NOSE_ZN = float(os.environ.get('NOSE_ZN', '0.541'))      # R1e3: the corner's height is the light bar's (p016 bar fit, R1e2: 0.566); it is no longer on the old hood plane when N moves forward.
+#   2026-10-24 (user: the real car's front is more nose-down): 0.566 -> 0.541.  p018's silhouette (the primary height reference) has the crest 7 px = 2.5 cm lower than the model's at x -2.40, 2.2 / 1.8 / 1.1 /
+#   0.4 cm at -2.31 / -2.22 / -2.13 / -2.04, 0 by -1.95 and 0.4 - 0.7 cm HIGHER over -1.9 .. -1.5; the crest as rebuilt on the lower N (zfix, tilt, flap plane) is 2.1 / 1.6 / 1.2 / 0.7 / 0.3 cm lower there and
+#   0.4 - 0.5 cm higher at -1.9 .. -1.7 (within 0.6 cm everywhere).  p016's gloss band under the bar is ~15 % shorter than the model's, which the lower bar also gives (its lower edge stays at z 0.428)
 N = (NOSE_XN, 0.670, NOSE_ZN)      # nose corner: end of the bowed front edge / light bar; U, L, L5, the corner edge E start here
 PILL_FOLLOW = float(os.environ.get('PILL_FOLLOW', '0.65'))   # (see build_all: how much of the foot point's move the straight pillar line follows)
 W_DZ = float(os.environ.get('W_DZ', '-0.030'))   # apillar round: the cowl corner is LOWERED by this much (m, negative = down); the hood is a recessed plane and the top face must lean up all the way to the window
@@ -2173,7 +2176,8 @@ def qf_lp_dy(L0fy, dy_old, xN, yN, Ufy=None):
 # plane's G2 continuation + the tilt lift's fade; L: the ruling rule's fade-in).  FAIR it: inside a window the height is replaced by the quintic Hermite G2-matched to the curve at both window ends, so z'' ramps
 # over the window (|dz| <= a few mm) instead of stepping.  The flap plane (U up to B, x -1.975) is not touched: the window of U starts at B.
 QF_G_ON = os.environ.get('QF_G_ON', '1') == '1'
-QF_G_U = tuple(float(v) for v in os.environ.get('QF_G_U', '-1.975,-1.54').split(','))
+QF_G_U = tuple(float(v) for v in os.environ.get('QF_G_U', '-1.975,-1.45').split(','))     # 2026-10-24: window end -1.54 -> -1.45 (the lower nose corner lifts U by 0.4 - 0.5 cm over x -1.9 .. -1.7 through the
+#   flap plane's continuation, as p018 reads it; with the old window its fade gave z'' > 0 (+0.07) just ahead of the foot, two curvature sign changes; now z'' <= -0.05 all the way)
 QF_G_L = tuple(float(v) for v in os.environ.get('QF_G_L', '-2.11,-1.55').split(','))
 
 
@@ -2320,7 +2324,10 @@ class ExtCurve:
     def __init__(self, old, x_new):
         self.old, self.x0, self.x1, self.name = old, float(x_new), old.x1, old.name
         xa = float(old.x0)
-        t = np.asarray(old.tan(np.array(xa)), float)
+        # 2026-10-24: the end tangent as a forward difference over 1 mm.  old.tan(x0) of a fitted curve (BFit1D) is a central difference across the clamped start: HALF the slope (L: dz/dx 0.121 for 0.24,
+        # dy/dx 0.665 for 1.30), so every continued curve had a kink at x0 = -2.39; the corner's old height hid it in L's monotone-slope fit (qf_c11_dz_L), the lower corner N of 2026-10-24 does not
+        _h = 1e-3
+        t = (np.asarray(old.at(np.array(xa + _h)), float) - np.asarray(old.at(np.array(xa)), float)) / _h
         p = np.asarray(old.at(np.array(xa)), float)
         self.fy = _Fn1(lambda x: np.asarray(old.fy(np.maximum(np.asarray(x, float), xa)), float) + t[1] * np.minimum(np.asarray(x, float) - xa, 0.0))
         self.fz = _Fn1(lambda x: np.asarray(old.fz(np.maximum(np.asarray(x, float), xa)), float) + t[2] * np.minimum(np.asarray(x, float) - xa, 0.0))
@@ -2613,7 +2620,8 @@ def build_all():
         QF_C11_INFO['L_dz'] = getattr(_dzLc, 'info', None)
         QF_C11_INFO['L_dy'] = getattr(_dyLc, 'info', None)
     NOSE_FIT.clear(); NOSE_FIT.update(L=infoL, U=infoU, dyL=dyL, dyU=dyU, fyL=fyL, fyU=fyU, xjU=xjU)
-    reg(line3(N, W, 'L5'))
+    _tl5 = lambda x: (np.asarray(x, float) - N[0]) / (W[0] - N[0])
+    reg(Fn(N[0], W[0], lambda x: N[1] + (W[1] - N[1]) * _tl5(x), lambda x: N[2] + (W[2] - N[2]) * _tl5(x) + hood_sag(_tl5(x)), 'L5'))      # 2026-10-24: bowed like l5_points (QF_HOOD_SAG)
     reg(line3(W, A_IN, 'cowl_diag'))
     reg(line3(A_IN_L, T, 'pillar_in'))
     reg(line3(A_OUT, T_OUT, 'pillar_out'))
@@ -3358,9 +3366,21 @@ def l5_tau(n=TRI_N):
     return r
 
 
+# 2026-10-24 (user: the hood and the fender planes beside it run down to the nose in a gentle arc, not as flat planes): the hood edge L5 and the hood's centre line are no longer straight but bow UP by
+# QF_HOOD_SAG at their middle (a parabola 4 t (1 - t) over each line's own fraction t; the ends N / W and the front edge / cowl corner do not move).  The hood (Coons patch between them) and the fender top
+# (straight rulings L5 -> U) take the arc over; the flap's part of L5 (t <= TRI_K / TRI_N = 0.43) is off its chord by 0.18 QF_HOOD_SAG.
+QF_HOOD_SAG = float(os.environ.get('QF_HOOD_SAG', '0.012'))
+
+
+def hood_sag(t):
+    t = np.asarray(t, float)
+    return QF_HOOD_SAG * 4.0 * t * (1.0 - t)
+
+
 def l5_points(n=TRI_N):
     t = l5_tau(n)[:, None]
     P = np.array(N, float) + (np.array(W, float) - np.array(N, float)) * t
+    P[:, 2] += hood_sag(t[:, 0])
     P[0], P[-1] = N, W
     return P
 
@@ -3382,7 +3402,7 @@ def _unit(v):
 def hood_surface_z(cv, x, y):
     """height of the hood (the Coons patch of shell2.p_hood: bottom = centre line HC -> (W_x, 0, W_z), top = L5, left = the front edge bar_top, right = the cowl line) at plan point (x, y)"""
     tau = l5_tau(TRI_N)
-    bottom = np.asarray([np.array(cv['bar_top'][0], float) + (np.array([W[0], 0.0, W[2]]) - np.array(cv['bar_top'][0], float)) * t for t in tau])
+    bottom = np.asarray([np.array(cv['bar_top'][0], float) + (np.array([W[0], 0.0, W[2]]) - np.array(cv['bar_top'][0], float)) * t + np.array([0.0, 0.0, float(hood_sag(t))]) for t in tau])
     top = l5_points(TRI_N)
     left = np.asarray(cv['bar_top'], float)
     right = np.array([[W[0], yy, W[2]] for yy in np.linspace(0, W[1], len(left))])
@@ -3454,7 +3474,7 @@ def build_nose():
     n_low = min(E_CAP_LOW, max(1, int(round(float(np.linalg.norm(l3_0 - sill_0)) / 0.020))))          # capped at the division counts of the old wall / wall_black rows: their grids (aft of the arch) must not change)
     # ---- the corner triangle (flap): apex N, C on L5, B on the crest U; the plane Q contains the line L5 and B
     W_ = np.array(W, float)
-    C_ = N_ + (W_ - N_) * (TRI_K / TRI_N)
+    C_ = N_ + (W_ - N_) * (TRI_K / TRI_N) + np.array([0.0, 0.0, float(hood_sag(TRI_K / TRI_N))])     # (on the bowed L5)
     xsU = np.array([squeezed_x(N_[0], k) for k in range(TRI_K + 1)])
     B_ = Cv['U'].at(xsU[-1])
     nH = _unit(np.array([-HOOD_B, 0.0, 1.0]))
@@ -3500,6 +3520,7 @@ def build_nose():
     cv['tri'] = np.array([N_, C_, B_])                   # corner triangle N, C (on L5), B (on U)
     cv['tri_seam'] = lin(C_, B_, 18)                     # the flap's rear seam C -> B (a straight line)
     cv['L5'] = lin(N_, W_, TRI_N)
+    cv['L5'][:, 2] += hood_sag(np.linspace(0.0, 1.0, TRI_N + 1))
     yl = lambda x: float(N_[1] + (W_[1] - N_[1]) * (x - N_[0]) / (W_[0] - N_[0]))
     # apillar: the seams lie on the hood AS BUILT (the Coons patch of shell2.p_hood between the centre line, L5, the front edge and the cowl line), no longer on the old flat plane hood_z (the cowl corner W is 30 mm lower than it)
     cv['hood_seam_L7'] = np.array([[L7_X, y, float(hood_surface_z(cv, L7_X, y))] for y in np.linspace(0, yl(L7_X), 14)])      # x = -1.81: the front-trunk lid's rear edge (across the hood, centre -> L5)

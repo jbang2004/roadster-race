@@ -889,6 +889,7 @@ W_BADGE = (0.15, 0.15, 0.16, 0.25)
 W_AERO = (0.95, 0.96, 0.98, 0.42)       # aero panels in body colour, as on the press car (white on white)
 W_ACC = (0.86, 0.50, 0.26, 1.0)
 W_RUB = (0.0045, 0.0045, 0.005, 0.0)    # FRONT r3: rubber black like the hi tyre's 0x0e0e0f (was 0.018 = 4x brighter, and grey in every render)
+W_SS = (0.74, 0.75, 0.77, 0.8)          # 2026-10-24 (user, p003 / p018 / p001): polished stainless: the thin bright ring on the crown of the rim lip
 # wheel face after the p003 / p018 close-ups: six flat aero panels in ONE plane (Y_P) between six parallel-sided gloss-black spoke channels; the bevels along
 # the panel edges run straight into a graphite six-armed star hub (flat, at the foot of the bevels, Y_B) carrying the small round T cap
 N_SPOKE = 6
@@ -1123,6 +1124,7 @@ def _tyre_prof(nprof):
 # the rim's lip / bevel ring: its outer edge is the photo's rim edge (p018: bevel ring ends at ~ 88 px = 0.313; was 0.324), standing 6 mm out of the tyre wall like a rim protector
 LIP_PROF = [(FACE_R, Y_P), (0.2985, 0.1185), (0.3035, 0.1207), (0.3095, 0.1210), (0.3135, 0.1180), (0.3150, 0.1100), (0.3120, 0.1000)]
 LIP_PROF1 = [(FACE_R, Y_P), (0.2995, 0.1190), (0.3075, 0.1210), (0.3140, 0.1075)]
+LIP_SS = (2, 2)                         # the lip's profile from this point on (hi, lod1) is the stainless ring W_SS (its crown and outer round, ~1.2 cm seen from the side); the inner slope stays dark
 
 
 def rim_mesh(level):
@@ -1151,7 +1153,8 @@ def rim_mesh(level):
         return cb.mesh('Rim_l2', recalc=False)
     if level == 0:
         cb.lathe([(0.300, 0.104), (0.300, -0.128), (0.316, -0.134)], st, W_DARK)                    # barrel
-    cb.lathe(LIP_PROF if level == 0 else LIP_PROF1, st, W_HUB)                                      # lip (p018 / p003: the outer rim ring reads dark like the hub, not graphite like the bevels)
+    lp, ks = (LIP_PROF, LIP_SS[0]) if level == 0 else (LIP_PROF1, LIP_SS[1])
+    cb.lathe(lp, st, [W_HUB if i < ks else W_SS for i in range(len(lp) - 1)])                        # lip (p018 / p003: the outer rim ring reads dark like the hub, not graphite like the bevels), its crown a thin polished stainless ring (2026-10-24)
     hs = 48 if level == 0 else 14
     if level == 0:
         cb.lathe([(0.0, 0.1155), (0.034, 0.1155)], hs, W_HUB)                                       # cap
