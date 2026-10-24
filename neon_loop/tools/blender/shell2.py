@@ -1287,11 +1287,14 @@ def p_door_glass(R):
 
 
 # A-pillar round 2 (2026-10-24, user: the real pillar is "更厚实更流畅"): p016 shows the pillar and the roof rail with a thin highlight along the windscreen side and a grey outer face, the
-# same all along: a ROUNDED section, where the model had a flat strip whose tilt turned from ~7 deg at the foot to ~36 deg under the header.  Each row rail -> wl is now a parabolic crown
-# of QF_AP_BK x its chord (cap QF_AP_BMAX): at 10 % its ends turn 22 deg off the chord, so the section leaves the windscreen at about the glass' own cross slope and meets the door glass at
-# about its angle (both edges are material seams, so no fillet is needed).  The crown fades in from the foot rung (pinned: the fender top's end row) over QF_AP_BX[0..1] and out over
-# QF_AP_BX[2..3] before the window tip (the rail band lies in the beam face there, q16).  QF_AP_M divisions across.
-QF_AP_BK = float(os.environ.get('QF_AP_BK', '0.10'))
+# same all along: a ROUNDED section, where the model had a flat strip whose tilt turned from ~7 deg at the foot to ~36 deg under the header.  Each row rail -> wl is now crowned by
+# QF_AP_BK x its chord (cap QF_AP_BMAX) along the chord's outward normal, with the shape 27/4 s (1 - s)^2 (peak at a third of the way from the rail): a tight roll leaves the windscreen
+# 25 deg above the chord (about the glass' own cross slope) and the outer two thirds are a nearly flat side face meeting the door glass along the chord, so the light picks out a thin
+# edge on the windscreen side over a uniform face.  (The first version, a symmetric parabola, lit the whole pillar evenly: 2026-10-24, user: "缺少了点钢柱的立体感".)  The nodes
+# are crowded towards the roll (s^QF_AP_SK).  The crown fades in from the foot rung (pinned: the fender top's end row) over QF_AP_BX[0..1] and out over QF_AP_BX[2..3] before the
+# window tip (the rail band lies in the beam face there, q16).  QF_AP_M divisions across.
+QF_AP_BK = float(os.environ.get('QF_AP_BK', '0.07'))
+QF_AP_SK = 1.35
 QF_AP_BMAX = float(os.environ.get('QF_AP_BMAX', '0.006'))
 QF_AP_M = int(os.environ.get('QF_AP_M', '8'))
 QF_AP_BX = (-1.43, -1.33, 0.75, 1.05)
@@ -1314,7 +1317,8 @@ def ap_off(a, b, tg, s):
     if n @ np.array([0.0, np.sign(a[1]), 1.0]) < 0.0:
         n = -n
     h = min(QF_AP_BK * L, QF_AP_BMAX) * float(ap_crown(0.5 * (a[0] + b[0])))
-    return (4.0 * h * s * (1.0 - s))[:, None] * n[None, :]
+    sr = np.asarray(s, float) ** QF_AP_SK                                     # the node moves along the chord (crowded towards the roll) ...
+    return (sr - s)[:, None] * c[None, :] + (6.75 * h * sr * (1.0 - sr) ** 2)[:, None] * n[None, :]      # ... and is lifted off it
 
 
 def ap_row(a, b, tg, m):

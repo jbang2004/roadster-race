@@ -59,6 +59,8 @@ NOTCH_DX = 0.065                # DS-7: the small U-shaped cut on the shoulder: 
 NOTCH_REACH = 0.62              # ... and it reaches this fraction of the way from L to the belt (p013: 10 of 16 cm)
 SEAM_W = 0.0030                 # hairline width on paint (m); the B-pillar lines in the glass are 2 px = 0.006 wide in the photo
 GLASS_W = 0.0060
+SEAL_W = 0.009                  # the window's black seal under the pillar / roof-rail band (p018: 2 - 3 px)
+SEAL_TIP = 0.35                 # ... at most this fraction of the glass' height (it tapers into the window's two tips)
 
 # skirt: runs from SKIRT_IN behind the front hub to SKIRT_OUT ahead of the rear hub (= 0.082 behind / 0.095 before the arch edges, R_ARCH 0.415)
 SKIRT_IN, SKIRT_OUT = 0.497, 0.510
@@ -238,7 +240,7 @@ def door_seams(ctx, level):
         return k * (SEAM_W + (GLASS_W - SEAM_W) * t)
     lines = (('DoorSeamFront', photo_line(ctx, 'p018', P018_FRONT, 560, 686, step)),
              ('DoorCutDiag', photo_line(ctx, 'p018', P018_DIAG, 524, 561, step * 0.7)),
-             ('DoorSeamRear', photo_line(ctx, 'p018', P018_REAR, 409, 682, step)),
+             ('DoorSeamRear', photo_line(ctx, 'p018', P018_REAR, 409, 682, step if level else 1.5)),      # (hi: dense, or its quads sink into the rounded roof-rail band it crosses)
              ('BPillarFront', photo_line(ctx, 'p018', P018_BFRONT, 424, 499, step * 0.7)))
     glass = (('DoorGlassFront', photo_line(ctx, 'p018', P018_QF1, 437, 525, step * 0.7)),        # the door glass' front frame: wholly in the glass (its belt is lower than BELT_Y)
              ('DoorGlassFront2', photo_line(ctx, 'p018', P018_QF2, 441, 525, step * 0.7)))
@@ -250,6 +252,40 @@ def door_seams(ctx, level):
             _emit(ctx, level, objs, M, '%s_%d' % (nm, sd), 'PanelGap')
     if level == 0:
         objs += door_notches(ctx, level)
+    return objs
+
+
+def window_seal(ctx, level):
+    """the side window's black seal along its upper edge (2026-10-24, user: "A柱到顶梁似乎都缺少了点钢柱的立体感"): in p018 a near-black line 2 - 3 px (7 - 11 mm) wide runs between the
+    pillar / roof-rail band and the door glass all along the glass' upper edge wl (luminance 1 - 10 against the glass' 25 - 45 and the band's 160 - 250; shallower along the A pillar,
+    where the glass reflects brightly); p016 shows it too.  It separates the beam from the glass.  A PanelGap strip on the glass from wl SEAL_W down the glass' rulings (wl -> U),
+    at most SEAL_TIP of the glass' height towards the two tips; cast onto the HI body like the seams."""
+    objs = []
+    D = ctx.A.D
+    wl, U = D.CURVES['wl'], D.CURVES['U']
+    step = (0.008, 0.025, 0.05)[level]
+    off = (0.0008, 0.0035, 0.0045)[level]
+    k = (1.0, 1.25, 1.5)[level]
+    xs = np.arange(float(wl.x0), float(wl.x1) - 0.004, step)
+    gh = np.array([float(wl.at(x)[2] - U.at(x)[2]) for x in xs])
+    xs = xs[gh > 0.002]                                                      # from the glass' front tip (the pillar foot is paint)
+    cl = []
+    for x in xs:
+        a, u = np.asarray(wl.at(x), float), np.asarray(U.at(x), float)
+        d = u - a
+        h = float(np.linalg.norm(d))
+        d /= h
+        t = np.asarray(wl.at(x + 1e-3), float) - np.asarray(wl.at(x - 1e-3), float)
+        n = np.cross(t, d)
+        n *= np.sign(n[1]) / np.linalg.norm(n)                               # outward (+y on the design side)
+        ww = min(k * SEAL_W, SEAL_TIP * h)
+        c = a + d * (0.5 * ww)
+        cl.append((Vector((c[0], -c[1], c[2])), Vector((n[0], -n[1], n[2])), ww))   # left flank (strip_along mirrors for the right)
+    for sd in (-1, 1):
+        M = Mesh()
+        P, N = strip_along(ctx.surf_hi.cast, cl, sd, lambda w: w, off)
+        _grid(M, P, N)
+        _emit(ctx, level, objs, M, 'WindowSeal_%d' % sd, 'PanelGap')
     return objs
 
 
@@ -402,6 +438,7 @@ def build(ctx, level):
     if not (ctx.oldbody or not ctx.front_r2 or os.environ.get('NO_FRONT')):
         objs += side_markers(ctx, level)
         objs += door_seams(ctx, level)
+        objs += window_seal(ctx, level)
         objs += roof_splits(ctx, level)
     objs.append(build_skirt(ctx, level))
     return objs

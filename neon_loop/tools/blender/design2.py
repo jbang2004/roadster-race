@@ -1762,13 +1762,16 @@ def qf_a_ramp(x):
 #     the rail) and grows aft of x 0 to ~50 mm at x 0.9 (the model's: 20 - 22 mm; the photo's window top edge runs straight into the tip, the model's bowed up); p013 sees the band wider in plan
 #     too (pillar ~3.9 cm against 3.5, the roof rail aft of x 0.3 1.5x).  wl now lies QF_AW_H(x) under the rail and is moved there ALONG the door glass' rulings (U -> wl): the glass surface stays,
 #     the band gets taller and wider.  Near the foot it reaches U (the glass ends in a tip at x ~-1.355, p018: -1.35; ahead of it the pillar's foot lands on the crest at full width: the glass
-#     rows are single points there), through a C2 smooth maximum (QF_AW_EPS) so that the pillar's outer edge has no corner.  Over QF_AW_XT the height returns to the old one: the window tip
-#     and the rows next to it (beam face, rear shoulder) do not change.
+#     rows are single points there), through a C2 smooth maximum (QF_AW_EPS) so that the pillar's outer edge has no corner.  Over QF_AW_XT the line hands over to the old wl (the window tip
+#     and the rows next to it, beam face and rear shoulder, do not change): one faired curve (least squares to rail - QF_AW_H with a third-derivative weight QF_AW_LAM, G2 with it at
+#     XT[0] and with the old wl at XT[1]).  It does not follow the rail's rise into R-1 there (q16) nor blend the two heights (2026-10-24, user: "顶梁的尾段一小部分...线条有点抖": the
+#     first version did both and put a 1 px hump into the window line at x 1.03; p018's edge is within 0.3 px of a quadratic, now 0.2).
 QF_AW = os.environ.get('QF_AW', '1') == '1'
 QF_AW_H0 = float(os.environ.get('QF_AW_H0', '0.0305'))       # band height (m) along the pillar and the header (photo 29 - 32 mm, mean 30.4)
 QF_AW_K = float(os.environ.get('QF_AW_K', '0.021'))          # its growth aft of QF_AW_X0 (m per m; photo: 31.8 at x 0, 37.4 at 0.29, 42.4 at 0.59, 50.1 at 0.89 mm)
 QF_AW_X0, QF_AW_B = 0.0, 0.12                                  # start of the growth, half length of its C2 rounding
-QF_AW_XT = (0.95, 1.12)                                        # back to the old height (the window tip region)
+QF_AW_XT = (0.80, 1.17)                                        # the faired hand-over to the old wl (the window tip region)
+QF_AW_LAM = float(os.environ.get('QF_AW_LAM', '1e-7'))
 QF_AW_EPS = float(os.environ.get('QF_AW_EPS', '0.004'))      # half width (m, in height) of the smooth maximum with U at the glass tip
 
 
@@ -1779,12 +1782,29 @@ def qf_smax(g, eps):
     return eps * np.where(t >= 1.0, t, 2.0 * u ** 3 - u ** 4)
 
 
-def qf_aw_h(x, h_old):
-    """the band height rail - wl (see QF_AW); h_old: the old height (taken over QF_AW_XT)"""
-    x = np.asarray(x, float)
-    h = QF_AW_H0 + QF_AW_K * qf_smax(x - QF_AW_X0, QF_AW_B)
-    w = sstep(QF_AW_XT[0], QF_AW_XT[1], x)
-    return h * (1.0 - w) + h_old * w
+def qf_aw_h(x):
+    """the band height rail - wl (see QF_AW)"""
+    return QF_AW_H0 + QF_AW_K * qf_smax(np.asarray(x, float) - QF_AW_X0, QF_AW_B)
+
+
+def qf_aw_tz(rz, wz):
+    """the height of the new wl (see QF_AW): rz(x) the rail's, wz(x) the old wl's (both vectorised).  Returns tz(x)."""
+    xa, xb, e = QF_AW_XT[0], QF_AW_XT[1], 4e-3
+    fa = lambda x: rz(x) - qf_aw_h(x)
+    d = lambda f, x: ((f(x + e) - f(x - e)) / (2 * e), (f(x + e) - 2 * f(x) + f(x - e)) / e ** 2)
+    (da, ca), (db, cb) = d(fa, xa), d(wz, xb)
+    xs = np.linspace(xa, xb, 600)
+    t = (xs - xa) / (xb - xa)
+    h = quint1(xs, xa, float(fa(xa)), da, ca, xb, float(wz(xb)), db, cb)
+    B = np.stack([t ** 3 * (1 - t) ** 3 * t ** j for j in range(8)], 1)        # zero value / slope / curvature at both ends
+    d3 = lambda f: np.gradient(np.gradient(np.gradient(f, xs, axis=0), xs, axis=0), xs, axis=0)
+    c = np.linalg.lstsq(np.vstack([B, math.sqrt(QF_AW_LAM) * d3(B)]), np.r_[fa(xs) - h, -math.sqrt(QF_AW_LAM) * d3(h)], rcond=None)[0]
+    zf = h + B @ c
+
+    def tz(x):
+        x = np.asarray(x, float)
+        return np.where(x <= xa, fa(x), np.where(x < xb, np.interp(x, xs, zf), wz(x)))
+    return tz
 
 
 def qf_l_dy(x):
@@ -3187,15 +3207,17 @@ def build_all():
         CURVES['wl'], CURVES['U'] = _qWn_, _qUn_
         _Q16['tip'] = np.asarray(_qUn_.at(X_TIP), float)
     if QF_AW:
-        # A-pillar round 2 (see QF_AW): wl = the point of the door glass' ruling U -> wl at the height rail - QF_AW_H (smooth maximum with U: the glass ends in a tip near the foot)
+        # A-pillar round 2 (see QF_AW): wl = the point of the door glass' ruling U -> wl at the height qf_aw_tz (smooth maximum with U: the glass ends in a tip near the foot)
         _aww_, _awu_, _awr_ = CURVES['wl'], CURVES['U'], CURVES['rail']
+        _awtz_ = qf_aw_tz(lambda x, _r=_awr_: np.asarray(_r.at(x), float)[..., 2], lambda x, _w=_aww_: np.asarray(_w.at(np.minimum(x, _w.x1)), float)[..., 2])
 
-        def _aw_wl(x, _w=_aww_, _u=_awu_, _r=_awr_):
+        def _aw_wl(x, _w=_aww_, _u=_awu_):
             x = np.asarray(x, float)
-            w, u, rz = np.asarray(_w.at(x), float), np.asarray(_u.at(x), float), np.asarray(_r.at(x), float)[..., 2]
+            w, u = np.asarray(_w.at(x), float), np.asarray(_u.at(x), float)
             h = w[..., 2] - u[..., 2]
-            f = qf_smax(rz - qf_aw_h(x, rz - w[..., 2]) - u[..., 2], QF_AW_EPS)
+            f = qf_smax(_awtz_(x) - u[..., 2], QF_AW_EPS)
             k = np.where(h > 1e-9, f / np.maximum(h, 1e-9), 0.0)
+            k = np.where(x >= QF_AW_XT[1], 1.0, k)                    # the old wl exactly (the smooth maximum would lift it off U in the window tip's last mm)
             return u + k[..., None] * (w - u)
         CURVES['wl'] = Fn(_aww_.x0, _aww_.x1, lambda x: _aw_wl(x)[..., 1], lambda x: _aw_wl(x)[..., 2], 'wl')
     # centre line of the glass: the windscreen plane, the dome, then (rear window) the glass edge + crown (-> 0 at the wing seam), then the flat deck (= the glass edge level)
