@@ -136,6 +136,15 @@ for m in bpy.data.materials:
         for _k in ('Specular IOR Level', 'Specular'):
             if _k in b.inputs:
                 b.inputs[_k].default_value = 0.0
+    elif m.name.startswith('Carbon'):               # FRONT r4: the lip / skirts read black in every press view (p018 lip side 19-29 / 255); the glTF's coat (0.6, mirror-sharp) turned the studio key light into a silver block on the lip (80-129).
+        b.inputs['Base Color'].default_value = srgb_lin(0x1d1e22)          # (the game's own twill colour, materials.js; the game's metal 0.25 / rough 0.34 without the coat still gave 77-104: our strip lights are not the photo's)
+        b.inputs['Metallic'].default_value = 0.0
+        b.inputs['Roughness'].default_value = 0.5
+        for _k in ('Specular IOR Level', 'Specular'):                      # (tuned on p018: lip side 27 / 26 / 45 vs the photo's 29 / 19 / 29; specular 0.05 gave 48-57, 0.15 gave 66-73)
+            if _k in b.inputs:
+                b.inputs[_k].default_value = 0.0
+        if 'Coat Weight' in b.inputs:
+            b.inputs['Coat Weight'].default_value = 0.0
     elif m.name.startswith('Tyre'):                 # FRONT r3: black rubber with a faint satin sheen like the photos (p018 sidewall 5-13 / 255); the game's tyre is 0x0b0b0c, roughness 0.6 (materials.js)
         b.inputs['Base Color'].default_value = srgb_lin(0x090909)
         b.inputs['Roughness'].default_value = 0.62          # (tuned on p018: sidewall mean 10.4 vs the photo's 10.8 of 255; 0.58 / spec 0.35 gave 21, the old 0.018 / 0.72 gave 39.5)
