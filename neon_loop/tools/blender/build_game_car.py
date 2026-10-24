@@ -1210,6 +1210,56 @@ def rim_obj(me, name, left, mat_name='Rim', sharp=34):
     return ob
 
 
+# 2026-10-24 (p003 / p018): the press car's tyres carry white sidewall print ("TROFEO RS" large, "P ZERO"); the game's tyre shader only has a faint satin band.  Raised
+# letters (0.5 mm) wrapped on the outboard sidewall, in the rim mesh (it spins with the wheel) with the rubber code 0 = matte, the rgb white (materials.js 'rim': no clear coat on rubber).
+TYRE_TEXT = (('TROFEO RS', -math.pi / 2, 0.021), ('P ZERO', math.pi / 2, 0.018))      # (label, centre angle in the wheel plane, cap height: p018 (near-orthographic) 5-6 px = 2.1 cm)
+TYRE_TEXT_R0 = 0.340                    # baseline radius: the print is centred on the visible sidewall (0.313 lip .. 0.39)
+W_PRINT = (0.90, 0.90, 0.91, 0.0)
+
+
+def _tyre_side_y(r):
+    """|y| of the outboard sidewall at radius r (TYRE_HALF, linear between its points)"""
+    H = TYRE_HALF[:-1]
+    for (r0, y0), (r1, y1) in zip(H, H[1:]):
+        if r0 <= r <= r1:
+            return y0 + (y1 - y0) * (r - r0) / (r1 - r0)
+    return H[-1][1] if r > H[-1][0] else H[0][1]
+
+
+def tyre_text_mesh(rev):
+    """the sidewall print in the right wheel's frame (axle +y = outboard); rev: written backwards, for the left wheels (mirror_mesh turns it round)"""
+    cb = CB()
+    for label, thc, cap in TYRE_TEXT:
+        cu = bpy.data.curves.new('tyre_text', 'FONT')
+        cu.body = label
+        cu.size = cap / 0.72
+        cu.extrude = 0.00025
+        cu.resolution_u = 2
+        cu.bevel_depth = 0.022 * cap                           # bold: an edge bevel widens the strokes (Blender's bundled font has no bold cut; the press tyre's print is heavy;
+        cu.bevel_resolution = 0                                # the outline offset broke the T's fill)
+        cu.space_character = 1.12
+        cu.align_x = 'CENTER'
+        tob = bpy.data.objects.new('tyre_text', cu)
+        link(tob)
+        me = bpy.data.meshes.new_from_object(tob.evaluated_get(depsgraph()))
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        vm = {}
+        for v in bm.verts:
+            x, y, z = v.co
+            r = TYRE_TEXT_R0 + y
+            th = thc + (-x if rev else x) / r                  # clockwise seen from outside, letter tops outward
+            vm[v] = cb.v((r * math.cos(th), _tyre_side_y(r) + 0.0006 + z, r * math.sin(th)))
+        for f in bm.faces:                                     # (the map keeps the text's own winding for the right wheel and mirrors it when rev: reverse those faces;
+            vs = [vm[v] for v in f.verts]                      # recalc_face_normals flipped some letter caps of these open pieces inward, they shaded black)
+            cb.face(vs[::-1] if rev else vs, W_PRINT)
+        bm.free()
+        bpy.data.objects.remove(tob, do_unlink=True)
+        bpy.data.meshes.remove(me)
+        bpy.data.curves.remove(cu)
+    return cb.mesh('TyreText_%s' % ('L' if rev else 'R'), recalc=False)
+
+
 def build_wheel_hi2(tag, wx, sgn):
     left = sgn < 0
     if 0 not in RIM_ME:
@@ -1225,6 +1275,16 @@ def build_wheel_hi2(tag, wx, sgn):
     t = rim_obj(RIM_ME['tyre'], f'Tyre_{tag}', left, 'Tyre', sharp=70)
     t.parent = spin
     rim = rim_obj(RIM_ME[0], f'Rim_{tag}', left)
+    if ('text', left) not in RIM_ME:
+        RIM_ME[('text', left)] = tyre_text_mesh(left)
+        print('WHEEL hi per wheel: sidewall print %d tris' % sum(len(p.vertices) - 2 for p in RIM_ME[('text', left)].polygons))
+    rim = join([rim, rim_obj(RIM_ME[('text', left)], f'RimText_{tag}', left)], f'Rim_{tag}')
+    ca = rim.data.color_attributes.get('Color')
+    if ca is not None:
+        rim.data.color_attributes.active_color = ca
+        rim.data.attributes.active_color = ca
+        rim.data.color_attributes.active_color_name = 'Color'
+        rim.data.color_attributes.default_color_name = 'Color'
     rim.parent = spin
     disc = rim_obj(RIM_ME['brake'][0], f'Disc_{tag}', left, 'BrakeDisc', sharp=40)
     cal = rim_obj(RIM_ME['brake'][1], f'Cal_{tag}', left, 'Caliper', sharp=40)
