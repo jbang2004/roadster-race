@@ -1286,16 +1286,64 @@ def p_door_glass(R):
     return strip('door_glass', GLASS, A, B, HC['door_glass'], minm=D.QR_DG_M if D.QR_ON else 1)       # q4-rear: keep the locked division count (the strip is a regular grid: M = the longest chord's; the window line moved)
 
 
+# A-pillar round 2 (2026-10-24, user: the real pillar is "更厚实更流畅"): p016 shows the pillar and the roof rail with a thin highlight along the windscreen side and a grey outer face, the
+# same all along: a ROUNDED section, where the model had a flat strip whose tilt turned from ~7 deg at the foot to ~36 deg under the header.  Each row rail -> wl is now a parabolic crown
+# of QF_AP_BK x its chord (cap QF_AP_BMAX): at 10 % its ends turn 22 deg off the chord, so the section leaves the windscreen at about the glass' own cross slope and meets the door glass at
+# about its angle (both edges are material seams, so no fillet is needed).  The crown fades in from the foot rung (pinned: the fender top's end row) over QF_AP_BX[0..1] and out over
+# QF_AP_BX[2..3] before the window tip (the rail band lies in the beam face there, q16).  QF_AP_M divisions across.
+QF_AP_BK = float(os.environ.get('QF_AP_BK', '0.10'))
+QF_AP_BMAX = float(os.environ.get('QF_AP_BMAX', '0.006'))
+QF_AP_M = int(os.environ.get('QF_AP_M', '8'))
+QF_AP_BX = (-1.43, -1.33, 0.75, 1.05)
+
+
+def ap_crown(x):
+    x = np.asarray(x, float)
+    return D.sstep(QF_AP_BX[0], QF_AP_BX[1], x) * (1.0 - D.sstep(QF_AP_BX[2], QF_AP_BX[3], x))
+
+
+def ap_off(a, b, tg, s):
+    """offsets of the rounded row a (rail) -> b (wl) at the fractions s: the crown along the outward normal of the chord in the plane across the rail's tangent tg"""
+    c = b - a
+    L = float(np.linalg.norm(c))
+    n = np.cross(tg, c)
+    nn = float(np.linalg.norm(n))
+    if L < 1e-6 or nn < 1e-12:
+        return np.zeros((len(s), 3))
+    n = n / nn
+    if n @ np.array([0.0, np.sign(a[1]), 1.0]) < 0.0:
+        n = -n
+    h = min(QF_AP_BK * L, QF_AP_BMAX) * float(ap_crown(0.5 * (a[0] + b[0])))
+    return (4.0 * h * s * (1.0 - s))[:, None] * n[None, :]
+
+
+def ap_row(a, b, tg, m):
+    s = np.linspace(0.0, 1.0, m + 1)
+    r = a + (b - a) * s[:, None] + ap_off(a, b, tg, s)
+    r[0], r[-1] = a, b
+    return r
+
+
+def ap_prof(rail):
+    """strip prof for the rounded pillar / roof rail rows (rail: the rows' rail points, index-aligned with the strip's rows)"""
+    tg = np.gradient(np.asarray(rail, float), axis=0)
+    return lambda i, s, P: ap_off(P[0], P[-1], tg[i], s)
+
+
 def p_pillar(R):
-    """the A-pillar strip (3.5 cm) and the slim roof rail between the pillar foot and the B pillar"""
+    """the A pillar and the roof rail between the pillar foot and the B pillar (round 2: rounded section, see QF_AP_BK)"""
     pin = R.edge('foot')
     A = R.edge('rail')[I_A - I_W:I_B - I_W + 1]
     B = R.edge('wl')[:I_B - I_A + 1]
+    if QF_AP_BK > 0.0:
+        return strip('pillar', PAINT, A, B, 1.0, pin0=pin, pinN=R.edge('b_rung'), prof=ap_prof(A))      # (hc 1 m: every row takes the b_rung's QF_AP_M divisions, CONST_M)
     return strip('pillar', PAINT, A, B, HC['pillar'], pin0=pin, pinN=R.edge('b_rung'))
 
 
 def p_rail_band(R):
     A, B = R.edge('wl')[I_B - I_A:], R.edge('rail')[I_B - I_W:I_TIP - I_W + 1]
+    if QF_AP_BK > 0.0:
+        return strip('rail_band', PAINT, B, A, 1.0, pin0=R.edge('b_rung'), pinN=R.edge('tip_up')[::-1], prof=ap_prof(B))
     return strip('rail_band', PAINT, B, A, HC['band'], pin0=R.edge('b_rung'), pinN=R.edge('tip_up')[::-1])
 
 
@@ -1410,7 +1458,10 @@ def e_tip_up(R):
 
 
 def e_b_rung(R):
-    a, b = R._edge('rail')[I_B - I_W], R._edge('wl')[I_B - I_A]
+    rail = R._edge('rail')
+    a, b = rail[I_B - I_W], R._edge('wl')[I_B - I_A]
+    if QF_AP_BK > 0.0:
+        return ap_row(a, b, rail[I_B - I_W + 1] - rail[I_B - I_W - 1], QF_AP_M)
     return _lin(a, b, 2)
 
 

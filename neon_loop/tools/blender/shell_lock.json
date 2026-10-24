@@ -17,19 +17,19 @@
    "faces": 4575
   },
   "pillar": {
-   "sha": "128e23dccbbde854",
-   "verts": 470,
-   "faces": 353
+   "sha": "1f4f09e079019e72",
+   "verts": 1056,
+   "faces": 936
   },
   "door_glass": {
-   "sha": "45f5439b98ed8ab8",
-   "verts": 3650,
-   "faces": 3519
+   "sha": "8a387993eb5a8f33",
+   "verts": 3535,
+   "faces": 3404
   },
   "rail_band": {
-   "sha": "2c5617df1722a1ff",
-   "verts": 219,
-   "faces": 181
+   "sha": "1223ecb9cf112ee2",
+   "verts": 330,
+   "faces": 290
   },
   "front_face": {
    "sha": "5951cc5d0beac59e",

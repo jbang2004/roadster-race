@@ -1757,6 +1757,36 @@ def qf_a_ramp(x):
     return np.clip(run / (QF_A_X1 - QF_A_X0), 0.0, 1.0)
 
 
+# A-pillar round 2 (2026-10-24, user: "A 柱的宽度和线条似乎实车更厚实更流畅" -> "全部都批准，以最优方式修改"), p018 read column by column (photo vs the model rendered from the same camera):
+# QF_AW, the width: the band between the rail and the door glass' upper edge wl is 30 - 32 mm high in p018 from the foot to the roof (the model's: 8 mm at x -1.29 growing to 25 mm, 22 mm along
+#     the rail) and grows aft of x 0 to ~50 mm at x 0.9 (the model's: 20 - 22 mm; the photo's window top edge runs straight into the tip, the model's bowed up); p013 sees the band wider in plan
+#     too (pillar ~3.9 cm against 3.5, the roof rail aft of x 0.3 1.5x).  wl now lies QF_AW_H(x) under the rail and is moved there ALONG the door glass' rulings (U -> wl): the glass surface stays,
+#     the band gets taller and wider.  Near the foot it reaches U (the glass ends in a tip at x ~-1.355, p018: -1.35; ahead of it the pillar's foot lands on the crest at full width: the glass
+#     rows are single points there), through a C2 smooth maximum (QF_AW_EPS) so that the pillar's outer edge has no corner.  Over QF_AW_XT the height returns to the old one: the window tip
+#     and the rows next to it (beam face, rear shoulder) do not change.
+QF_AW = os.environ.get('QF_AW', '1') == '1'
+QF_AW_H0 = float(os.environ.get('QF_AW_H0', '0.0305'))       # band height (m) along the pillar and the header (photo 29 - 32 mm, mean 30.4)
+QF_AW_K = float(os.environ.get('QF_AW_K', '0.021'))          # its growth aft of QF_AW_X0 (m per m; photo: 31.8 at x 0, 37.4 at 0.29, 42.4 at 0.59, 50.1 at 0.89 mm)
+QF_AW_X0, QF_AW_B = 0.0, 0.12                                  # start of the growth, half length of its C2 rounding
+QF_AW_XT = (0.95, 1.12)                                        # back to the old height (the window tip region)
+QF_AW_EPS = float(os.environ.get('QF_AW_EPS', '0.004'))      # half width (m, in height) of the smooth maximum with U at the glass tip
+
+
+def qf_smax(g, eps):
+    """C2 smooth max(g, 0): 0 for g <= -eps, g for g >= eps (eps * phi(g / eps), phi the integral of the cubic smoothstep over [-1, 1])"""
+    t = np.asarray(g, float) / eps
+    u = np.clip((t + 1.0) * 0.5, 0.0, 1.0)
+    return eps * np.where(t >= 1.0, t, 2.0 * u ** 3 - u ** 4)
+
+
+def qf_aw_h(x, h_old):
+    """the band height rail - wl (see QF_AW); h_old: the old height (taken over QF_AW_XT)"""
+    x = np.asarray(x, float)
+    h = QF_AW_H0 + QF_AW_K * qf_smax(x - QF_AW_X0, QF_AW_B)
+    w = sstep(QF_AW_XT[0], QF_AW_XT[1], x)
+    return h * (1.0 - w) + h_old * w
+
+
 def qf_l_dy(x):
     x = np.asarray(x, float)
     u = np.clip((x - QF_L_XC) / QF_L_H, -1.0, 1.0)
@@ -3156,6 +3186,18 @@ def build_all():
         _qUn_.resid, _qUn_.dbg = getattr(_qU_, 'resid', None), getattr(_qU_, 'dbg', None)
         CURVES['wl'], CURVES['U'] = _qWn_, _qUn_
         _Q16['tip'] = np.asarray(_qUn_.at(X_TIP), float)
+    if QF_AW:
+        # A-pillar round 2 (see QF_AW): wl = the point of the door glass' ruling U -> wl at the height rail - QF_AW_H (smooth maximum with U: the glass ends in a tip near the foot)
+        _aww_, _awu_, _awr_ = CURVES['wl'], CURVES['U'], CURVES['rail']
+
+        def _aw_wl(x, _w=_aww_, _u=_awu_, _r=_awr_):
+            x = np.asarray(x, float)
+            w, u, rz = np.asarray(_w.at(x), float), np.asarray(_u.at(x), float), np.asarray(_r.at(x), float)[..., 2]
+            h = w[..., 2] - u[..., 2]
+            f = qf_smax(rz - qf_aw_h(x, rz - w[..., 2]) - u[..., 2], QF_AW_EPS)
+            k = np.where(h > 1e-9, f / np.maximum(h, 1e-9), 0.0)
+            return u + k[..., None] * (w - u)
+        CURVES['wl'] = Fn(_aww_.x0, _aww_.x1, lambda x: _aw_wl(x)[..., 1], lambda x: _aw_wl(x)[..., 2], 'wl')
     # centre line of the glass: the windscreen plane, the dome, then (rear window) the glass edge + crown (-> 0 at the wing seam), then the flat deck (= the glass edge level)
     xs = np.linspace(-1.625, X_SEAM, 80)
     zt = np.array([pchip([(p[0], p[2]) for p in TOP_K], x) for x in xs])

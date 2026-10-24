@@ -43,6 +43,10 @@ P018_REAR = [(1066, 411), (1064, 414), (1062, 417), (1059, 420), (1058, 423), (1
              (1021, 500), (1017, 520), (1011, 540), (1007, 560), (999, 580), (994, 600), (988, 620), (982, 640), (975, 660)]     # rear seam, continued up the glass as the B-pillar's rear edge
 P018_BFRONT = [(1028, 428), (1022, 436), (1015, 444), (1010, 452), (1004, 460), (999, 468), (994, 476), (989, 484), (985, 492)]  # the B-pillar's front edge (a hairline in the glass; the glass between the two lines is NOT filled)
 P018_DIAG = [(678, 524), (642, 560)]                   # the front door cut's upper part: the shell crease from the blade's rear top corner up to the A-pillar foot (x + y = 1202 in p018)
+# the door glass' front frame (2026-10-24, user: "分隔线也加上"): two parallel hairlines in the side glass from the belt to the roof rail, like the B pillar's pair -- the front one continues
+# the door cut's diagonal (it starts at P018_DIAG's top), the rear one 32 px (~12 cm) behind it; p016 and p013 show the same pair on the near side.  Ridge of the dark line, read row by row.
+P018_QF1 = [(784.0, 436), (773.3, 444), (762.0, 452), (751.3, 460), (740.8, 468), (730.8, 476), (721.3, 484), (712.2, 492), (703.3, 500), (694.8, 508), (686.6, 516), (678.9, 524)]
+P018_QF2 = [(802.6, 440), (792.0, 448), (781.9, 456), (772.2, 464), (763.0, 472), (754.2, 480), (745.9, 488), (737.8, 496), (729.9, 504), (722.2, 512), (714.8, 520), (711.2, 524)]
 BELT_Y = 497.0                  # p018 row of the glass's lower edge (belt) at the B pillar: lines above it lie on the glass
 # roof glass splits (DS-6), read in p013 and symmetrised about the centre line; positions are RELATIVE to the glass edge (p013's absolute x has ~10 cm of known slack):
 ROOF_X1 = -0.247                # transverse seam 1: its middle section lies at this x ...
@@ -221,7 +225,8 @@ def door_notches(ctx, level):
 def door_seams(ctx, level):
     """DS-1 / DS-2 / DS-7: the front door cut (black zone up to the blade's rear end, then the shell crease diagonally up to the A-pillar foot), the rear door seam, continued
     up through the shoulder (the small cuts of the top view), the belt and the glass as the rear edge of the B pillar, across the roof rail; and the B pillar's front edge in
-    the glass.  The B pillar is only these two hairlines (the glass between them stays glass).  Lines come from p018 (photo_line); right side = mirror."""
+    the glass.  The B pillar is only these two hairlines (the glass between them stays glass); so is the door glass' front frame (P018_QF1 / QF2).  Lines come from p018 (photo_line);
+    right side = mirror."""
     objs = []
     cast = ctx.surf_hi.cast
     step = (5.0, 14.0, 30.0)[level]
@@ -235,10 +240,12 @@ def door_seams(ctx, level):
              ('DoorCutDiag', photo_line(ctx, 'p018', P018_DIAG, 524, 561, step * 0.7)),
              ('DoorSeamRear', photo_line(ctx, 'p018', P018_REAR, 409, 682, step)),
              ('BPillarFront', photo_line(ctx, 'p018', P018_BFRONT, 424, 499, step * 0.7)))
+    glass = (('DoorGlassFront', photo_line(ctx, 'p018', P018_QF1, 437, 525, step * 0.7)),        # the door glass' front frame: wholly in the glass (its belt is lower than BELT_Y)
+             ('DoorGlassFront2', photo_line(ctx, 'p018', P018_QF2, 441, 525, step * 0.7)))
     for sd in (-1, 1):
-        for nm, cl in lines:
+        for nm, cl in lines + glass:
             M = Mesh()
-            P, N = strip_along(cast, [c for c in cl if c is not None], sd, width, off)
+            P, N = strip_along(cast, [c for c in cl if c is not None], sd, k * GLASS_W if nm.startswith('DoorGlass') else width, off)
             _grid(M, P, N)
             _emit(ctx, level, objs, M, '%s_%d' % (nm, sd), 'PanelGap')
     if level == 0:
