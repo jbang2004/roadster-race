@@ -889,6 +889,7 @@ W_BADGE = (0.15, 0.15, 0.16, 0.25)
 W_AERO = (0.95, 0.96, 0.98, 0.42)       # aero panels in body colour, as on the press car (white on white)
 W_ACC = (0.86, 0.50, 0.26, 1.0)
 W_RUB = (0.0045, 0.0045, 0.005, 0.0)    # FRONT r3: rubber black like the hi tyre's 0x0e0e0f (was 0.018 = 4x brighter, and grey in every render)
+W_SS = (0.74, 0.75, 0.77, 0.8)          # 2026-10-24 (user, p003 / p018 / p001): polished stainless: the thin bright ring on the crown of the rim lip
 # wheel face after the p003 / p018 close-ups: six flat aero panels in ONE plane (Y_P) between six parallel-sided gloss-black spoke channels; the bevels along
 # the panel edges run straight into a graphite six-armed star hub (flat, at the foot of the bevels, Y_B) carrying the small round T cap
 N_SPOKE = 6
@@ -1123,6 +1124,7 @@ def _tyre_prof(nprof):
 # the rim's lip / bevel ring: its outer edge is the photo's rim edge (p018: bevel ring ends at ~ 88 px = 0.313; was 0.324), standing 6 mm out of the tyre wall like a rim protector
 LIP_PROF = [(FACE_R, Y_P), (0.2985, 0.1185), (0.3035, 0.1207), (0.3095, 0.1210), (0.3135, 0.1180), (0.3150, 0.1100), (0.3120, 0.1000)]
 LIP_PROF1 = [(FACE_R, Y_P), (0.2995, 0.1190), (0.3075, 0.1210), (0.3140, 0.1075)]
+LIP_SS = (2, 2)                         # the lip's profile from this point on (hi, lod1) is the stainless ring W_SS (its crown and outer round, ~1.2 cm seen from the side); the inner slope stays dark
 
 
 def rim_mesh(level):
@@ -1151,7 +1153,8 @@ def rim_mesh(level):
         return cb.mesh('Rim_l2', recalc=False)
     if level == 0:
         cb.lathe([(0.300, 0.104), (0.300, -0.128), (0.316, -0.134)], st, W_DARK)                    # barrel
-    cb.lathe(LIP_PROF if level == 0 else LIP_PROF1, st, W_HUB)                                      # lip (p018 / p003: the outer rim ring reads dark like the hub, not graphite like the bevels)
+    lp, ks = (LIP_PROF, LIP_SS[0]) if level == 0 else (LIP_PROF1, LIP_SS[1])
+    cb.lathe(lp, st, [W_HUB if i < ks else W_SS for i in range(len(lp) - 1)])                        # lip (p018 / p003: the outer rim ring reads dark like the hub, not graphite like the bevels), its crown a thin polished stainless ring (2026-10-24)
     hs = 48 if level == 0 else 14
     if level == 0:
         cb.lathe([(0.0, 0.1155), (0.034, 0.1155)], hs, W_HUB)                                       # cap
@@ -1210,6 +1213,56 @@ def rim_obj(me, name, left, mat_name='Rim', sharp=34):
     return ob
 
 
+# 2026-10-24 (p003 / p018): the press car's tyres carry white sidewall print ("TROFEO RS" large, "P ZERO"); the game's tyre shader only has a faint satin band.  Raised
+# letters (0.5 mm) wrapped on the outboard sidewall, in the rim mesh (it spins with the wheel) with the rubber code 0 = matte, the rgb white (materials.js 'rim': no clear coat on rubber).
+TYRE_TEXT = (('TROFEO RS', -math.pi / 2, 0.021), ('P ZERO', math.pi / 2, 0.018))      # (label, centre angle in the wheel plane, cap height: p018 (near-orthographic) 5-6 px = 2.1 cm)
+TYRE_TEXT_R0 = 0.340                    # baseline radius: the print is centred on the visible sidewall (0.313 lip .. 0.39)
+W_PRINT = (0.90, 0.90, 0.91, 0.0)
+
+
+def _tyre_side_y(r):
+    """|y| of the outboard sidewall at radius r (TYRE_HALF, linear between its points)"""
+    H = TYRE_HALF[:-1]
+    for (r0, y0), (r1, y1) in zip(H, H[1:]):
+        if r0 <= r <= r1:
+            return y0 + (y1 - y0) * (r - r0) / (r1 - r0)
+    return H[-1][1] if r > H[-1][0] else H[0][1]
+
+
+def tyre_text_mesh(rev):
+    """the sidewall print in the right wheel's frame (axle +y = outboard); rev: written backwards, for the left wheels (mirror_mesh turns it round)"""
+    cb = CB()
+    for label, thc, cap in TYRE_TEXT:
+        cu = bpy.data.curves.new('tyre_text', 'FONT')
+        cu.body = label
+        cu.size = cap / 0.72
+        cu.extrude = 0.00025
+        cu.resolution_u = 2
+        cu.bevel_depth = 0.022 * cap                           # bold: an edge bevel widens the strokes (Blender's bundled font has no bold cut; the press tyre's print is heavy;
+        cu.bevel_resolution = 0                                # the outline offset broke the T's fill)
+        cu.space_character = 1.12
+        cu.align_x = 'CENTER'
+        tob = bpy.data.objects.new('tyre_text', cu)
+        link(tob)
+        me = bpy.data.meshes.new_from_object(tob.evaluated_get(depsgraph()))
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        vm = {}
+        for v in bm.verts:
+            x, y, z = v.co
+            r = TYRE_TEXT_R0 + y
+            th = thc + (-x if rev else x) / r                  # clockwise seen from outside, letter tops outward
+            vm[v] = cb.v((r * math.cos(th), _tyre_side_y(r) + 0.0006 + z, r * math.sin(th)))
+        for f in bm.faces:                                     # (the map keeps the text's own winding for the right wheel and mirrors it when rev: reverse those faces;
+            vs = [vm[v] for v in f.verts]                      # recalc_face_normals flipped some letter caps of these open pieces inward, they shaded black)
+            cb.face(vs[::-1] if rev else vs, W_PRINT)
+        bm.free()
+        bpy.data.objects.remove(tob, do_unlink=True)
+        bpy.data.meshes.remove(me)
+        bpy.data.curves.remove(cu)
+    return cb.mesh('TyreText_%s' % ('L' if rev else 'R'), recalc=False)
+
+
 def build_wheel_hi2(tag, wx, sgn):
     left = sgn < 0
     if 0 not in RIM_ME:
@@ -1225,6 +1278,16 @@ def build_wheel_hi2(tag, wx, sgn):
     t = rim_obj(RIM_ME['tyre'], f'Tyre_{tag}', left, 'Tyre', sharp=70)
     t.parent = spin
     rim = rim_obj(RIM_ME[0], f'Rim_{tag}', left)
+    if ('text', left) not in RIM_ME:
+        RIM_ME[('text', left)] = tyre_text_mesh(left)
+        print('WHEEL hi per wheel: sidewall print %d tris' % sum(len(p.vertices) - 2 for p in RIM_ME[('text', left)].polygons))
+    rim = join([rim, rim_obj(RIM_ME[('text', left)], f'RimText_{tag}', left)], f'Rim_{tag}')
+    ca = rim.data.color_attributes.get('Color')
+    if ca is not None:
+        rim.data.color_attributes.active_color = ca
+        rim.data.attributes.active_color = ca
+        rim.data.color_attributes.active_color_name = 'Color'
+        rim.data.color_attributes.default_color_name = 'Color'
     rim.parent = spin
     disc = rim_obj(RIM_ME['brake'][0], f'Disc_{tag}', left, 'BrakeDisc', sharp=40)
     cal = rim_obj(RIM_ME['brake'][1], f'Cal_{tag}', left, 'Caliper', sharp=40)

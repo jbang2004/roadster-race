@@ -22,8 +22,9 @@ fi
 
 cd "$ROOT/neon_loop"
 npm ci
-npx playwright-core install --with-deps chromium
+[ -x /opt/pw-browsers/chromium ] || npx playwright-core install --with-deps chromium
 python3 -m pip install --quiet numpy 2>/dev/null || python3 -m pip install --quiet --break-system-packages numpy
 
 "$BDIR/blender" --version | head -1
 echo "export BLENDER=\"$BDIR/blender\""
+echo "export LD_LIBRARY_PATH=\"$BDIR/lib\"   # meshopt (compressed GLB export)"

@@ -13,6 +13,7 @@ Options:  --wing deploy|stow|hide   wing pose (the r81 / thrusters photos show i
           --glass-dark              glass without specular reflection (a flat pane would otherwise mirror the studio rim light as a white sheet at a grazing angle)
           --hide A,B                hide objects by name prefix
           --extra-views "{...}"     more cameras, same tuple format as VIEWS
+          --bands N                 (with --reflect) stripe pairs per revolution, default 24 (7.5 deg bands)
           --reflect h|v|hv          reflection-line check: the paint becomes a perfect mirror under a striped sky (24 bands per
                                     revolution; h = horizontal bands, v = vertical, hv = both), no lights.  A clean surface
                                     gives smooth, parallel stripes; pinches / ripples / creases show as kinks and whorls.
@@ -70,6 +71,7 @@ names = arg('--views', 'r81,thrust,high').split(',')
 WING = arg('--wing', 'deploy')      # deploy | stow | hide : the matched r81 / thrust photos show the wing stowed, official-02 deployed
 LAMPS = arg('--lamps', 'night' if arg('--views', '') == 'p014' else 'day')      # head lamps: 'night' (p014) | 'day'
 REFLECT = arg('--reflect', '')      # '' | h | v | hv : reflection-line check: mirror paint under a striped sky (h = horizontal bands, v = vertical bands)
+BANDS = float(arg('--bands', '24'))   # (--reflect) stripe pairs per revolution: 24 = bands of 7.5 deg; 72 = 2.5 deg, for the flatter panels
 GLASS_DARK = '--glass-dark' in argv       # glass without any specular reflection (see the Glass material below)
 HIDE = [h for h in arg('--hide', '').split(',') if h]      # object-name prefixes to hide (e.g. TailLower,TailCheek to see the bare body)
 
@@ -91,16 +93,17 @@ for o in bpy.data.objects:
         o.hide_render = True
 
 # q8 (2026-10-21): the hood decal is livery vinyl (stripes / number, transparent elsewhere in the game); with no atlas here it rendered as a brushed-alu
-# plate on the hood (a light rectangle + a line parallel to L7).  Keep only the rear plate: drop Decal faces ahead of x -1.5 (car frame, world space).
+# plate on the hood (a light rectangle + a line parallel to L7).  Keep only the rear plate: drop Decal faces ahead of x 1.5 (car frame, world space).
+# 2026-10-24: the door decals (x -0.70 .. 0.22: race number / sponsor vinyl) were kept by the old x < -1.5 test and read as a grey plate stuck on each door.
 import bmesh
 for o in bpy.data.objects:
     if o.type != 'MESH' or not any(s.material and s.material.name.startswith('Decal') for s in o.material_slots):
         continue
     bm = bmesh.new(); bm.from_mesh(o.data); mw = o.matrix_world
     dead = [f for f in bm.faces if (o.material_slots[f.material_index].material or bpy.data.materials[0]).name.startswith('Decal')
-            and (mw @ f.calc_center_median()).x < -1.5]
+            and (mw @ f.calc_center_median()).x < 1.5]
     if dead:
-        bmesh.ops.delete(bm, geom=dead, context='FACES'); bm.to_mesh(o.data); print('[ref] hood decal faces dropped:', o.name, len(dead))
+        bmesh.ops.delete(bm, geom=dead, context='FACES'); bm.to_mesh(o.data); print('[ref] hood / door decal faces dropped:', o.name, len(dead))
     bm.free()
 
 def srgb_lin(h):
@@ -134,6 +137,15 @@ for m in bpy.data.materials:
         for _k in ('Specular IOR Level', 'Specular'):
             if _k in b.inputs:
                 b.inputs[_k].default_value = 0.0
+    elif m.name.startswith('Carbon'):               # FRONT r4: the lip / skirts read black in every press view (p018 lip side 19-29 / 255); the glTF's coat (0.6, mirror-sharp) turned the studio key light into a silver block on the lip (80-129).
+        b.inputs['Base Color'].default_value = srgb_lin(0x1d1e22)          # (the game's own twill colour, materials.js; the game's metal 0.25 / rough 0.34 without the coat still gave 77-104: our strip lights are not the photo's)
+        b.inputs['Metallic'].default_value = 0.0
+        b.inputs['Roughness'].default_value = 0.5
+        for _k in ('Specular IOR Level', 'Specular'):                      # (tuned on p018: lip side 27 / 26 / 45 vs the photo's 29 / 19 / 29; specular 0.05 gave 48-57, 0.15 gave 66-73)
+            if _k in b.inputs:
+                b.inputs[_k].default_value = 0.0
+        if 'Coat Weight' in b.inputs:
+            b.inputs['Coat Weight'].default_value = 0.0
     elif m.name.startswith('Tyre'):                 # FRONT r3: black rubber with a faint satin sheen like the photos (p018 sidewall 5-13 / 255); the game's tyre is 0x0b0b0c, roughness 0.6 (materials.js)
         b.inputs['Base Color'].default_value = srgb_lin(0x090909)
         b.inputs['Roughness'].default_value = 0.62          # (tuned on p018: sidewall mean 10.4 vs the photo's 10.8 of 255; 0.58 / spec 0.35 gave 21, the old 0.018 / 0.72 gave 39.5)
@@ -245,7 +257,7 @@ if REFLECT:
         terms.append(az)
     st = None
     for t_ in terms:
-        mul = nt.nodes.new('ShaderNodeMath'); mul.operation = 'MULTIPLY'; mul.inputs[1].default_value = 24.0
+        mul = nt.nodes.new('ShaderNodeMath'); mul.operation = 'MULTIPLY'; mul.inputs[1].default_value = BANDS
         nt.links.new(t_.outputs[0], mul.inputs[0])
         sn = nt.nodes.new('ShaderNodeMath'); sn.operation = 'SINE'
         nt.links.new(mul.outputs[0], sn.inputs[0])

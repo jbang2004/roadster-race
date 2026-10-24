@@ -2,77 +2,77 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "298f67d56b58a0d6",
-   "verts": 7515,
-   "faces": 7293
+   "sha": "e6483e3778bf09d3",
+   "verts": 8281,
+   "faces": 8050
   },
   "wall": {
-   "sha": "65d2896db883763b",
-   "verts": 4492,
-   "faces": 4206
+   "sha": "4d045fd4544d22c5",
+   "verts": 4636,
+   "faces": 4341
   },
   "wall_black": {
-   "sha": "92693f411d9ceffd",
-   "verts": 4727,
-   "faces": 4440
+   "sha": "bf09dff4d4456aad",
+   "verts": 4871,
+   "faces": 4575
   },
   "pillar": {
-   "sha": "dac269cd22e20159",
-   "verts": 354,
-   "faces": 234
+   "sha": "128e23dccbbde854",
+   "verts": 470,
+   "faces": 353
   },
   "door_glass": {
-   "sha": "a3496aaae76ffe4f",
-   "verts": 3434,
-   "faces": 3312
+   "sha": "45f5439b98ed8ab8",
+   "verts": 3650,
+   "faces": 3519
   },
   "rail_band": {
-   "sha": "97f33154635aa866",
-   "verts": 165,
-   "faces": 136
+   "sha": "2c5617df1722a1ff",
+   "verts": 219,
+   "faces": 181
   },
   "front_face": {
-   "sha": "e02df9a5f256d537",
+   "sha": "0b7390e7b96bff91",
    "verts": 735,
    "faces": 680
   },
   "hood": {
-   "sha": "5d893a8cfaccb614",
+   "sha": "11cc1371cf3305aa",
    "verts": 2730,
    "faces": 2618
   },
   "corner_tri": {
-   "sha": "4c97115936f8ba33",
+   "sha": "9277df2e05cc5285",
    "verts": 628,
    "faces": 594
   },
   "fender_top": {
-   "sha": "f9318d0e409d4862",
+   "sha": "7780f9dc5e8132e9",
    "verts": 855,
    "faces": 792
   },
   "rear_shoulder": {
-   "sha": "d7b9980ec0825a0e",
-   "verts": 2960,
-   "faces": 2869
+   "sha": "93b1331eac287ae2",
+   "verts": 3110,
+   "faces": 3000
   },
   "glass": {
-   "sha": "e4dd395127d6907a",
-   "verts": 8953,
-   "faces": 8756
+   "sha": "708a47918d7384c3",
+   "verts": 9331,
+   "faces": 9125
   },
   "ridge_inner": {
-   "sha": "1a7447a6ba1700a0",
-   "verts": 1136,
-   "faces": 1016
+   "sha": "3b0b95b46c71f6c9",
+   "verts": 1082,
+   "faces": 952
   },
   "deck": {
-   "sha": "db296f618bef325d",
+   "sha": "aba72a4f92167121",
    "verts": 586,
    "faces": 556
   },
   "tail_upper": {
-   "sha": "37750932dcc82f8e",
+   "sha": "8bb383e11b79663a",
    "verts": 840,
    "faces": 767
   },
@@ -82,7 +82,7 @@
    "faces": 2242
   },
   "facet": {
-   "sha": "7d169023b29347de",
+   "sha": "7c85a1986072aa63",
    "verts": 390,
    "faces": 357
   }

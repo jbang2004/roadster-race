@@ -16,6 +16,7 @@ from mathutils import Vector
 import common as S
 import cam as _cam                      # numpy replica of the matched press-photo cameras (Cam(view).ray(px, py))
 from common import Mesh, grid, prism, smooth, W_DARK
+from common import sstep as sstep_
 
 NAME = 'side'
 
@@ -27,6 +28,13 @@ MK_X1 = -0.894                  # the blade ends at the door's front cut
 MK_H = 0.050                    # blade height
 REFL_H = 0.70                   # the reflector's greatest height, as a fraction of the blade height (3.5 cm)
 MK_AMBER = (-0.985, -0.915)     # the amber strip: along the top edge of the blade's rear half (p003: 41 % ... 87 % of the blade's length)
+# 2026-10-23 (p018 x8 / p003): ONE black housing from a pointed front tip (p018 px 557 = x -1.197) to the door cut, full height from px 575 (x -1.140); the red reflector sits INSIDE its front
+# part (px 575 .. 602) with a black border, the amber lamp is only a thin line under the top edge (p003; not visible in p018), the side camera sits in the rear lower part (p003)
+MK_TIP, MK_FULL = -1.197, -1.140
+MK_REFL = (-1.136, -1.037)      # the red inside the housing (x), inset MK_REFL_IN from its top and bottom edges
+MK_REFL_IN = (0.004, 0.007)
+MK_AMBER_Z = (0.0035, 0.0065)   # the amber line: this far below the top edge
+MK_CAM_X = -0.928
 
 # door seams, read in p018 (1800 px wide, camera 10 m away: near-orthographic).  Ridge positions measured row by row in the photo (the dark / light hairline of the seam),
 # then smoothed ([1 2 1] over the neighbours); the lines are cast from the p018 camera onto the HI body, so they sit exactly where the photo shows them.
@@ -263,35 +271,33 @@ def side_markers(ctx, level):
 
     for sd in (-1, 1):
         x_end = MK_X1 - 0.004
-        x_blade = MK_BLADE
-        # blade
+        # housing: the black blade from the pointed tip at the arch to the door cut, top edge = L, height growing from 0 at the tip to MK_H at MK_FULL
         Mk = Mesh()
-        nx = 10 if level else 14
+        nx = 12 if level else 22
         P, N = [], []
         for i in range(nx + 1):
-            x = x_blade + (x_end - x_blade) * i / nx
+            x = MK_TIP + (x_end - MK_TIP) * i / nx
+            hh = MK_H * float(sstep_(MK_TIP, MK_FULL, x)) ** 0.7 + 0.002
             rp, rn = [], []
             for t in (0.0, 0.5, 1.0):
-                p, nn = cast((x, sd * 2.5, mk_top(x) - MK_H * t), (0, -sd, 0), 0.0014)
+                p, nn = cast((x, sd * 2.5, mk_top(x) - hh * t), (0, -sd, 0), 0.0014)
                 rp.append(p)
                 rn.append(nn)
             P.append(rp)
             N.append(rn)
         _grid(Mk, P, N)
         emit(Mk, 'SideBlade_%d' % sd, 'GlossBlack')
-        # reflector: a thin dark-red wedge, no taller than the blade (p018: the red is about 9 px = 3 cm high, the blade 4.6 cm).  Top edge = the blade's (L); the lower edge drops
-        # from the front tip to REFL_H x the blade height 55 % of the way back, then runs flat to the blade
+        # reflector: dark red, inside the housing's front part with a black border; its front edge leans back a little (p003)
         Mr = Mesh()
         P, N = [], []
-        for u in (0.0, 0.12, 0.25, 0.37, 0.49, 0.62, 0.75, 0.88, 1.0):
-            x = MK_X0 + 0.001 + (x_blade - MK_X0 - 0.001) * u
-            zt_ = mk_top(x) - 0.002
-            b = REFL_H * min(u / 0.55, 1.0)
-            zb = zt_ - max(b, 0.04) * MK_H
-            zb = min(zb, zt_ - 0.002)
+        for u in (0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0):
+            x = MK_REFL[0] + (MK_REFL[1] - MK_REFL[0]) * u
+            zt_ = mk_top(x) - MK_REFL_IN[0]
+            zb = mk_top(x) - MK_H + MK_REFL_IN[1]
             rp, rn = [], []
             for t in (0.0, 1.0):
-                p, nn = cast((x, sd * 2.5, zt_ + (zb - zt_) * t), (0, -sd, 0), 0.0017)
+                xx = x + 0.008 * t * (1.0 - u)                        # (the lower front corner sits 8 mm further back)
+                p, nn = cast((xx, sd * 2.5, zt_ + (zb - zt_) * t), (0, -sd, 0), 0.0019)
                 rp.append(p)
                 rn.append(nn)
             P.append(rp)
@@ -299,27 +305,27 @@ def side_markers(ctx, level):
         _grid(Mr, P, N)
         emit(Mr, 'SideReflector_%d' % sd, 'Reflector')     # (the red reflector: fixed dark red, not lit, not livery-tinted; dropped at the LODs)
         if level == 0:
-            # amber lamp: a thin lit slot along the top of the blade near its rear end
+            # amber lamp: a thin line just under the top edge of the housing's rear half
             Ma = Mesh()
             P, N = [], []
             for i in range(9):
                 x = MK_AMBER[0] + (MK_AMBER[1] - MK_AMBER[0]) * i / 8
                 rp, rn = [], []
-                for t in (0.0, 1.0):
-                    p, nn = cast((x, sd * 2.5, mk_top(x) - 0.0075 - 0.0075 * t), (0, -sd, 0), 0.0021)
+                for zz in MK_AMBER_Z:
+                    p, nn = cast((x, sd * 2.5, mk_top(x) - zz), (0, -sd, 0), 0.0021)
                     rp.append(p)
                     rn.append(nn)
                 P.append(rp)
                 N.append(rn)
             _grid(Ma, P, N)
             emit(Ma, 'SideLamp_%d' % sd, 'SideMarker')
-            # round side camera on the blade
+            # round side camera in the housing's rear lower part (p003)
             Mc = Mesh()
-            xc = MK_BLADE + 0.012
-            p, nn = cast((xc, sd * 2.5, mk_top(xc) - MK_H * 0.55), (0, -sd, 0), 0.0)
+            xc = MK_CAM_X
+            p, nn = cast((xc, sd * 2.5, mk_top(xc) - MK_H * 0.64), (0, -sd, 0), 0.0)
             if p is not None:
                 rings = []
-                for r_, dy in ((0.0105, 0.0), (0.0105, 0.004), (0.0075, 0.0058)):
+                for r_, dy in ((0.0085, 0.0), (0.0085, 0.0034), (0.0060, 0.0048)):
                     rings.append([(p.x + r_ * math.cos(a), p.y + sd * dy, p.z + r_ * math.sin(a)) for a in [2 * math.pi * i / 14 for i in range(14)]])
                 prism(Mc, rings)
             emit(Mc, 'SideCamera_%d' % sd, 'Trim', smooth=True)
@@ -350,7 +356,7 @@ def _interp(prof, z):
 
 
 def build_skirt(ctx, level):
-    """thin black skirt along the sill between the arches, with a small outward lip at the bottom."""
+    """thin carbon skirt along the sill between the arches, with a small outward lip at the bottom."""
     cb = ctx.CB()
     x0, x1 = round(ctx.HUBS[0][0] + SKIRT_IN, 6), round(ctx.HUBS[2][0] - SKIRT_OUT, 6)      # -0.99 .. 1.10 for hubs at -1.487 / 1.61
     nx = (60, 16, 8)[level]
@@ -379,7 +385,7 @@ def build_skirt(ctx, level):
     me = cb.mesh('Skirt', keep_color=False)
     ob = bpy.data.objects.new('Skirt', me)
     ctx.link(ob)
-    me.materials.append(ctx.mat('Carbon' if level < 2 else 'Trim'))
+    me.materials.append(ctx.mat('Carbon' if level < 2 else 'Trim'))      # (the game draws Carbon as clear-coated twill, src/car/materials.js: the p003 sill; Blender's studio shows it as a grey band)
     ctx.mark_sharp(me, 40)
     return ob
 

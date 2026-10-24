@@ -19,7 +19,7 @@ import os, sys, json, math
 
 try:
     import bpy
-    from mathutils import Vector, Matrix, Euler
+    from mathutils import Vector, Matrix, Euler, Quaternion
 except ImportError:          # (plain python: nothing to do, the module can still be read)
     bpy = None
 
@@ -70,7 +70,7 @@ def apply(mode, glb):
         return 0.0
     # ---- new format
     on = d > 0.002
-    _show([wing, well] + kids, on)
+    _show([wing, well] + list(wing.children_recursive), on)
     if not on:
         return 0.0
     e = _smooth(0, 1, d)
@@ -80,9 +80,23 @@ def apply(mode, glb):
     ps = meta['plates']['stow']
     sy = ps.get('scaleY', 1.0) + (1 - ps.get('scaleY', 1.0)) * _smooth(0.4, 1.0, d)             # vertical (GLB y = Blender z)
     sz = ps.get('scaleZ', 1.0) + (1 - ps.get('scaleZ', 1.0)) * _smooth(0.0, 0.65, d)            # lateral
-    for c in kids:
+    plates = [c for c in kids if c.name.startswith('WingPlates')] if meta.get('ends') else kids   # (one-piece wing: the tips / endplates move by meta.wing.ends instead)
+    for c in plates:
         c.scale = (ps.get('scaleX', 1.0), sz, sy)                                                 # (the children keep their own location = the node origin)
-    _show(kids, d > 0.03)
+    _show(plates, d > 0.03)
+    en = meta.get('ends')
+    if en:
+        # one-piece wing (REAR step 3, = src/car/index.js): each tip blade slides out by `out`, its endplate swings about `axis` (wing frame, origin on the hinge) by `angle`
+        k = _smooth(en['k'][0], en['k'][1], d)
+        g = lambda v: Vector((v[0], -v[2], v[1]))                                               # GLB -> Blender frame
+        for pt in en['parts']:
+            t, e = bpy.data.objects.get(pt['tip']), bpy.data.objects.get(pt['end'])
+            if t is None or e is None:
+                continue
+            t.location = t.location + g(pt['out']) * k
+            e.rotation_mode = 'QUATERNION'
+            e.rotation_quaternion = Quaternion(g(pt['axis']).normalized(), pt['angle'] * k) @ e.rotation_quaternion
+        bpy.context.view_layer.update()
     return d
 
 
