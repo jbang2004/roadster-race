@@ -412,10 +412,12 @@ def build_tail_skin(ctx, level):
     # boundary of the lower rear corner (p018: (1475, 580) -> (1530, 558) = x 2.01 .. 2.21, z 0.68 .. 0.76 on the shell).  Material `Reflector` (fixed dark red, not emissive; the LODs
     # drop it), hi only.  (The round-2 slit on the tail face and the 5 x 8 cm corner block are gone.)  The reverse lamps are the two small white lamps beside the camera (build()).
     if level == 0:
-        zc = lambda x: float(ctx.A.D.CURVES['l3'].at(x)[2])        # G-5: the shell's paint | black boundary l3 now IS the p018 line (straight, x 1.95 .. tail corner): the reflector sits on it (was the fixed line z 0.680 + 0.384 (x - 2.011))
+        zc = lambda x: float(ctx.A.D.CURVES['l3'].at(x)[2])        # G-5: the shell's paint | black boundary l3 now IS the p018 line (straight, x 1.95 .. tail corner)
+        # 2026-10-24 (polish): p018 columns 1485 - 1525: the red lens is 5 - 6 px (1.9 cm) tall and hangs from the paint edge into the black (a dark housing under it); it ran 2 - 3 px tall
+        # astride l3 (half on the paint) and x 2.00 - 2.24; the photo's red spans cols 1480 - 1525 = x 2.03 - 2.19 (a small bright piece and a black notch follow)
         for s in (-1, 1):
-            out.append(patch(f'R_SideReflector_{"L" if s < 0 else "R"}', 'Reflector', ((2.00, 2.24), (0.0, 1.0)), None, None, 0.0030, 9, 2, unit_uv=True,
-                             ray_fn=lambda a, bb, s=s: (Vector((a, s * 2.5, zc(a) + (bb - 0.5) * (0.0100 + 0.0060 * (a - 2.0) / 0.24))), Vector((0.0, -s, 0.0)))))
+            out.append(patch(f'R_SideReflector_{"L" if s < 0 else "R"}', 'Reflector', ((2.03, 2.19), (0.0, 1.0)), None, None, 0.0030, 9, 2, unit_uv=True,
+                             ray_fn=lambda a, bb, s=s: (Vector((a, s * 2.5, zc(a) - 0.0008 - bb * 0.019)), Vector((0.0, -s, 0.0)))))
     return out
 
 

@@ -130,7 +130,7 @@ M = {
     'Rim':         mat('Rim', (1.0, 1.0, 1.0), 0.35, 0.30),
     'BrakeDisc':   mat('BrakeDisc', (0.30, 0.30, 0.32), 0.9, 0.45),
     'Caliper':     mat('Caliper', (0.55, 0.05, 0.02), 0.0, 0.35),
-    'Reflector':   mat('Reflector', (0.30, 0.012, 0.008), 0.0, 0.25),          # side / rear red reflectors: fixed dark red, not lit, not livery-tinted (Caliper follows livery.rim.accent)
+    'Reflector':   mat('Reflector', (0.195, 0.0044, 0.0024), 0.0, 0.22),     # side / rear red reflectors: fixed dark red, not lit, not livery-tinted (Caliper follows livery.rim.accent); = the game's 0x7a0e08 / 0.22 (src/car/materials.js; it was 0.30 linear, half again as bright: p016's front block read 0.45 of the paint, the photo 0.20)
     'IntLeather':  mat('IntLeather', (0.020, 0.020, 0.024), 0.0, 0.5),
     'IntPlastic':  mat('IntPlastic', (0.012, 0.012, 0.014), 0.0, 0.62),
     'IntScreen':   mat('IntScreen', (0.01, 0.02, 0.03), 0.0, 0.2, emis=(0.1, 0.5, 0.8), estr=1.0),
