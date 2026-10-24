@@ -1824,6 +1824,12 @@ def qf_l3_dy(x):
 # QF_FD_ON=0: c8.
 QF_FD_ON = os.environ.get('QF_FD_ON', '1') == '1'
 QF_FD_A = float(os.environ.get('QF_FD_A', '0.045'))     # tangent length of the band (m): the band reaches 45 mm up the face and down the wall from the crease
+# 2026-10-24 (user: "the side panel bends gently all the way into the wheel's plane; the model stays flat and bends only just before the wheel"; the sections at x -1.95 / -1.85 were a 55-58 deg plane for 12-14 cm
+# and a 30-37 deg roll within 4-7 cm): the band's tangent length grows from QF_FD_A to QF_FD_AA over QF_FD_AX (x) and may take QF_FD_CAP of the shorter face (was 0.4), so towards the arch mouth the roll spreads over
+# most of the middle face (the crest U itself is not touched: it is the band's upper end that moves up towards it).  QF_FD_AA = QF_FD_A: the c9c / c11 band.
+QF_FD_AA = float(os.environ.get('QF_FD_AA', '0.120'))
+QF_FD_AX = tuple(float(v) for v in os.environ.get('QF_FD_AX', '-2.20,-1.85').split(','))
+QF_FD_CAP = float(os.environ.get('QF_FD_CAP', '0.85'))
 QF_FD_N = int(os.environ.get('QF_FD_N', '48'))          # polyline nodes per half band
 QF_FD_WD = float(os.environ.get('QF_FD_WD', '1.0'))        # the row's nodes crowd into the band as sstep(0, QF_FD_WD, w) (continuous node layout from the c8 uniform rows)
 QF_FD_WP = float(os.environ.get('QF_FD_WP', '1.0'))     # exponent of the weight's C2 rise (1: curvature starts at 0 with zero slope)
@@ -1905,6 +1911,12 @@ def qf_la_dy(L0fy, dy_old, xN, yN):
 # rows up to the seam) is untouched and planar, the crown envelope rises by a C2 smoothstep over the first QF_FT_R0 of the rows behind the seam (G1 with the flap) and falls to 0 over the last QF_FT_R1 (the end row is shared with the glass).
 # QF_FT_C = 0 restores the ruled surface.
 QF_FT_C = float(os.environ.get('QF_FT_C', '0.005'))
+# 2026-10-24 (user: the real fender top rises as a gentle, visibly curved surface; the model read as a flat plane): QF_FT_K > 0 replaces the fixed crown by a constant CROSS curvature: crown = K w^2 / 8 for a row of
+# chord w (capped at QF_FT_CMAX), so the face is evenly curved across and the crown follows the face's width along x instead of the envelope's own rise and fall (a 10 mm envelope crown made a dome: closed rings in
+# p005's reflection lines).  The rise behind the flap seam (QF_FT_R0) stays; the fall to the end row is the face's narrowing plus QF_FT_R1K.  QF_FT_K = 0: the c10 crown QF_FT_C.
+QF_FT_K = float(os.environ.get('QF_FT_K', '0.9'))
+QF_FT_CMAX = float(os.environ.get('QF_FT_CMAX', '0.012'))
+QF_FT_R1K = float(os.environ.get('QF_FT_R1K', '0.25'))
 QF_FT_R0 = float(os.environ.get('QF_FT_R0', '0.35'))
 QF_FT_R1 = float(os.environ.get('QF_FT_R1', '0.7'))
 # q12 (review 2026-10-22, item 1): QF_FT_R1 0.25 -> 0.7.  Over the last 11 rows the 5 mm crown fell to 0 within ~13 cm: two fold pulses across the face in front of the pillar foot (row-to-row normal turn 1.4 / 1.9 deg
@@ -1958,6 +1970,11 @@ QF_C11_ZF = float(os.environ.get('QF_C11_ZF', '0.65'))                          
 QF_C11_LAM = float(os.environ.get('QF_C11_LAM', '2.0'))
 QF_C11_K0 = float(os.environ.get('QF_C11_K0', '0.5'))
 QF_C11_K1 = float(os.environ.get('QF_C11_K1', '0.5'))
+# 2026-10-24: ahead of the wheel (x < QF_C11_KX[0]) both handles are QF_C11_KF (near-circular arc: the middle face bends evenly from just below U into the wall), over the wheel (x > QF_C11_KX[1]) they are K0 / K1 as before.
+# (0.35 over the wheel as well spread the hub section's turn evenly, 33 37 39 42 45 deg per 2 cm, but with U crisp and its arrival angle fixed the rounder section stands 4-12 mm further inboard above the rim:
+#  full-lock tyre clearance 11.4 -> 4.5 mm and less of the tyre covered from above; the boxier K 0.5 section is what covers the tyre)
+QF_C11_KF = float(os.environ.get('QF_C11_KF', '0.35'))
+QF_C11_KX = tuple(float(v) for v in os.environ.get('QF_C11_KX', '-1.80,-1.62').split(','))
 QF_C11_DA = float(os.environ.get('QF_C11_DA', '20.0'))
 QF_C11_AZD = float(os.environ.get('QF_C11_AZD', '0.3'))                            # mm: the paint edge of the front arch at the 163 deg knot of shell2.QF_AZ_K is 'this much' LESS far below the circle (rim moves away from the tyre)
 QF_C11_SOFT = os.environ.get('QF_C11_SOFT', '0') == '1'                              # c11b (user ruling 2026-10-22): the target section over the wheel is the swept convex arc: G2 with the wall at the lip, dihedral QF_C11_UD at U (0 = the old Bezier target with QF_C11_DA)
@@ -1966,7 +1983,8 @@ QF_C11_SD = float(os.environ.get('QF_C11_SD', '0.05'))                          
 QF_C11_SK = float(os.environ.get('QF_C11_SK', '1.2'))                                # speed of the quintic Hermite arc at both ends, as a multiple of the chord Lm -> U
 QF_C11_SC1 = float(os.environ.get('QF_C11_SC1', '0.0'))                              # curvature of the arc at U, as a multiple of the circle through the same chord and turn (0 at the lip: G2 with the wall)
 QF_C11_FA = float(os.environ.get('QF_C11_FA', '1.0'))                              # amplitude of the round fill (0 = off: the old straight face = c11; 1 = the target section = c11b)
-QF_C11_FX = tuple(float(v) for v in os.environ.get('QF_C11_FX', '-1.82,-1.35,-1.00,-0.20').split(','))   # fill weight: 0 at [0], 1 at [1] .. [2], 0 at [3] (quintic; the ramp-in raised to QF_C11_FP).  h5: -1.82,-1.35,-1.25,-0.45.
+QF_C11_FX = tuple(float(v) for v in os.environ.get('QF_C11_FX', '-2.10,-1.35,-1.00,-0.20').split(','))   # fill weight: 0 at [0], 1 at [1] .. [2], 0 at [3] (quintic; the ramp-in raised to QF_C11_FP).  h5: -1.82,-1.35,-1.25,-0.45.
+#   2026-10-24: the ramp-in starts at -2.10 (was -1.82): ahead of the arch the middle face bends from just below U into the wall (x -1.85: 50 50 52 53 54 56 59 63 70 76 79 85 deg per 2 cm) instead of a 55 deg plane and a 4-7 cm roll; L ahead of -2.10 is untouched
 #   q12 (review 2026-10-22, item 2; user: "都同意", criterion: no valley along x, monotone lean): the h5 fill retreated from x -1.25 while the untouched door (c10b) only widens from -1.05 on: a 13-14 mm
 #   valley in y at z .78 - .84 ahead of the door gap (the c11c soft shadow).  Held to -1.00 and retreating to -0.20 (where the door has caught up), the valley is 1.6 - 3.7 mm (z .86: 9.9 mm, the
 #   waist of U's plan, c10b 12.7); the door's plan width is L's and does not change.
@@ -2573,7 +2591,7 @@ def build_all():
         else:
             _h3 = lambda x: 0.0 * np.asarray(x, float)
             _l3tgt = _l3a.fy
-        _ey3, _cfi3 = qf_cf_start(_l3tgt, _xR, float(N[1]), QF_CF_XJ3, 'l3')
+        _ey3, _cfi3 = qf_cf_start(_l3tgt, _xR, float(N[1]) + QF_FS_K * (float(N[2]) - _zl3), QF_CF_XJ3, 'l3')     # (the leaning crease's foot, QF_FS_K)
         _g3 = lambda x: 1.0 - sstep(_xR, QF_CF_XJ3, x)
         _dy3a = lambda x: _dyl3(x) + _h3(x) + _ey3(x)
         if QF_C11_ON:                                         # c11: the bend where l3 dips into the wheel opening starts without a step (qf_c11_fair)
@@ -3296,6 +3314,11 @@ def build_all():
 NOSE_BOW = float(os.environ.get('NOSE_BOW', '0.110'))        # the front edge's bow: the centre is this much ahead of N (p013 .083 between the centre and the arc's end, p018 sees the centre further forward)
 NOSE_RAKE = float(os.environ.get('NOSE_RAKE', '0.20'))       # front face: x grows by this per metre of height below the hood edge (p018: ~0.22, R1c: 0.167)
 NOSE_D = float(os.environ.get('NOSE_D', '0.12'))              # the corner edge E ends (l3 level) this far aft of N
+# 2026-10-24 (p014 both corners, p016 both corners; the four image slopes fit k = 0.21 / 0.22 / 0.26 / 0.26): the face's end generator (the crease front face | lower face C) leans OUTWARD going down by QF_FS_K m per m
+# of drop: |y| 0.67 at N, 0.728 at the l3 level.  Its side view (x(z) on the raked line N + t (rake, 0, -1)) does not change (p018 matches it).  The face is the old sheared cylinder bent forward near the lower corners
+# (fs_bend: a cubic in |y| from QF_FS_Y0 out) so that it reaches the leaning crease.  QF_FS_K = 0: the vertical generator of R1e.
+QF_FS_K = float(os.environ.get('QF_FS_K', '0.23'))
+QF_FS_Y0 = float(os.environ.get('QF_FS_Y0', '0.40'))
 E_CAP_UP, E_CAP_LOW = 15, 14                                  # the wall's / wall_black's divisions per row (R1d): the corner edge E may not have more samples (aft of the arch the grids stay identical)
 NOSE_K = 24                                                  # the corner edge's curves l3 / sill start at E: their first NOSE_K station intervals are squeezed (shell2.xlist K)
 BAR_H, FACE_BLACK_H = 0.035, 0.115  # light bar height on the face; black face height below the hood edge (design doc L4: 0.10-0.12)
@@ -3437,8 +3460,12 @@ def build_nose():
     shape = lambda e: 0.59 * e ** 2 + 0.41 * e ** 4                                  # the bow's shape: y^2 and y^4 (p013: .59 / .41)
     xe = lambda y: xc + NOSE_BOW * shape(np.asarray(y, float) / N_[1])               # the hood front edge in plan, x(y)
     ze = lambda y: zN + 0.0 * np.asarray(y, float)                                   # R1e2: the front edge is HORIZONTAL (the light bar is straight in the photos); the hood is the Coons surface between it, the centre line and L5
-    Fxy = lambda y, z: xe(y) + NOSE_RAKE * (ze(y) - np.asarray(z, float))            # the front face (sheared cylinder)
-    rr = np.array([NOSE_RAKE, 0.0, -1.0])                                            # its generator
+    yc = lambda z: N_[1] + QF_FS_K * (zN - np.asarray(z, float))                     # 2026-10-24: |y| of the leaning crease at height z (QF_FS_K)
+    psi = lambda y: np.clip((np.abs(np.asarray(y, float)) - QF_FS_Y0) / (N_[1] - QF_FS_Y0), 0.0, None) ** 3
+    cz = lambda z: np.where(np.asarray(z, float) < zN, (xe(yc(z)) - N_[0]) / psi(yc(z)), 0.0)     # the forward bend that brings the face to the crease's x at |y| = yc(z)
+    Fxy = lambda y, z: xe(y) + NOSE_RAKE * (ze(y) - np.asarray(z, float)) - cz(z) * psi(y)      # the front face: sheared cylinder, bent forward near the lower corners
+    rr = np.array([NOSE_RAKE, 0.0, -1.0])                                            # its generator (the side view of the crease)
+    crz = lambda z: np.array([N_[0] + NOSE_RAKE * (zN - z), float(yc(z)), z])        # the crease point at height z
     # the chamfer facet: plane through the end generator N + t rr and the corner edge's point l3_0 (on the l3 curve, NOSE_D aft of N)
     _l3src = _CF_PRE.get('l3', Cv['l3']) if QF_CF_ON else Cv['l3']                  # c10b: the keys of the (now removed) chamfer come from the unmodified curves
     _slsrc = _CF_PRE.get('sill', Cv['sill']) if QF_CF_ON else Cv['sill']
@@ -3458,8 +3485,8 @@ def build_nose():
             lo = mid
     sill_0 = _slsrc.at(0.5 * (lo + hi))
     z_bot = float(sill_0[2])
-    R_l3 = N_ + rr * (zN - float(l3_0[2]))                                           # the face's end generator at the l3 level / at the sill level
-    R_bot = N_ + rr * (zN - z_bot)
+    R_l3 = crz(float(l3_0[2]))                                                       # the face's end generator (the crease) at the l3 level / at the sill level
+    R_bot = crz(z_bot)
     if QF_CF_ON:                                                                     # c10b: sill starts at R_bot (plan and height bent, fading out within QF_CF_DS), l3 starts at R_l3 (see build_all)
         _xb = float(R_bot[0])
         _ya = float(_slsrc.fy(_xb))
@@ -3499,10 +3526,13 @@ def build_nose():
     cv['bar_top'] = np.stack([xe(ys), ys, ze(ys)], 1)
     cv['bar_top'][-1] = N_                                                           # the hood front edge = the light bar's top edge, centre -> N
     zb = cv['bar_top'][:, 2] - BAR_H
-    cv['bar_bot'] = np.stack([Fxy(ys, zb), ys, zb], 1)                               # the bar's lower edge: BAR_H below the top edge along the generator (on the face)
+    yb = ys * float(yc(zb[0])) / N_[1]                                               # (each edge across the face runs out to the leaning crease at its own height)
+    cv['bar_bot'] = np.stack([Fxy(yb, zb), yb, zb], 1)                               # the bar's lower edge: BAR_H below the top edge along the generator (on the face)
     zbk = float(ze(0.0)) - FACE_BLACK_H
-    cv['face_black_bot'] = np.stack([Fxy(ys, zbk), ys, np.full_like(ys, zbk)], 1)    # lower edge of the black face (constant height)
-    cv['F_bot'] = np.stack([Fxy(ys, z_bot), ys, np.full_like(ys, z_bot)], 1)
+    yk = ys * float(yc(zbk)) / N_[1]
+    cv['face_black_bot'] = np.stack([Fxy(yk, zbk), yk, np.full_like(ys, zbk)], 1)    # lower edge of the black face (constant height)
+    yf = ys * float(yc(z_bot)) / N_[1]
+    cv['F_bot'] = np.stack([Fxy(yf, z_bot), yf, np.full_like(ys, z_bot)], 1)
     cv['F_bot'][-1] = R_bot
     zc = np.linspace(z_bot, float(ze(0.0)), n_low + n_up + 1)
     cv['F_cen'] = np.stack([Fxy(0.0 * zc, zc), 0.0 * zc, zc], 1)
@@ -3527,7 +3557,8 @@ def build_nose():
     cv['cowl_edge'] = np.array([[COWL_X, y, float(W[2])] for y in np.linspace(0, yl(COWL_X), 14)])                          # x = -1.625: cowl strip -> windscreen (the cowl line is a straight edge of the hood at the height of W)
     NOSE.clear()
     NOSE.update(dict(N=N_, l3_0=(R_l3 if QF_CF_ON else l3_0), sill_0=(R_bot if QF_CF_ON else sill_0), C1_top=N_.copy(), C1_l3=R_l3, C1_bot=R_bot, HC_top=cv['bar_top'][0], HC_bot=cv['F_bot'][0], xe=xe, ze=ze, Fxy=Fxy, rake=NOSE_RAKE, xc=xc,
-                     P=(nP, dP), Q=pQ, Q_dev=best[0], Q_tilt_deg=math.degrees(best[1]), C=C_, B=B_, x_top=xc, z_top=float(ze(0.0)), z_bot=z_bot, curves=cv, n_up=n_up, n_low=n_low))
+                     P=(nP, dP), Q=pQ, Q_dev=best[0], Q_tilt_deg=math.degrees(best[1]), C=C_, B=B_, x_top=xc, z_top=float(ze(0.0)), z_bot=z_bot, curves=cv, n_up=n_up, n_low=n_low,
+                     yc=yc, crz=crz))
     HC = tuple(float(v) for v in cv['bar_top'][0])
     return NOSE
 

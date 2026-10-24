@@ -11,7 +11,8 @@ Layout of the face (top -> bottom, all on the raked, bowed front face of the she
   Paint     the thin body-colour lower lip under the bar (not lit)                                                           DF-1
   GlossBlack the bright-black panel down to face_black_bot (z 0.451), HeadLens dark strips on its upper edge, sensor dot    DF-2 DF-3
   intake    pocket cut into the face (hi) with louvre blades / ribs; liner, blades and the frame strips round it are PanelGap  DF-4
-  lip       F_Lip, Carbon (lod2: GlossBlack): ONE black skin under the paint edge (z 0.300): a thin blade across the face, the deep side piece from the corner to the front arch;  DF-5
+  lip       F_Lip, Carbon (lod2: GlossBlack): ONE black skin under the paint edge (z 0.300): a thin blade across the face stepping down just inboard of the crease into the deep side piece (its
+            front end a chamfered chin under N), which runs to the front arch; the rounded lower edge F_LipEdge in the same material;  DF-5
             the face under the blade is recessed (UNDER, hi body)
   PanelGap  L7 hood seam (arc, p013), cowl seam, L5 seam (hood | fender top), corner-flap seams                             DF-6 DF-7
 No side-marker parts and no door cut here (they belong to side.py).  No other lamps (DF-8).
@@ -51,8 +52,15 @@ LIP_ZB_C, LIP_ZB_K, LIP_ZB_SIDE = 0.262, 0.187, 0.168   # lower edge of the lip:
                                          # face (3.8 cm: p016 shows the floor and the far tyre under it, p018 sees only 12 px = 4.4 cm of black at the very nose), stepping down at the face's corner into the deep
                                          # side piece (p016: the lower edge's highlight drops between |y| 0.69 and 0.84; p018: down to z 0.19 from 4 cm behind the nose, 0.165 at the arch).  2026-10-23 had ONE
                                          # bar of even height (0.185) all round, read from p018's side alone
-LIP_ZB_STEP = (0.64, 0.80)                # |y| over which the lower edge steps from LIP_ZB_C to LIP_ZB_K (smootherstep); from there to the arch it eases to LIP_ZB_SIDE
-UNDER = dict(y=LIP_ZB_STEP[0], z0=0.10, z1=LIP_ZB_C + 0.003, depth=0.120, zpad=0.02)     # the recess under the blade (hi body, like the intake pocket): the black face below the blade is set back 12 cm
+LIP_ZB_STEP = (0.64, 0.80)                # (until 2026-10-24) |y| over which the lower edge stepped from LIP_ZB_C to LIP_ZB_K; now from the crease (see LIP_STEP_W): lip_layout()
+LIP_STEP_W = 0.11                         # 2026-10-24 (p018: the black is full depth from the front-most end of the lip, z .30 -> .18; p016 near corner: the lower edge steps down just INBOARD of the face's crease and
+                                          # is level from the crease on; p003: a tall black piece at the corner): the step from the blade to the deep side piece lies on the face, over this width up to the crease
+LIP_P_SIDE = 0.14                         # 2026-10-24: the lip keeps its LIP_P protrusion up to the crease (the deep piece's front end is a chin under N, p018: its lower front 6 cm ahead of the paint corner),
+                                          # then fades to the LIP_WALL plate over this much |y| along the side
+LIP_CHIN_SLOPE = 0.75                     # 2026-10-24 (p018): the deep piece's top falls from the paint edge to its front by this much per metre of protrusion (a 4.5 cm x 6 cm chamfer); the blade keeps LIP_TOP_SLOPE
+LIP_CHIN_IN = 0.06                        # ... starting this far (|y|) inboard of the step
+UNDER = dict(y=LIP_ZB_STEP[0], z0=0.10, z1=LIP_ZB_C + 0.003, depth=0.120, zpad=0.02, lean=False)     # the recess under the blade (hi body, like the intake pocket): the black face below the blade is set back 12 cm
+                                                                                                    # (its y: the step's start, set in shell_post; vertical sides)
                                                                   # (zpad: only the faces near it are bisected, not the intake's floor above)
 LIP_SMOOTH = 0.016              # Gaussian smoothing (m of arc length) of the lip's plan outline: the corner is one rounded sweep
 LIP_E = 0.0012                  # offset of the lip's skin from the shell
@@ -72,21 +80,36 @@ class Geo:
         self.zN = float(nz['N'][2])
         self.rake = float(nz['rake'])
         self.cv = nz['curves']
+        self.fs_k = float(getattr(D, 'QF_FS_K', 0.0))       # 2026-10-24: the face's corner crease leans outward going down (design2.QF_FS_K)
+
+    def sc(self, z):
+        """lateral scale of the face at height z: a nominal |y| (measured at the top edge) lies at |y| * sc(z) there, so YB keeps its distance to the leaning crease"""
+        return 1.0 + self.fs_k * (self.zN - z) / YB
 
     def face(self, y, h, off=0.0):
         """(point, outward normal) on the front face at lateral y, h below the top edge, `off` along the normal"""
         z = self.zN - h
         x = float(self.Fxy(y, z))
         e = 1e-3
-        dxdy = (float(self.xe(y + e)) - float(self.xe(y - e))) / (2 * e)
-        n = Vector((-1.0, dxdy, -self.rake)).normalized()
+        dxdy = (float(self.Fxy(y + e, z)) - float(self.Fxy(y - e, z))) / (2 * e)
+        dxdz = (float(self.Fxy(y, z + e)) - float(self.Fxy(y, z - e))) / (2 * e)
+        n = Vector((-1.0, dxdy, dxdz)).normalized()
         return Vector((x, y, z)) + n * off, n
+
+
+def lip_layout(g):
+    """|y| stations of the lip (2026-10-24): the step blade -> deep side piece ends at the face's crease at the lip's top height, the protrusion fades along the side after it"""
+    ycr = float(g.nz['yc'](LIP_ZT)) if 'yc' in g.nz else float(g.nz['N'][1])
+    return dict(ycr=ycr, st0=ycr - LIP_STEP_W, st1=ycr - 0.003, p0=ycr, p1=ycr + LIP_P_SIDE)
 
 
 def geo(ctx):
     g = ctx.cache.get('front_geo')
     if g is None:
-        g = ctx.cache['front_geo'] = Geo(ctx.A.D)
+        A = getattr(ctx, 'A', None)
+        if A is None:                                       # (shell_post runs before the shell interface A exists: the same design2 module the shell was built from)
+            import design2 as D2
+        g = ctx.cache['front_geo'] = Geo(A.D if A is not None else D2)
     return g
 
 
@@ -94,14 +117,15 @@ def ys_lin(n, y0=-YB, y1=YB):
     return [y0 + (y1 - y0) * i / (n - 1) for i in range(n)]
 
 
-def face_strip(g, ys, h0, h1, off, nv=2):
-    """strip on the front face: rows over y, columns from h0(y) to h1(y) below the top edge"""
+def face_strip(g, ys, h0, h1, off, nv=2, lean=True):
+    """strip on the front face: rows over y, columns from h0(y) to h1(y) below the top edge.  lean: the nominal y spreads with the leaning crease (y * g.sc(z))"""
     P, N = [], []
     for y in ys:
         a, b = h0(y), h1(y)
         rp, rn = [], []
         for j in range(nv):
-            p, n = g.face(y, a + (b - a) * j / (nv - 1), off)
+            h = a + (b - a) * j / (nv - 1)
+            p, n = g.face(y * (g.sc(g.zN - h) if lean else 1.0), h, off)
             rp.append(p)
             rn.append(n)
         P.append(rp)
@@ -261,23 +285,26 @@ def lerp_pts(a, b, n):
 
 
 # ----------------------------------------------------------------------------- the intake pocket (hi body only)
-def cut_pocket(ob, I):
+def cut_pocket(ob, I, g):
     """cut the intake out of the front face of the dense mesh: the outline is bisected into the mesh, the enclosed faces are extruded `depth` towards the tail
-    (a recess with a floor and four walls, all Trim).  New vertices only; no existing vertex moves."""
+    (a recess with a floor and four walls, all Trim).  New vertices only; no existing vertex moves.  The side walls lean with the face's crease: |y| = I['y'] * g.sc(z) (planes)."""
     bm = bmesh.new()
     bm.from_mesh(ob.data)
+    lean = I.get('lean', True)
+    ky = I['y'] * g.fs_k / YB if lean else 0.0                  # the side plane: |y| = I['y'] + ky (zN - z)
+    yw = lambda z: I['y'] * (g.sc(z) if lean else 1.0)
 
     def region():
         zp = I.get('zpad', 0.15)
-        g = [f for f in bm.faces if f.calc_center_median().x < -2.3 and f.normal.x < -0.4 and abs(f.calc_center_median().y) < I['y'] + 0.15
-             and I['z0'] - zp < f.calc_center_median().z < I['z1'] + zp]
-        vs = {v for f in g for v in f.verts}
-        es = {e for f in g for e in f.edges}
-        return list(vs) + list(es) + g
-    for co, no in (((0, I['y'], 0), (0, 1, 0)), ((0, -I['y'], 0), (0, 1, 0)), ((0, 0, I['z0']), (0, 0, 1)), ((0, 0, I['z1']), (0, 0, 1))):
+        fs = [f for f in bm.faces if f.calc_center_median().x < -2.3 and f.normal.x < -0.4 and abs(f.calc_center_median().y) < I['y'] + 0.15
+              and I['z0'] - zp < f.calc_center_median().z < I['z1'] + zp]
+        vs = {v for f in fs for v in f.verts}
+        es = {e for f in fs for e in f.edges}
+        return list(vs) + list(es) + fs
+    for co, no in (((0, I['y'], g.zN), (0, 1, ky)), ((0, -I['y'], g.zN), (0, -1, ky)), ((0, 0, I['z0']), (0, 0, 1)), ((0, 0, I['z1']), (0, 0, 1))):
         bmesh.ops.bisect_plane(bm, geom=region(), dist=1e-6, plane_co=co, plane_no=no)
     inner = [f for f in bm.faces if f.calc_center_median().x < -2.3 and f.normal.x < -0.4
-             and -I['y'] < f.calc_center_median().y < I['y'] and I['z0'] < f.calc_center_median().z < I['z1']]
+             and abs(f.calc_center_median().y) < yw(f.calc_center_median().z) and I['z0'] < f.calc_center_median().z < I['z1']]
     ret = bmesh.ops.extrude_face_region(bm, geom=inner)
     newv = [e for e in ret['geom'] if isinstance(e, bmesh.types.BMVert)]
     newf = [e for e in ret['geom'] if isinstance(e, bmesh.types.BMFace)]
@@ -310,8 +337,9 @@ def cut_pocket(ob, I):
 def shell_post(ctx):
     """the intake pocket (DF-4) and the recess under the lip's blade (DF-5), hi body only (the LOD bodies are decimated from this one)"""
     if ctx.front_r2:
-        ctx.report('intake_faces', cut_pocket(ctx.body, INTAKE))
-        ctx.report('under_lip_faces', cut_pocket(ctx.body, UNDER))
+        g = geo(ctx)
+        ctx.report('intake_faces', cut_pocket(ctx.body, INTAKE, g))
+        ctx.report('under_lip_faces', cut_pocket(ctx.body, dict(UNDER, y=lip_layout(g)['st0']), g))
 
 
 # ----------------------------------------------------------------------------- the parts
@@ -394,17 +422,17 @@ def build(ctx, level):
         xmo = lambda y, z: float(g.Fxy(y, z)) + 0.0015              # just inside the mouth
         Ml = Mesh()
         P, N = [], []                                                # floor, facing the front
-        for i in range(25):
+        for i in range(25):                                          # (every y below spreads with the leaning crease: y * g.sc(z), as the pocket's side planes)
             y = yl0 + (yl1 - yl0) * i / 24
-            P.append([Vector((xfl(y, z), y, z)) for z in (zl0 + (zl1 - zl0) * j / 4 for j in range(5))])
+            P.append([Vector((xfl(y * g.sc(z), z), y * g.sc(z), z)) for z in (zl0 + (zl1 - zl0) * j / 4 for j in range(5))])
             N.append([Vector((-1, 0, 0))] * 5)
         _grid(Ml, P, N)
         for sd in (-1, 1):                                           # side walls, facing the middle
-            ywl = sd * (I['y'] - E_L)
-            P = [[Vector((xmo(ywl, z), ywl, z)), Vector((xfl(ywl, z), ywl, z))] for z in (zl0 + (zl1 - zl0) * j / 4 for j in range(5))]
+            ywl = lambda z: sd * (I['y'] - E_L) * g.sc(z)
+            P = [[Vector((xmo(ywl(z), z), ywl(z), z)), Vector((xfl(ywl(z), z), ywl(z), z))] for z in (zl0 + (zl1 - zl0) * j / 4 for j in range(5))]
             _grid(Ml, P, [[Vector((0, -sd, 0))] * 2] * 5)
         for zw, dn in ((I['z1'] - E_L, -1), (I['z0'] + E_L, 1)):    # top wall faces down, bottom wall faces up
-            P = [[Vector((xmo(y, zw), y, zw)), Vector((xfl(y, zw), y, zw))] for y in (yl0 + (yl1 - yl0) * i / 24 for i in range(25))]
+            P = [[Vector((xmo(y, zw), y, zw)), Vector((xfl(y, zw), y, zw))] for y in ((yl0 + (yl1 - yl0) * i / 24) * g.sc(zw) for i in range(25))]
             _grid(Ml, P, [[Vector((0, 0, dn))] * 2] * 25)
         ob = None
         if not Ml.empty():
@@ -422,7 +450,7 @@ def build(ctx, level):
 
         # 2026-10-23 (p016, shadows lifted x4): no horizontal slats in the opening; what shows is a dark rectangular block left of centre (the radar unit, photo px 487 .. 633 x 753 .. 773 =
         # y -0.50 .. -0.14, z ~0.37 .. 0.41, set back) and, at the right end, a vertical post with a short diagonal brace at its foot (px 320 .. 370 = y +0.38 .. +0.50).
-        Mf = Mesh()
+        Mr = Mesh()
         xin = lambda y, z, d: float(g.Fxy(y, z)) + d                      # a point d behind the face (towards the tail)
         ys_r = [-0.50 + 0.36 * i / 12 for i in range(13)]
         rings = []
@@ -431,7 +459,9 @@ def build(ctx, level):
             for zz, dd in ((0.410, 0.050), (0.414, 0.056), (0.414, 0.085), (0.368, 0.085), (0.368, 0.056), (0.372, 0.050)):
                 r_.append((xin(y_, zz, dd), y_, zz))
             rings.append(r_)
-        _prism(Mf, rings)
+        _prism(Mr, rings)
+        emit(Mr, 'F_IntakeRadar', 'PanelGapDark', smooth=False, solid=True)  # 2026-10-24: the darkest matte (p016: the block reads ~7 / 255, it rendered 19 in PanelGap)
+        Mf = Mesh()
         for (ya, za), (yb, zb_) in (((0.40, I['z0'] + 0.004), (0.40, I['z1'] - 0.004)), ((0.47, I['z0'] + 0.006), (0.405, I['z0'] + 0.070))):
             rings = []
             for t in (0.0, 1.0):
@@ -536,23 +566,28 @@ def build(ctx, level):
             full[i] = dict(b1=tuple(S1[i]), b2=tuple(S2[i]), u=tuple(nn))
     ring_l, ring_p = [], []
     edge_P, edge_N = [], []                                               # r3: the rounded bottom edge (hi only): one constant-radius quarter round along the whole outline
+    ll = lip_layout(g)
     for sd in full:
         b1, b2, u = Vector(sd['b1']), Vector(sd['b2']), Vector(sd['u'])
         ay = abs(b1.y)
-        pr = max(LIP_P * (1.0 - float(sstep(LIP_P_Y0, LIP_P_Y1, ay))), LIP_WALL - LIP_E)   # blade stands out of the face at the middle; along the wall it is a LIP_WALL plate (r3)
+        pr = max(LIP_P * (1.0 - float(sstep(ll['p0'], ll['p1'], ay))), LIP_WALL - LIP_E)   # the lip stands out of the face by LIP_P up to the crease (blade, then the deep piece's chin); along the wall a LIP_WALL plate
         zt = LIP_ZT
-        zb = (LIP_ZB_C + (LIP_ZB_K - LIP_ZB_C) * float(sstep(LIP_ZB_STEP[0], LIP_ZB_STEP[1], ay))     # thin blade across the face, stepping down at the corner (2026-10-24) ...
-              + (LIP_ZB_SIDE - LIP_ZB_K) * float(sstep(LIP_ZB_STEP[1], 1.00, ay)))                # ... and easing to the arch along the wall
+        wd = float(sstep(ll['st0'], ll['st1'], ay))                       # 0 = the thin blade across the face, 1 = the deep side piece (from the crease on)
+        zb = (LIP_ZB_C + (LIP_ZB_K - LIP_ZB_C) * wd                       # thin blade across the face, stepping down just inboard of the crease (2026-10-24) ...
+              + (LIP_ZB_SIDE - LIP_ZB_K) * float(sstep(ll['st1'], 1.00, ay)))                # ... and easing to the arch along the wall
 
         def P(off, z):
             t = min(max((z1 - z) / (z1 - z2), 0.0), 1.0)                # (the shell's slope between the two sample heights; straight down below the lower one)
             q = b1 + (b2 - b1) * t + u * off
             return (q.x, q.y, z)
         e = LIP_E
-        za = zt + LIP_TOP_SLOPE * (pr + e + LIP_IN)                      # the top of the lip falls towards the front (reads dark, no lit wedge); inside the body / on the wall it is level
         ch = min(LIP_R, 0.9 * (pr + e + LIP_IN))                          # bottom chamfer (under the rounded edge strip): never deeper than the lip is thick
         rt = min(LIP_RT, 0.45 * (pr + e + LIP_IN))                        # rounded top-front edge (3 facets of 30 deg), never wider than half the lip's depth
-        top = [(pr + e - rt + rt * math.sin(math.radians(a_)), zt - rt + rt * math.cos(math.radians(a_))) for a_ in (0.0, 30.0, 60.0, 90.0)]
+        wc = float(sstep(ll['st0'] - LIP_CHIN_IN, ll['st1'], ay))         # the chamfer starts a little inboard of the step (p018: the side view's front-top corner is cut back)
+        zto = zt - min(LIP_CHIN_SLOPE * pr * wc, max(zt - (zb + ch + rt) - 0.004, 0.0))   # 2026-10-24: the deep piece's chin: its top falls from the paint edge to its front edge (p018 chamfer); the blade's front top stays at zt
+        slope = LIP_TOP_SLOPE * (1.0 - wc) + LIP_CHIN_SLOPE * wc
+        za = zto + slope * (pr + e + LIP_IN - rt)                         # the top of the lip falls towards the front (reads dark, no lit wedge); inside the body / on the wall it is level
+        top = [(pr + e - rt + rt * math.sin(math.radians(a_)), zto - rt + rt * math.cos(math.radians(a_))) for a_ in (0.0, 30.0, 60.0, 90.0)]
         prm = [(-LIP_IN, za)] + top + [(pr + e, zb + ch), (pr + e - ch, zb), (-LIP_IN, zb)]
         ring_l.append([P(o_, z_) for o_, z_ in prm])
         ring_p.append((u, prm))
@@ -578,7 +613,8 @@ def build(ctx, level):
     if level == 0 and len(edge_P) > 2:                                   # r3: the lip's rounded bottom edge = the thin bright line of p018 / p016, ONE strip from the arch round the nose to the other arch
         Me = Mesh()
         _grid(Me, edge_P, edge_N)
-        emit(Me, 'F_LipEdge', ctx.arg('f-edgemat', 'Paint'), smooth=True)      # (tried GlossBlack / Carbon: no line at all; BrakeDisc: 20 % too dim and a new hi draw call; Paint: peak 86-115 vs the photo's 70-112, no new call)
+        emit(Me, 'F_LipEdge', ctx.arg('f-edgemat', ctx.arg('f-lipmat', 'Carbon')), smooth=True)      # 2026-10-24: the lip's own material (it was Paint = the livery colour in the game: a coloured pinstripe on the carbon lip;
+                                                                                                      # the bright line of p018 is the rounded edge mirroring the floor, which the game's clear-coated Carbon does by itself; the preview's matte Carbon shows no line)
     if lip_ob is not None:
         ctx.mark_sharp(lip_ob.data, 35)                                  # smooth shading, but the top / chamfer / bottom edges stay crisp
         if level == 0:                                                 # orientation check that does not depend on the winding rule: each side quad (ring a, edge b) must face the cross-section's own outward direction

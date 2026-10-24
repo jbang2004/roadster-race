@@ -834,8 +834,9 @@ def qf_f_target(x):
         cl = U - L
         ang = math.atan2(cl[1], cl[0]) + math.radians(D.QF_C11_DA)
         v = np.array([math.cos(ang), math.sin(ang)])
-        P1 = K + D.QF_C11_K0 * lc * e0
-        P2 = U - D.QF_C11_K1 * lc * v
+        wk = float(D.sstep(D.QF_C11_KX[0], D.QF_C11_KX[1], x))         # 2026-10-24: near-circular handles ahead of the wheel, the c11 ones over it (design2 QF_C11_KF)
+        P1 = K + (D.QF_C11_KF + (D.QF_C11_K0 - D.QF_C11_KF) * wk) * lc * e0
+        P2 = U - (D.QF_C11_KF + (D.QF_C11_K1 - D.QF_C11_KF) * wk) * lc * v
         t = np.linspace(0.0, 1.0, 400)[:, None]
         c = (1 - t) ** 3 * K + 3 * (1 - t) ** 2 * t * P1 + 3 * (1 - t) * t ** 2 * P2 + t ** 3 * U
         zs, ys = c[:, 1], c[:, 0]
@@ -976,13 +977,15 @@ def g2_band(U, L, K, ts, tw, ls, lw, phi):
     n = len(L)
     x = L[:, 0]
     w = (D.sstep(D.QF_FD_X[0], D.QF_FD_X[1], x) ** D.QF_FD_WP) * (1.0 - D.sstep(D.QF_FD_X[2], D.QF_FD_X[3], x))
-    aa = np.full(len(x), D.QF_FD_A)
+    gw = D.sstep(D.QF_FD_AX[0], D.QF_FD_AX[1], x) if D.QF_FD_AA > D.QF_FD_A else 0.0 * x     # 2026-10-24: the band widens towards the arch mouth (design2 QF_FD_AA)
+    aa = D.QF_FD_A + (D.QF_FD_AA - D.QF_FD_A) * gw
+    cap = 0.4 + (D.QF_FD_CAP - 0.4) * gw
     if D.QF_C11_ON and D.QF_C11_BA > 0.0:         # c11: the same fade band again aft of the wheel opening (the shoulder is one round over the wheel: the corner behind the arch is no longer a crease at once)
         b0, b1, b2, b3 = D.QF_C11_BX
         w2 = D.sstep(b0, b1, x) * (1.0 - D.sstep(b2, b3, x))
         w = np.maximum(w, w2)
         aa = aa + (D.QF_C11_BA - D.QF_FD_A) * w2
-    a = np.minimum(aa, 0.4 * np.minimum(ls, lw))
+    a = np.minimum(aa, cap * np.minimum(ls, lw))
     N = D.QF_FD_N
     u1 = np.linspace(0.0, 0.5, N + 1)
     u2 = np.linspace(0.5, 1.0, N + 1)
@@ -1237,16 +1240,20 @@ def fender_rows(R):
         else:
             s = (1.0 - u ** P_END) * np.linspace(0.0, 1.0, m_end + 1) + u ** P_END * s_end
             r = L5[a] + (U[b] - L5[a]) * s[:, None]
-            if D.QF_FT_C > 0.0:                                   # c10: the fender top is slightly convex (see design2.QF_FT_C): the crown follows the row's chord parameter, its height the envelope over the rows
-                env = float(D.sstep(iseam, iseam + D.QF_FT_R0 * (n - iseam), r_i) * (1.0 - D.sstep(n - D.QF_FT_R1 * (n - iseam), n, r_i)))
-                if env > 0.0:
+            if D.QF_FT_C > 0.0 or D.QF_FT_K > 0.0:                # c10: the fender top is slightly convex (see design2.QF_FT_C): the crown follows the row's chord parameter, its height the envelope over the rows
+                if D.QF_FT_K > 0.0:                               # 2026-10-24: constant cross curvature (design2.QF_FT_K): crown height K w^2 / 8 (capped), faded in behind the seam
+                    wr = float(np.linalg.norm(U[b] - L5[a]))
+                    hc = min(D.QF_FT_CMAX, D.QF_FT_K * wr * wr / 8.0) * float(D.sstep(iseam, iseam + D.QF_FT_R0 * (n - iseam), r_i) * (1.0 - D.sstep(n - D.QF_FT_R1K * (n - iseam), n, r_i)))
+                else:
+                    hc = D.QF_FT_C * float(D.sstep(iseam, iseam + D.QF_FT_R0 * (n - iseam), r_i) * (1.0 - D.sstep(n - D.QF_FT_R1 * (n - iseam), n, r_i)))
+                if hc > 0.0:
                     t = U[b] - L5[a]
                     nrm = np.cross(t, np.array([1.0, 0.0, 0.0]))
                     nrm = nrm / np.linalg.norm(nrm)
                     if nrm[2] < 0:
                         nrm = -nrm
                     cs = chord_s(r)
-                    r = r + (D.QF_FT_C * env * 4.0 * cs * (1.0 - cs))[:, None] * nrm
+                    r = r + (hc * 4.0 * cs * (1.0 - cs))[:, None] * nrm
             r[0], r[-1] = L5[a], U[b]
         rows.append(r)
     return rows, iseam
