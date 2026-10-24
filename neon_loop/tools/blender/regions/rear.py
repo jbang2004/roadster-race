@@ -249,6 +249,7 @@ WING_STOW_LEGACY = dict(dy=-0.06, rotZ=0.0, spanScale=1.0)          # for the sh
 BUTT_X = (1.00, 2.06)            # (legacy --oldbody: the deck panel's front edge, see deck_x0)
 
 N_GOLD = (0.93, 0.74, 0.47, 0.16)       # Nozzle vertex colours: rgb = metal base colour, a = roughness
+N_LIP = (0.80, 0.79, 0.77, 0.14)        # 2026-10-24 (polish): the lip is polished SILVER (thrust: a thin bright rim round a bronze / gold bore; r81: thin silver rings); gold only inside
 N_BELL = (0.62, 0.42, 0.22, 0.30)
 N_DEEP = (0.30, 0.18, 0.09, 0.45)
 N_THROAT = (0.03, 0.025, 0.02, 0.85)
@@ -642,7 +643,7 @@ def build_jets(cb, level):
     for yc in JET_Y:
         prof = [(0.0500, -0.004), (0.0505, 0.006), (0.0490, 0.0155), (0.0470, 0.0185), (0.0452, 0.0165), (0.0440, 0.009),
                 (0.0405, -0.016), (0.032, -0.036), (0.024, -0.048), (0.0, -0.048)]          # round 3: a THIN champagne lip (rim ~5 mm wide, flush with the barrel), not a fat pale ring
-        cb.lathe(prof, st, [N_GOLD] * 5 + [N_BELL, N_DEEP, N_DEEP, N_THROAT], axis_x=True, at=(JET_X, yc, JET_Z))
+        cb.lathe(prof, st, [N_LIP] * 4 + [N_GOLD, N_BELL, N_DEEP, N_DEEP, N_THROAT], axis_x=True, at=(JET_X, yc, JET_Z))      # (outer face and top of the lip silver, its inner edge gold)
         cb.lathe([(0.0505, -0.0035), (0.0505, -(JET_X - CH_X)), (0.0, -(JET_X - CH_X))], st,
                  [N_SHROUD, N_PORT], axis_x=True, at=(JET_X, yc, JET_Z))
 

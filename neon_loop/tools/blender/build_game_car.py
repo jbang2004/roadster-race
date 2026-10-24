@@ -897,6 +897,7 @@ HUB_R, FACE_R = 0.0815, 0.296           # (hub body radius of the old design) pa
 Y_P = 0.113                             # the panel plane
 CH_A, CH_B, CH_D = 0.0285, 0.011, 0.007  # channel half width (wall to wall 5.7 cm), bevel width and drop: the panel edge lines sit at CH_A + CH_B = 3.95 cm (7.9 cm over the spoke, p003 / p018)
 Y_B = Y_P - CH_D                        # foot of the bevel = top of the star hub
+BEV_SS = 0.2                            # share of the bevel (from the panel edge down) that is the stainless edge line (p003: ~2.5 mm)
 S_ARM = 0.105                           # the star's arms end here along each spoke
 Y_FLOOR = (0.064, 0.090, 0.100)         # channel floor per level
 
@@ -1031,8 +1032,14 @@ def _panel(cb, k, level):
         up_in = (into[0] * 0.5, 0.85, into[2] * 0.5)
         ba = _v3(cb, th, S_ARM, sg * a, Y_B)                         # foot of the bevel at the arm end, and at the lip
         be = _v3(cb, th, s1, sg * a, Y_B)
-        cb.facen([ap, ba, val], W_BEV, up_in)                        # bevel: a triangle along the star arm ...
-        cb.facen([ap, edge_end, be, ba], W_BEV, up_in)               # ... and a quad out to the lip (one plane, no T-junction)
+        # bevel: a triangle along the star arm and a quad out to the lip (one plane, no T-junction).  2026-10-24 (polish, p003): the quad's top fifth (~2.5 mm, along the panel's
+        # edge) is the polished stainless W_SS -- the photo's thin bright line between each white panel and the dark spoke (the rim's crown ring is the same metal); the triangle
+        # is split at the same point (mt), so the shared edge has no T-junction
+        mt, me_ = cb.v(tuple(ap.co.lerp(ba.co, BEV_SS))), cb.v(tuple(edge_end.co.lerp(be.co, BEV_SS)))
+        cb.facen([ap, mt, val], W_BEV, up_in)
+        cb.facen([mt, ba, val], W_BEV, up_in)
+        cb.facen([ap, edge_end, me_, mt], W_SS, up_in)
+        cb.facen([mt, me_, be, ba], W_BEV, up_in)
         wf = [_v3(cb, th, S_ARM, sg * a, yf), _v3(cb, th, s1, sg * a, yf)]
         if level >= 1:
             cb.facen([ba, be, wf[1], wf[0]], W_GLS, into)
