@@ -670,7 +670,7 @@ QF_Q16_L = tuple(float(v) for v in os.environ.get('QF_Q16_L', '1.65,0.976').spli
 QF_Q16_LT = tuple(float(v) for v in os.environ.get('QF_Q16_LT', '0,2.37,0.986').split(','))      # the tail corner (user 2026-10-23, "按侧视组"): p018's corner top reads 0.993 (0.984 less the same tonal-edge offset as the level part): L leaves its level at [0] and reaches [2] at [1] (quintic, level at both ends); the light box's top is 5 mm under it; [0] = 0: off (preview: QF_Q16_LT=2.15,2.37,0.986, with REAR_T17=1)
 _q17_ = os.environ.get('QF_Q17', '1')
 # 2026-10-24 (user: "车尾在斜前视角看去也翘起得比实车更多更尖，不够浑厚专业"): the level edge 1.015 -> 0.995 with the corner (QF_Q17_ZC), R-1 leaves its line at 2.22 (was 2.10) and the deck
-# drop is end-loaded (QF_Q17_N 9): the deck and R-1 stay up to ~2.3 and roll down to the edge.  p018: the corner read 0.987 (the 1.015 corner stood 2 - 3 cm over the photo, with L rising
+# drop is end-loaded (QF_Q17_N 9, 12 with the platform roll QF_Q17_ROLL): the deck and R-1 stay up to ~2.3 and roll down to the edge.  p018: the corner read 0.987 (the 1.015 corner stood 2 - 3 cm over the photo, with L rising
 # 3.9 cm into it: the upturned, pointed tail of p016); r81 keeps its level edge (the light band follows it down 2 cm; regions/rear.py DZ_TAIL)
 QF_Q17 = (0.995, 2.345, 2.22) if _q17_ == '1' else (tuple(float(v) for v in _q17_.split(',')) if ',' in _q17_ else None)      # the level tail top edge (user 2026-10-23, "取中 ≈1.015": the tail seen from behind is flat in r81, the model showed a trapezoid of paint over the light box): (height of the tail's top edge, x where R-1 meets the deck = p013's ear triangle closing 4.6 cm before the tail edge, x where R-1 leaves its line and the platform's angle leaves the reading); QF_Q17=0: off (the tail before 2026-10-23)
 _tw_ = os.environ.get('QF_Q17_TW', '1')
@@ -680,13 +680,20 @@ QF_Q17_ZC = float(os.environ.get('QF_Q17_ZC', '0.995'))      # q17, the tail cor
 #   1.015: L rose 3.9 cm from its level over the last 0.6 m into a pointed corner (p018's tail end lies up to 7.6 px under it, more towards the near corner: the corner reads 0.987).
 #   Now the corner and the level edge are both 0.995 (a lower corner alone left a 2.5 cm paint strip over the light band in the middle, the r81 trapezoid of 2026-10-23); L rises
 #   1.9 cm from S instead of 3.9.  (A separate value keeps the option of a corner under the edge: the platform's end chord then rises from the corner to E.)
-QF_Q17_N = float(os.environ.get('QF_Q17_N', '9'))      # q17 deck drop w(t) = (n+1)/2 t^n - (n-1)/2 t^(n+1) (seam -> edge): n = 3 is the original 2t^3 - t^4; larger n holds the deck up longer and rolls it
+QF_Q17_N = float(os.environ.get('QF_Q17_N', '12'))      # q17 deck drop w(t) = (n+1)/2 t^n - (n-1)/2 t^(n+1) (seam -> edge): n = 3 is the original 2t^3 - t^4; larger n holds the deck up longer and rolls it
 #   down at the end (convex throughout, no curvature at the edge)
 QF_Q17_XT = float(os.environ.get('QF_Q17_XT', '2.00'))      # q17, where the platform leaves the reading and starts its twist to the level edge (_q17_twist).  It was QF_Q17[2] (capped by
 #   QF_Q16_XC 2.2).  With R-1 leaving its line at 2.22 and the edge at 0.995 the platform kept the reading's angle to 2.2 and had 17 cm to lie flat: its lengthwise profiles went flatter,
 #   then steeper (y 0.65: -4.8 -> -3.7 -> -11.9 deg; 1 - 2 inflections at y 0.55 - 0.92, the S of review item 2).  From 2.00 they steepen steadily (y 0.65: -4.9 -6.3 -7.3 -7.7 -8.1 deg,
 #   y 0.65 - 0.85 without inflection; 2.05 / 2.10 keep one); the cost: the arc leaves the reading by up to 3.9 cm out / 2 cm down at x 2.2 - 2.25 (2.2: 1.7 cm at 2.3; tolerance 6 cm, and
 #   at 0.5 m radius the arc is no line).  R-1 holds its line to QF_Q17[2] all the same.
+_roll_ = os.environ.get('QF_Q17_ROLL', '2.05,12,1')
+QF_Q17_ROLL = tuple(float(v) for v in _roll_.split(',')) if ',' in _roll_ else None      # q17 platform roll (2026-10-24, user: "尾翼的上方也是车身上方的延伸，而且平缓过渡"): (x where the roll starts,
+#   its exponent n, the share k of the reading's rate of turn the platform keeps aft of QF_Q16_XC).  The platform keeps the body's angle across the seam (the reading's to QF_Q16_XC, then
+#   its own trend) times (1 - W(t)), W = the deck's end-loaded roll (n+1)/2 t^n - (n-1)/2 t^(n+1) from [0] to the edge: the wing's top is the body's top carried on and rolled down
+#   to the level edge in the last few cm, as the deck is.  p018: the bright band of the platform (seen from below at 2 deg) runs on past the seam to the tail; the twist from 2.0
+#   (QF_Q17_XT, the least-squares 'straightest' law) laid it flat from the seam on: the band stopped there and the near shoulder fell 1.4 cm under the photo's outline at x 2.3.
+#   With the roll QF_Q17_XT is not used (both faces follow the reading to QF_Q16_XC).  0: off
 QF_Q16_R1 = tuple(float(v) for v in os.environ.get('QF_Q16_R1', '0.80,0.013,1.50').split(','))      # R-1 raised (p018 top outline, user 2026-10-23 "R-1 和后窗玻璃边一起抬高"): by [1] at the tip, a quintic from [0] (G2), straight to E aft; the rear glass edge and centre line rise with it; 0 = off.
 #   [2] (2026-10-24, user: "顶梁尾部上边还是有点拱起，应该调成跟实车一样完全平滑"): the quintic runs on past the tip to x [2], G2 with R-1's raised straight line there (the line itself, E and
 #   the raise at E unchanged).  Ending at the tip with the line's slope, it flattened the roof rail to -0.074 at x 1.0 before steepening to -0.172 (a hump; p018's top outline is 6 - 9 mm
@@ -1314,7 +1321,7 @@ def q16_ruled(x):
     if 'rc' not in _Q16:
         # (q17: the platform leaves the reading where R-1 and L start to move, and reaches the level tail edge still turning: at the rate that keeps the platform's lengthwise profiles
         # monotone, rising into the corner with L within QF_Q17_L[3] of it, falling to the edge inboard of that; arriving flat (rate 0) it put a 0.9 mm trough before the edge)
-        xc, e = (min(QF_Q16_XC, QF_Q17_XT) if QF_Q17 else QF_Q16_XC), 5e-3
+        xc, e = (min(QF_Q16_XC, QF_Q17_XT) if QF_Q17 and not QF_Q17_ROLL else QF_Q16_XC), 5e-3
         t2, t1 = _q16_raw(np.array([xc - e, xc, xc + e]))
         dd = lambda t: (float(t[1]), float(t[2] - t[0]) / (2 * e), float(t[2] - 2 * t[1] + t[0]) / e ** 2)
         E = _e_tail()
@@ -1337,6 +1344,13 @@ def q16_ruled(x):
         a2 = np.where(x <= xc, t2, _Q16['tw'](np.clip(x, xc, xe)))
     else:
         a2 = np.where(x <= xc, t2, quint1(np.minimum(x, xe), xc, *p2, xe, thE, se, 0.0))
+    if QF_Q17 and QF_Q17_ROLL:
+        # QF_Q17_ROLL: the reading's angle to xc, its own trend aft (k of its rate), rolled down to the level edge by the deck's end-loaded W
+        x0, n_, k_ = QF_Q17_ROLL
+        base = np.where(x <= xc, t2, p2[0] + k_ * p2[1] * dx)
+        t_ = np.clip((x - x0) / (xe - x0), 0.0, 1.0)
+        W_ = 0.5 * (n_ + 1) * t_ ** n_ - 0.5 * (n_ - 1) * t_ ** (n_ + 1)
+        a2 = np.arctan(np.tan(base) * (1.0 - W_) + np.tan(thE) * W_)
     a1 = np.where(x <= xc, t1, p1[0] + p1[1] * dx + 0.5 * p1[2] * dx * dx)
     if 'tw' in _Q16 and len(QF_Q17_L) > 4:
         # QF_Q17_TW: R-1 stands over the platform (gap) to the edge; the beam face takes it: its width (from R-1 to where it meets the platform) goes from the one its own trend gives

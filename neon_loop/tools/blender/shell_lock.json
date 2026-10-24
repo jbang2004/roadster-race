@@ -7,12 +7,12 @@
    "faces": 8280
   },
   "wall": {
-   "sha": "fe64a7198561bf5a",
+   "sha": "a35ab81f30af98a5",
    "verts": 4635,
    "faces": 4340
   },
   "wall_black": {
-   "sha": "4614f58c202f2eac",
+   "sha": "64f3edfea0f4af6c",
    "verts": 4871,
    "faces": 4575
   },
@@ -52,7 +52,7 @@
    "faces": 792
   },
   "rear_shoulder": {
-   "sha": "67fc6c87a755723f",
+   "sha": "ca06821ee543fd73",
    "verts": 3110,
    "faces": 3016
   },
@@ -62,17 +62,17 @@
    "faces": 9125
   },
   "ridge_inner": {
-   "sha": "eb7ef6c2d085efa8",
+   "sha": "9497e8fe0ad1b0c9",
    "verts": 1082,
    "faces": 952
   },
   "deck": {
-   "sha": "b23e9776eed0f39e",
+   "sha": "deef4ec7bb4956f0",
    "verts": 586,
    "faces": 556
   },
   "tail_upper": {
-   "sha": "58cb88f7a4e91023",
+   "sha": "55992b43ee0e7dfc",
    "verts": 780,
    "faces": 708
   },
@@ -82,7 +82,7 @@
    "faces": 2242
   },
   "facet": {
-   "sha": "54b346a865f8ee11",
+   "sha": "0925a0dac498909c",
    "verts": 362,
    "faces": 328
   }

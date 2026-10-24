@@ -82,6 +82,15 @@ WALL_BAND = 0.9                     # rearcrease: the share of a wall row (from 
 X_BIRTH = float(os.environ.get('X_BIRTH', '0.0'))        # rearcrease round 4 (VARIANT, off by default: reflect check showed coarser arcs but concentric rings in p018 h and a 18 degree crease fading along U): the ruling rows blend into the fold over D.X_FOLD0 .. X_BIRTH
 I_L3K0 = IXN(1.5054)                # (station 240) rearcrease 2: from this station (x 1.505) the l3 plan is replaced forward of the kink (nothing forward of x 1.5 moves)
 L3_FRONT_DEG = float(os.environ.get('L3_FRONT_DEG', '3.0'))     # plan angle of l3 just forward of the kink at E (aft of it: 14.85 degrees)
+# 2026-10-24 (user: "尾翼两边的梯形平面应该是前面的车身的延伸，模型似乎折了一个角度对吗？"): the facet (the wing's endplate, aft of the side seam) is the side carried on, not a plane folded
+#   12 deg off it.  p018: the side's tone and its reflection band run on across the seam unchanged; p017: the trapezoid has the side's tone (the model's was white against grey).  L and l3
+#   now turn into the facet's plane SMOOTHLY (G2, plan only) and arrive on its straight lines tangentially; the wall, ruled between them, becomes tangent to the plane, the facet edge
+#   E -> S is no crease any more (the wing seam, a hairline aft of it, stays).  The plane, its straight lines, the tail corner and the endplate's hinge (L aft of the seam) do not move.
+_fc_ = os.environ.get('QF_FC', '1.88,2.10,2.00,2.30')
+QF_FC = tuple(float(v) for v in _fc_.split(',')) if ',' in _fc_ else None      # (x where L leaves its old plan, x where it joins the facet's straight edge, the same two for l3: it
+#   leaves the old kinked l3 (rearcrease round 2, its plan curve forward of E kept) and joins its straight line aft of E); 0 = the creased facet (L turned 12.6 deg at S, l3 11.5 deg at E)
+#   p013 (top view): the side's top edge turns into the facet's line within ~8 cm at the seam, a tight but round turn; L's turn here runs -2 -> -16 deg over x 1.93 - 2.03 (it cuts in
+#   2.1 mm at S), l3's -8 -> -15 deg over 2.05 - 2.28 (5.8 mm in at E; a 1 deg swing out first, where the kinked l3 swung out 4.5 deg).  A 30 cm turn (1.80 - 2.10) read rounder than p013.
                                     # (wall_pairs).  Tried 240 (x 1.51): the integer lag steps are spread thinly over 40 rows and the reflection of the wall is a sawtooth; 258 packs them into 22 rows: squeezed but smooth
 
 
@@ -185,7 +194,7 @@ def snap(P, *pairs):
 def facet_plane(R, tl):
     """the plane of the rear-corner facet: through the straight l3 line (aft of I_FE) and the tail face's side edge T3 -> TL (tl = the L end).  Returns (unit normal pointing outwards (+y), point T3)."""
     l3 = R._edge('l3')
-    d = l3[-1] - l3[I_FE]
+    d = l3[-1] - l3[l3_line_index()]        # (the straight stretch: aft of E, or with QF_FC aft of the end of l3's bend; the same line)
     d = d / np.linalg.norm(d)
     n = np.cross(d, np.asarray(tl, float) - l3[-1])
     n = n / np.linalg.norm(n)
@@ -237,6 +246,12 @@ def facet_L(R, P):
             tt = (x[sel] - xb) / ln
             P[:I_FS + 1, ax][sel] += a_ * tt ** 3 + b_ * tt ** 4 + e_ * tt ** 5
         P[I_FS] = s
+    if QF_FC:
+        # QF_FC: L turns into the facet's straight edge in plan over QF_FC[0] .. QF_FC[1] (G2 with the old L, tangent to the straight edge with no curvature); S moves in
+        # with it (a few mm); z, the straight edge aft of QF_FC[1] and the tail corner do not change (the endplate's top edge, aft of the seam at 2.02, is within ~1 mm of its chord)
+        m = (P[-1, 1] - P[I_FS, 1]) / (P[-1, 0] - P[I_FS, 0])
+        y0_, x0_ = float(P[I_FS, 1]), float(P[I_FS, 0])
+        P = plan_join(P, QF_FC[0], QF_FC[1], m, lambda xv: y0_ + m * (xv - x0_))
     return P
 
 
@@ -334,6 +349,35 @@ def e_foot(R):
     return np.array([D.A_IN, 0.5 * (np.array(D.A_IN) + np.array(D.A_OUT)), D.A_OUT])
 
 
+def quintic_join(x, x0, y0, d0, c0, x1, y1, d1, c1):
+    """y(x) on [x0, x1] with value, slope and curvature (d / dx, d2 / dx2) given at both ends"""
+    h = x1 - x0
+    t = (np.asarray(x, float) - x0) / h
+    a0, a1, a2 = y0, d0 * h, 0.5 * c0 * h * h
+    b0, b1, b2 = y1, d1 * h, 0.5 * c1 * h * h
+    M = np.array([[1.0, 1.0, 1.0], [3.0, 4.0, 5.0], [6.0, 12.0, 20.0]])
+    r = np.array([b0 - a0 - a1 - a2, b1 - a1 - 2 * a2, 2 * b2 - 2 * a2])
+    c3, c4, c5 = np.linalg.solve(M, r)
+    return a0 + a1 * t + a2 * t ** 2 + c3 * t ** 3 + c4 * t ** 4 + c5 * t ** 5
+
+
+def l3_line_index():
+    """the first l3 sample on its straight line aft of E (QF_FC: where the bend ends; else E)"""
+    return int(np.argmin(abs(XS - QF_FC[3]))) if QF_FC else I_FE
+
+
+def plan_join(P, xa, xb, m, y_at):
+    """P (samples by x) with y over [xa, xb] replaced by a G2 quintic from the old curve (value, slope, curvature at the first sample >= xa) to the straight line y_at(x) of slope m (no curvature)"""
+    P = P.copy()
+    x = P[:, 0]
+    ia = int(np.searchsorted(x, xa))
+    ib = int(np.searchsorted(x, xb, side='right')) - 1
+    d0 = (P[ia + 1, 1] - P[ia - 1, 1]) / (x[ia + 1] - x[ia - 1])
+    c0 = 2.0 * ((P[ia + 1, 1] - P[ia, 1]) / (x[ia + 1] - x[ia]) - (P[ia, 1] - P[ia - 1, 1]) / (x[ia] - x[ia - 1])) / (x[ia + 1] - x[ia - 1])
+    P[ia:ib + 1, 1] = quintic_join(x[ia:ib + 1], x[ia], P[ia, 1], d0, c0, x[ib], y_at(x[ib]), m, 0.0)
+    return P
+
+
 def l3_kink(P):
     """rearcrease round 2 (coordinator ruling B): the paint | black boundary l3 gets a KINK IN PLAN at the corner of the facet edge E = l3[I_FE]: forward of E it runs on a gentle plan curve (L3_FRONT_DEG at E, Hermite from the
     station I_L3K0 on, its value and slope kept there), aft of E it stays the straight line to the tail corner (14.85 degrees in plan).  Only y moves (x, z do not: p018, a pure side view, sees no change; the line stays ONE
@@ -346,7 +390,12 @@ def l3_kink(P):
     y0, y1 = P[i0, 1], P[i1, 1]
     m0 = (P[i0 + 1, 1] - P[i0 - 1, 1]) / (x[i0 + 1] - x[i0 - 1])
     m1 = -math.tan(math.radians(L3_FRONT_DEG))
+    line = P[i1:].copy()                        # (aft of E: the straight line, kept)
     P[i0:i1 + 1, 1] = ((2 * t ** 3 - 3 * t ** 2 + 1) * y0 + (t ** 3 - 2 * t ** 2 + t) * h * m0 + (-2 * t ** 3 + 3 * t ** 2) * y1 + (t ** 3 - t ** 2) * h * m1)
+    if QF_FC:
+        # QF_FC: no kink at E: over QF_FC[2] .. QF_FC[3] a G2 quintic from the curve above onto the straight line aft of E (tangent, no curvature); E moves in with it (a few mm)
+        ml = (line[-1, 1] - line[0, 1]) / (line[-1, 0] - line[0, 0])
+        P = plan_join(P, QF_FC[2], QF_FC[3], ml, lambda xv: line[0, 1] + ml * (xv - line[0, 0]))
     return P
 
 
@@ -1499,7 +1548,7 @@ if D.QF_CF_ON:          # c10b: no chamfer facets (the wall / wall_black start a
 PANELS = {p.name: p for p in PANEL_LIST}
 
 # panel boundaries that are NOT creases (the surface continues smoothly across)
-SMOOTH_PAIRS = {frozenset(('nose_corner_up', 'nose_corner_low')), frozenset(('shoulder', 'rear_shoulder')), frozenset(('pillar', 'rail_band')), frozenset(('wall', 'wall')),
+SMOOTH_PAIRS = {frozenset(('nose_corner_up', 'nose_corner_low')), frozenset(('shoulder', 'rear_shoulder')), frozenset(('pillar', 'rail_band')), frozenset(('wall', 'wall')), frozenset(('wall', 'facet')),
                 frozenset(('corner_tri', 'fender_top'))}          # the flap's seam is tangent (< 0.3 degrees: flap = plane, the fender top leaves it smoothly); the flap is delimited by the FRONT agent's panel gap
 if D.QF_NC_ON:          # c10: the chamfer bends G1 into the wall (p_nose_corner_up): no fillet along E_up (the quads next to it differ by ~5 degrees only because of the discretisation)
     SMOOTH_PAIRS = SMOOTH_PAIRS | {frozenset(('nose_corner_up', 'wall'))}
