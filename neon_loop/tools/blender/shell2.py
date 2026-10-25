@@ -1736,7 +1736,7 @@ def p3_hip_dy(x, y, z):
 #   Rd  the deck / glass: a ramp in x over QF_P3_TX_XD (window tip -> the rear window's rear edge): the rear window gets longer, the deck behind it moves by S.
 #   b   0 at and below L, 1 inboard of the roof rail / crest (the lateral position across the rear shoulder from L to the rail), so the rear shoulder blends the two.
 #   ramps: linear in their middle, C2 ends (the integral of a smoothstep window, QF_P3_TX_E of the width at each end).
-QF_P3_TAILX = os.environ.get('QF_P3_TAILX', '0') == '1'
+QF_P3_TAILX = os.environ.get('QF_P3_TAILX', '1') == '1'      # (adopted 2026-10-25, re-verified on the calibrated photos; 0 = the unextended rear)
 QF_P3_TX_S = float(os.environ.get('QF_P3_TX_S', '0.05'))
 QF_P3_TX_K, QF_P3_TX_Z0, QF_P3_TX_XI1, QF_P3_TX_W = 0.714, 0.733, 2.149, float(os.environ.get('QF_P3_TX_W', '0.20'))
 QF_P3_TX_ZC = tuple(float(v) for v in os.environ.get('QF_P3_TX_ZC', '0.60,1.10,0.06').split(','))      # z clamp: low, high, rounding

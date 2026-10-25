@@ -1360,10 +1360,12 @@ def cleanup(objs):
 
 def p3_post(objs):
     """QF_P3_TAILX (shell2.p3_dx, CALIB.md phase 3): the rear-end extension, applied to the whole built car in world space: every mesh is deformed vertex by vertex except the
-    wheels; the wing node (a pivot with its parts as children) moves rigidly by the displacement of its origin.  Meshes shared between objects are made single-user first."""
+    wheels.  The wing (node 'Wing' with its tips, endplates and struts as children) is built stowed, coinciding with the deck: its meshes take the same field vertex by vertex, so it
+    still coincides with the body stowed (the slide along the facet's edge included), and each of its nodes' origins (the pivot, the endplates' hinges) moves with the field at that
+    point, so the deploy pose and the hinge axes (car_meta.json wing) act on the moved parts.  Meshes shared between objects are made single-user first."""
     if not shell2mod.QF_P3_TAILX:
         return
-    from mathutils import Vector
+    from mathutils import Vector, Matrix
 
     def under(o, pref):
         while o is not None:
@@ -1371,32 +1373,38 @@ def p3_post(objs):
                 return True
             o = o.parent
         return False
+
+    def dv(w):
+        return Vector(shell2mod.p3_dxyz(w.x, w.y, w.z)) if w.x >= 1.15 else Vector((0.0, 0.0, 0.0))
+    todo = [o for o in objs if not under(o, 'Wheel_')]
+    root = next((o for o in todo if o.name == 'Wing'), None)
+    wing = [o for o in todo if root is not None and (o is root or o in root.children_recursive)]
+    # the wing's nodes: world matrices and vertices first (before any node moves), then each origin moved by the field at it (parents before children), then the vertices
+    # (world + field) back into the moved frames
+    old = {o.name: o.matrix_world.copy() for o in wing}
+    pre = {o.name: [old[o.name] @ v.co for v in o.data.vertices] for o in wing if o.type == 'MESH'}
+    depth = lambda o: 0 if o.parent is None else 1 + depth(o.parent)
+    for o in sorted(wing, key=depth):
+        m = old[o.name]
+        o.matrix_world = Matrix.Translation(dv(m.translation)) @ m
+        bpy.context.view_layer.update()
     n = 0
-    for o in objs:
-        if under(o, 'Wheel_'):
-            continue
-        if o.name == 'Wing':
-            w = o.matrix_world.translation
-            d = Vector(shell2mod.p3_dxyz(w.x, w.y, w.z))
-            pm = o.parent.matrix_world.inverted() if o.parent else None
-            o.location = (pm @ (w + d)) if pm else (w + d)
-            continue
-        if under(o.parent, 'Wing') or o.type != 'MESH':
+    for o in todo:
+        if o.type != 'MESH':
             continue
         if o.data.users > 1:
             o.data = o.data.copy()
         mw = o.matrix_world
         inv = mw.inverted()
-        for v in o.data.vertices:
-            w = mw @ v.co
-            if w.x < 1.15:
-                continue
-            d = shell2mod.p3_dxyz(w.x, w.y, w.z)
-            if d[0] or d[1] or d[2]:
-                v.co = inv @ Vector((w.x + d[0], w.y + d[1], w.z + d[2]))
-                n += 1
+        W = pre.get(o.name)
+        for i, v in enumerate(o.data.vertices):
+            w = W[i] if W is not None else mw @ v.co
+            d = dv(w)
+            if W is not None or d.length > 0.0:
+                v.co = inv @ (w + d)
+                n += d.length > 0.0
         o.data.update()
-    print('P3 rear extension: %d vertices moved (S = %.3f m)' % (n, shell2mod.QF_P3_TX_S))
+    print('P3 rear extension: %d vertices moved (S = %.3f m); wing nodes moved with the field: %s' % (n, shell2mod.QF_P3_TX_S, ', '.join(sorted(o.name for o in wing))))
 
 
 def collect(root_objs):
