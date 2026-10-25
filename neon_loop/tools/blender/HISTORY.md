@@ -880,3 +880,6 @@ R1b 的 Catmull-Clark 笼子在镜面检查里一直有褶皱（A 柱根、鼻�
 - 重锁 hood、corner_tri、fender_top、shoulder、wall、facet、wall_black、door_glass、rail_band、rear_shoulder、glass、ridge_inner、deck、tail_upper、tail_lower（front_face、pillar 没变）；lock 17 PASS。
 - 导出：hi 297,650 三角 / 49 调用，lod1 57,838 / 19，lod2 8,304 / 8（raw 8,302）；budget 5 PASS；open edges 720；npm test 通过。car_meta.json 只有尾翼端板铰链轴变了约 0.02°。
 - 后部甲板（进行中）：加了两条第二阶段式的线 `seam_F`（facet 前缝）、`facet_R`（facet 后缘），它们和 p013 尾缘、后窗后缘、P3 一致地靠后约 5 cm。
+- 后部甲板预览 `QF_P3_TAILX`（默认关，见 CALIB.md）：车尾整体加长 5 cm，导出时作用于整车的位移场。甲板 / 后窗在 x 1.22–2.10 拉长；侧面在后轮拱与 facet 前缝之间的斜带里拉长，facet 及其后沿 facet 上边滑动（保持平面、保持俯视外廓）。
+  - p013 尾缘 +5.3 → +0.4 cm；smooth 220 PASS。
+  - 未解决：后窗 / 尾翼交界的台阶（侧视顶线低 4–5 cm），尾角宽度内收 1.8 cm 的取舍。
