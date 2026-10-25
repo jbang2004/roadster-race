@@ -2,7 +2,7 @@
 """
 Model features for the phase-2 lines that have no design2 curve (wheel-arch lips, front light bar, tail light bar), read from the built GLB:
 
-  Blender -b --python tools/blender/calib/model_feat.py [-- --glb car_hi.raw.glb]   -> calib/lines/model_feat.json  (used by lines_report.py)
+  Blender -b --python tools/blender/calib/model_feat.py [-- --glb car_hi.raw.glb] [--out file.json]   -> calib/lines/model_feat.json  (used by lines_report.py)
 """
 import bpy, sys, os, json, numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -46,5 +46,5 @@ if len(T):
     T = T[T[:, 1] >= -1e-6]
     ys = np.linspace(0, T[:, 1].max(), 12)
     R['tail_bar'] = [[float(np.max(T[np.abs(T[:, 1] - y) < 0.03][:, 0])), float(y), float(np.mean(T[np.abs(T[:, 1] - y) < 0.03][:, 2]))] for y in ys if (np.abs(T[:, 1] - y) < 0.03).any()]
-json.dump(R, open(os.path.join(HERE, 'lines', 'model_feat.json'), 'w'), indent=1)
+json.dump(R, open(os.path.abspath(argv[argv.index('--out') + 1]) if '--out' in argv else os.path.join(HERE, 'lines', 'model_feat.json'), 'w'), indent=1)
 print('wrote', os.path.join(HERE, 'lines', 'model_feat.json'), sorted(R))
