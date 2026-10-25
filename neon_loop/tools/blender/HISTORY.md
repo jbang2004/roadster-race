@@ -785,3 +785,4 @@ R1b 的 Catmull-Clark 笼子在镜面检查里一直有褶皱（A 柱根、鼻�
   - 另加 `QF_EAR_MONO`（默认关）：R-1 下落的五次式末端斜率不小于平均斜率的 5/3，免得先陡后缓。B 预览用过。
 - 结果：顶面中线 −11.1°（缝）→ −5.4°（x 2.2）→ −6.5°（尾边）；p018 全程平均 0.93 px、最大 2.3 px（窗尖到缝 0.59 px），缝后不再下沉；p016 车角不变。
 - 重锁 rear_shoulder、ridge_inner、deck、tail_upper；lock 17 PASS。
+- 尾唇修正后重新导出：hi 297,380 三角 / 49 调用，lod1 57,862 / 19，lod2 8,304 / 8；budget 5 PASS；lock 17 PASS；npm test 通过。耳尖旁的小黑尖消失（后上方特写）。p018 全程平均 0.93 px、最大 2.3 px。对比图在 scratchpad step/optionA_final.jpg，对照页已更新。
