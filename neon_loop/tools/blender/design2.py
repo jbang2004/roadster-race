@@ -3751,6 +3751,45 @@ def build_nose():
 
 
 build_all()
+
+
+# ----------------------------------------------------------------------------- P3 (reconstruction phase 3, 2026-10-25): the curve network moved onto the lines measured in the calibrated photos
+# (calib/lines.py, calib/lines/fit.json; CALIB.md).  Each switch corrects one curve between two stations and fades the correction in / out (smoothstep) where the photos do not see it.
+# QF_P3_L3: the paint | black boundary l3 between the wheel openings follows the measured concave arc (height only; its plan stays): measured 7-10 cm below the old straight line at x 0 .. 0.9
+#   (jackknife sigma 0.8-1.5 cm, five photos).  The correction fades in over QF_P3_L3X[0..1] and out over [2..3], both inside the wheel openings.
+QF_P3_L3 = os.environ.get('QF_P3_L3', '0') == '1'
+QF_P3_L3X = tuple(float(v) for v in os.environ.get('QF_P3_L3X', '-1.15,-1.03,1.12,1.24').split(','))
+# QF_P3_U: the side window's lower edge U (A-pillar root -> window tip) in plan: measured 2.5-3.3 cm further out along the door (sigma 0.3-0.9 cm; the top view p013 and the three 3/4 views agree);
+#   height unchanged.  The correction fades in from the A-pillar root and is gone by X_FOLD0 (QF_P3_UX): the rear shoulder aft of X_FOLD0 is built from U(X_FOLD0) and the tip T (the
+#   PANE plane), so moving one without the other turns that face (a fade to 1.18 left a whorl behind the tip).  U over x 0.87 .. 1.2 stays 3.4-4.7 cm inside the photos.
+QF_P3_U = os.environ.get('QF_P3_U', '0') == '1'
+QF_P3_UX = tuple(float(v) for v in os.environ.get('QF_P3_UX', '-1.37,-1.12,0.60,0.874').split(','))
+
+
+def _p3_line(name):
+    """(x, y, z) samples of a fitted photo line (calib/lines/fit.json)"""
+    import json as _json
+    F = _json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'calib', 'lines', 'fit.json')))
+    return np.array(F[name]['pts'], float)
+
+
+def _p3_toward(name, line, win, k):
+    """CURVES[name] moved toward the fitted photo line in coordinate k (1: y, 2: z), faded in / out over win = (a, b, c, d)"""
+    P, old = _p3_line(line), CURVES[name]
+    a, b, c, d = win
+    zero = lambda x: 0.0 * np.asarray(x, float)
+    dv = lambda x: sstep(a, b, x) * (1.0 - sstep(c, d, x)) * (np.interp(x, P[:, 0], P[:, k]) - np.asarray((old.fy, old.fz)[k - 1](x), float))
+    CURVES[name] = PlanMod(old, old.x0, dv if k == 1 else zero, dv if k == 2 else zero, name)
+
+
+def p3_apply():
+    if QF_P3_L3:
+        _p3_toward('l3', 'l3', QF_P3_L3X, 2)
+    if QF_P3_U:
+        _p3_toward('U', 'U_win', QF_P3_UX, 1)
+
+
+p3_apply()
 build_nose()
 
 if __name__ == '__main__':

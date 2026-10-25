@@ -1596,6 +1596,111 @@ def checksum(pm):
     return h.hexdigest()[:16]
 
 
+# ----------------------------------------------------------------------------- P3 (reconstruction phase 3, 2026-10-25): the rear hips and the front widening (CALIB.md phase 3)
+# The calibrated top view p013 (a clean white-on-ground outline, both sides alike) puts the body's outline 3-4.3 cm outside the model over the rear wheel (x 1.3 .. 2.0) and ~0 along the doors; the rear views
+# (r81, p012, p019) agree (+3..5 cm at z 0.8-0.9).  QF_P3_HIP=1 moves the body outward (y only) by dy = A(x) g(x, z) w(|y|):
+#   A(x)  the hip amplitude (QF_P3_HIP_A, x:cm knots; C2 spline with zero end slopes, zero outside the knots);
+#   g     0 at QF_P3_HIP_Z0, a smoothstep up to 1 at L's height (the crease that carries the hip: it stays the outermost line), then linear back to 0 at the roof rail (the rear shoulder
+#         face, ruled, turns about the rail and stays ruled);
+#   w     a smoothstep over |y| 0.30 .. 0.50 (no edge in the field).
+# A smooth field of position only: shared vertices of neighbouring panels move alike (no cracks), creases stay creases.  The wheel openings are cut afterwards (unchanged in side view).
+# (A was trimmed after the first build: p013 put that build 1 cm wide at x 1.6 .. 2.0.)  The FRONT widening is its own switch, QF_P3_FRONT below.
+QF_P3_HIP = os.environ.get('QF_P3_HIP', '0') == '1'
+QF_P3_HIP_A = tuple(tuple(float(u) for u in kv.split(':')) for kv in os.environ.get(
+    'QF_P3_HIP_A', '1.00:0,1.20:1.6,1.40:3.9,1.60:4.4,1.80:4.3,2.00:3.9,2.20:2.6,2.38:0.9,2.46:0').split(','))
+QF_P3_HIP_Z0 = float(os.environ.get('QF_P3_HIP_Z0', '0.40'))                 # bottom of the field (z, m)
+# QF_P3_FRONT=1: the front widening (p013: +3..5 cm from just behind the face corner N over the front wheel, tapering along the door to 0 at x ~0.45; L_front fitted 4-5 cm out, the fender
+# crest U_front ~unchanged at x -2.3 .. -1.8).  dy = A(x) g w(|y|) as above, with
+#   A(x)  a natural C2 spline through QF_P3_FRONT_A (x:cm) times a smoothstep rise from 0 at the face corner over QF_P3_FRONT_RISE (the front face itself stays);
+#   g     below L: a smoothstep over QF_P3_FRONT_ZB (only the floor's edge fades: the whole side face moves); above L: 1 - (1 - k) smoothstep(S0, 1, d / |LU|), d the distance from L
+#         in the section, |LU| the rung L -> U (the fender top over the wheel moves with L); k(x) is how far the crest U follows L: 1 ahead of QF_P3_FRONT_UK[0] (at the nose L and U meet),
+#         0 behind QF_P3_FRONT_UK[1] (U_front is pinned there, sigma 1 mm), so the fender top's tilt grows steadily instead of twisting where the rung is short; inboard of U the
+#         remaining k fades out over QF_P3_FRONT_DU (m).
+QF_P3_FRONT = os.environ.get('QF_P3_FRONT', '0') == '1'
+QF_P3_FRONT_A = tuple(tuple(float(u) for u in kv.split(':')) for kv in os.environ.get(
+    'QF_P3_FRONT_A', '-2.46:4.0,-1.85:4.8,-1.30:4.3,-0.80:2.7,-0.30:1.6,0.15:0.5,0.50:0').split(','))
+QF_P3_FRONT_RISE = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_RISE', '-2.46,-2.22').split(','))
+QF_P3_FRONT_ZB = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_ZB', '0.10,0.30').split(','))
+QF_P3_FRONT_S0 = float(os.environ.get('QF_P3_FRONT_S0', '0.30'))
+QF_P3_FRONT_UK = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_UK', '-2.40,-2.00').split(','))
+QF_P3_FRONT_DU = float(os.environ.get('QF_P3_FRONT_DU', '0.08'))
+_P3_HIP = {}
+
+
+def _p3_hip_tables():
+    if not _P3_HIP:
+        k = np.array(QF_P3_HIP_A)
+        _P3_HIP['A'] = (D.Spline1D(k[:, 0], k[:, 1], 'clamped', 0.0, 0.0), k[0, 0], k[-1, 0])
+        k = np.array(QF_P3_FRONT_A)
+        _P3_HIP['AF'] = (D.Spline1D(k[:, 0], k[:, 1], 'natural'), k[0, 0], k[-1, 0])
+        for n in ('L', 'rail', 'U'):
+            xs = np.linspace(C[n].x0, C[n].x1, 1500)
+            P = np.asarray(C[n].at(xs))
+            _P3_HIP[n] = (xs, P[:, 2])                                 # heights tabulated once (evaluating the curves per vertex is slow)
+            _P3_HIP[n + 'y'] = (xs, P[:, 1])
+    return _P3_HIP
+
+
+def p3_front_dy(x, y, z):
+    T = _p3_hip_tables()
+    s, a, b = T['AF']
+    if x <= a or x >= b or abs(y) < 0.30:
+        return 0.0
+    A = 0.01 * max(0.0, float(s(x))) * float(D.sstep(QF_P3_FRONT_RISE[0], QF_P3_FRONT_RISE[1], x))
+    if A <= 0.0:
+        return 0.0
+    ay = abs(y)
+    yl, zl = float(np.interp(x, *T['Ly'])), float(np.interp(x, *T['L']))
+    if z <= zl:
+        g = float(D.sstep(QF_P3_FRONT_ZB[0], QF_P3_FRONT_ZB[1], z))
+    else:
+        yu, zu = float(np.interp(x, *T['Uy'])), float(np.interp(x, *T['U']))
+        r, d = max(math.hypot(yu - yl, zu - zl), 1e-3), math.hypot(ay - yl, z - zl)
+        k = 1.0 - float(D.sstep(QF_P3_FRONT_UK[0], QF_P3_FRONT_UK[1], x))
+        if d <= r:
+            g = 1.0 - (1.0 - k) * float(D.sstep(QF_P3_FRONT_S0, 1.0, d / r))
+        else:
+            g = k * (1.0 - float(D.sstep(0.0, QF_P3_FRONT_DU, d - r)))
+    return math.copysign(A * g * float(D.sstep(0.30, 0.50, ay)), y)
+
+
+def p3_hip_dy(x, y, z):
+    T = _p3_hip_tables()
+    s, a, b = T['A']
+    if x <= a or x >= b or abs(y) < 0.30:
+        return 0.0
+    A = 0.01 * max(0.0, float(s(x)))
+    if A <= 0.0:
+        return 0.0
+    zl = float(np.interp(x, *T['L'])); zr = float(np.interp(x, *T['rail']))
+    z0 = QF_P3_HIP_Z0
+    if z <= z0 or z >= zr:
+        return 0.0
+    g = float(D.sstep(z0, zl, z)) if z <= zl else (zr - z) / max(zr - zl, 1e-6)
+    return math.copysign(A * g * float(D.sstep(0.30, 0.50, abs(y))), y)
+
+
+def p3_dy(x, y, z):
+    return (p3_hip_dy(x, y, z) if QF_P3_HIP else 0.0) + (p3_front_dy(x, y, z) if QF_P3_FRONT else 0.0)
+
+
+def p3_morph(pm):
+    if not (QF_P3_HIP or QF_P3_FRONT):
+        return
+    for i, v in enumerate(pm.verts):
+        d = p3_dy(float(v[0]), float(v[1]), float(v[2]))
+        if d:
+            pm.verts[i] = (v[0], float(v[1]) + d, v[2]) + tuple(v[3:])
+    if getattr(pm, 'rows', None) is not None:
+        rows = []
+        for r in pm.rows:
+            r = np.array(r, float)
+            for k in range(len(r)):
+                r[k, 1] += p3_dy(r[k, 0], r[k, 1], r[k, 2])
+            rows.append(r)
+        pm.rows = rows
+
+
 def build_panels(only=None):
     R = Registry()
     out = {}
@@ -1607,6 +1712,7 @@ def build_panels(only=None):
         R.cur = None
         if P.name in ('wall', 'shoulder'):
             qf_fill(pm)
+        p3_morph(pm)
         orient(pm, P)
         out[P.name] = pm
     return out, R
