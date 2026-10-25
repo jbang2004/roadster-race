@@ -1616,6 +1616,11 @@ QF_P3_HIP_W = tuple(float(v) for v in os.environ.get('QF_P3_HIP_W', '1.00,1.20,2
 # outside the box; a pure function of position, so the panels sharing the facet's edges move with it.  '0' = off.
 QF_P3_HIP_FACET = os.environ.get('QF_P3_HIP_FACET', '1.95,2.39,0.71,1.00')
 QF_P3_HIP_FM = float(os.environ.get('QF_P3_HIP_FM', '0.08'))
+# QF_P3_HIP_FSH=1 (rear deck review 2026-10-25): the box's top margin (z 1.00 .. 1.08) reached ABOVE L onto the rear shoulder (platform, soft arc, beam face behind the ear), where
+# the affine fit, extrapolated upward (it grows with z, the hip shrinks towards the rail), pushed the face out by up to 1.4 cm (|y| 0.8, x 1.94 - 2.13) and its x margin made a
+# ridge across the platform at x 1.87 - 1.95 (2 - 3 deg in the reflections over 3 cm).  Above L the facet's blended value at L is now carried up the hip's own taper to the rail
+# (dy = taper * (raw_L + lam_L (aff_L - raw_L)), lam_L the box weight at L's height): the same value on L (the facet and everything below unchanged), the shoulder a smooth field.
+QF_P3_HIP_FSH = os.environ.get('QF_P3_HIP_FSH', '1') == '1'
 # QF_P3_FRONT=1: the front widening (p013: +3..5 cm from just behind the face corner N over the front wheel, tapering along the door to 0 at x ~0.45; L_front fitted 4-5 cm out, the fender
 # crest U_front ~unchanged at x -2.3 .. -1.8).  dy = A(x) g w(|y|) as above, with
 #   A(x)  a natural C2 spline through QF_P3_FRONT_A (x:cm) times a smoothstep rise from 0 at the face corner over QF_P3_FRONT_RISE (the front face itself stays);
@@ -1716,9 +1721,18 @@ def p3_hip_dy(x, y, z):
     if F is not None:
         (x0, x1, z0, z1), c = F
         m = QF_P3_HIP_FM
-        lam = float(D.sstep(x0 - m, x0, x)) * (1.0 - float(D.sstep(x1, x1 + m, x))) * float(D.sstep(z0 - m, z0, z)) * (1.0 - float(D.sstep(z1, z1 + m, z)))
-        if lam > 0.0:
-            d += lam * (c[0] + c[1] * x + c[2] * z - d)
+        lx = float(D.sstep(x0 - m, x0, x)) * (1.0 - float(D.sstep(x1, x1 + m, x)))
+        lz = lambda zz: float(D.sstep(z0 - m, z0, zz)) * (1.0 - float(D.sstep(z1, z1 + m, zz)))
+        zl = _p3_hip_tables()['L'](x) if QF_P3_HIP_FSH else None
+        if zl is not None and z > zl:
+            dl = _p3_hip_raw(x, zl)
+            lam = lx * lz(zl)
+            if lam > 0.0 and dl > 0.0:
+                d *= 1.0 + lam * (c[0] + c[1] * x + c[2] * zl - dl) / dl
+        else:
+            lam = lx * lz(z)
+            if lam > 0.0:
+                d += lam * (c[0] + c[1] * x + c[2] * z - d)
     return math.copysign(d * float(D.sstep(0.30, 0.50, abs(y))), y)
 
 
