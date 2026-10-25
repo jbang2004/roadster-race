@@ -870,3 +870,13 @@ R1b 的 Catmull-Clark 笼子在镜面检查里一直有褶皱（A 柱根、鼻�
   - 前灯带不改：p018 侧视里引擎盖前缘高度对，“低 3 cm”来自 x、z 互相替代的俯视角照片。
   - 发现后部甲板（后窗到尾翼后缘）整体靠后约 5 cm（p013、p018、第一阶段地标三处一致），以及轮距每侧窄 8.5 cm（游戏常数）：都等用户决定，见 CALIB.md。
   - `calib/model_feat.py` 加 `--out`（预览构建不覆盖仓库里的特征文件）。
+
+## 平顺修正、细节项采用（重构第 3 阶段续，2026-10-25，云端）
+
+用户："好的，先修这四处，细节预览采用，后部甲板也做，确保每条线每个面都平顺平整，跟原车一致"。
+- 四处修正（CALIB.md“平滑性核查”）：三处端点改成 C2（五次窗），facet 用仿射盒保持平面（7.9 → 3.49 mm）；插值表改成 C2 样条；后轮拱表改成五次台阶连接（C2）。
+- 新检查 `check.py smooth`（`smooth_report.py`）：分段交界处的斜率 / 曲率台阶 + 设计平面的平面度，76 PASS。
+- 采用 `QF_P3_LF`、`QF_P3_ARR`（默认开）。
+- 重锁 hood、corner_tri、fender_top、shoulder、wall、facet、wall_black、door_glass、rail_band、rear_shoulder、glass、ridge_inner、deck、tail_upper、tail_lower（front_face、pillar 没变）；lock 17 PASS。
+- 导出：hi 297,650 三角 / 49 调用，lod1 57,838 / 19，lod2 8,304 / 8（raw 8,302）；budget 5 PASS；open edges 720；npm test 通过。car_meta.json 只有尾翼端板铰链轴变了约 0.02°。
+- 后部甲板（进行中）：加了两条第二阶段式的线 `seam_F`（facet 前缝）、`facet_R`（facet 后缘），它们和 p013 尾缘、后窗后缘、P3 一致地靠后约 5 cm。

@@ -21,6 +21,7 @@ is 1 when something fails that is not an accepted known deviation).  Targets: SP
   budget     <build.log>: REPORT of a build vs the LOD budgets and the quotas in REGIONS.md section 5            lod1 60k/20, lod2 15k/10, hi 450k
   equiv      <dirA> <dirB> | <a.raw.glb> <b.raw.glb>: per object / material triangles + bbox (glb_compare.py)   0 tris, 0.1 mm
   panels     dump <out.npz> | compare <old.npz> <new.npz> [...]: per-panel deviation proof (dump / compare_panels.py)
+  smooth     P3 corrections: slope / curvature steps at every piece boundary, planarity of the designed planes (smooth_report.py)   <= 0.02 deg, 0.05 1/m; planes
 
 Exit code: 0 = no unexpected FAIL, 1 = FAIL, 2 = usage / the engine itself failed.
 """
@@ -315,8 +316,19 @@ def m_panels(args):
     return 2 if rc else 0
 
 
+def m_smooth(args):
+    rc, out = run('smooth_report.py', args)
+    t = Table('smooth', 'C2 corrections (slope step <= 0.02 deg, curvature step <= 0.05 1/m at every piece boundary); designed planes flat', ['value', 'limit'])
+    for line in out.splitlines():
+        if line.startswith('ROW|'):
+            _, key, label, val, lim, ok = line.split('|')
+            t.add(key, label, [val, lim], ok == '1')
+    t.show()
+    return max(t.code(), 2 if rc else 0)
+
+
 METRICS = {'nose': m_nose, 'rear': m_rear, 'roofline': m_roofline, 'masks': m_masks, 'plan': m_plan, 'crease': m_crease, 'fold': m_fold, 'dihedral': m_dihedral, 'fender': m_fender,
-           'cam': m_cam, 'lock': m_lock, 'budget': m_budget, 'equiv': m_equiv, 'panels': m_panels}
+           'cam': m_cam, 'lock': m_lock, 'budget': m_budget, 'equiv': m_equiv, 'panels': m_panels, 'smooth': m_smooth}
 
 
 def main(argv):

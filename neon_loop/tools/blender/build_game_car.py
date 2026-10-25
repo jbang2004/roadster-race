@@ -1358,6 +1358,47 @@ def cleanup(objs):
             bpy.data.meshes.remove(me)
 
 
+def p3_post(objs):
+    """QF_P3_TAILX (shell2.p3_dx, CALIB.md phase 3): the rear-end extension, applied to the whole built car in world space: every mesh is deformed vertex by vertex except the
+    wheels; the wing node (a pivot with its parts as children) moves rigidly by the displacement of its origin.  Meshes shared between objects are made single-user first."""
+    if not shell2mod.QF_P3_TAILX:
+        return
+    from mathutils import Vector
+
+    def under(o, pref):
+        while o is not None:
+            if o.name.startswith(pref):
+                return True
+            o = o.parent
+        return False
+    n = 0
+    for o in objs:
+        if under(o, 'Wheel_'):
+            continue
+        if o.name == 'Wing':
+            w = o.matrix_world.translation
+            d = shell2mod.p3_dx(w.x, w.y, w.z)
+            pm = o.parent.matrix_world.inverted() if o.parent else None
+            o.location = (pm @ (w + Vector((d, 0.0, 0.0)))) if pm else (w + Vector((d, 0.0, 0.0)))
+            continue
+        if under(o.parent, 'Wing') or o.type != 'MESH':
+            continue
+        if o.data.users > 1:
+            o.data = o.data.copy()
+        mw = o.matrix_world
+        inv = mw.inverted()
+        for v in o.data.vertices:
+            w = mw @ v.co
+            if w.x < 1.15:
+                continue
+            d = shell2mod.p3_dx(w.x, w.y, w.z)
+            if d:
+                v.co = inv @ Vector((w.x + d, w.y, w.z))
+                n += 1
+        o.data.update()
+    print('P3 rear extension: %d vertices moved (S = %.3f m)' % (n, shell2mod.QF_P3_TX_S))
+
+
 def collect(root_objs):
     out = []
 
@@ -1501,6 +1542,7 @@ def build_hi():
     report['hi_tris'] = tri_count([o for o in allobjs if o.type == 'MESH'])
     report['hi_calls'] = sum(len(o.data.materials) for o in allobjs if o.type == 'MESH')
     finish_stats('hi', st, report['hi_tris'], report['hi_calls'])
+    p3_post(allobjs)
     export_glb(allobjs, os.path.join(OUT, 'car_hi' + ('.raw.glb' if RAW else '.glb')), compress=not RAW)
     cleanup(allobjs)
 
@@ -1538,6 +1580,7 @@ def build_lod1():
     report['lod1_tris'] = tri_count([o for o in allobjs if o.type == 'MESH'])
     report['lod1_calls'] = sum(len(o.data.materials) for o in allobjs if o.type == 'MESH')
     finish_stats('lod1', st, report['lod1_tris'], report['lod1_calls'])
+    p3_post(allobjs)
     export_glb(allobjs, os.path.join(OUT, 'car_lod1' + ('.raw.glb' if RAW else '.glb')), compress=not RAW)
     cleanup(allobjs)
 
@@ -1573,6 +1616,7 @@ def build_lod2():
     report['lod2_tris'] = tri_count([o for o in allobjs if o.type == 'MESH'])
     report['lod2_calls'] = sum(len(o.data.materials) for o in allobjs if o.type == 'MESH')
     finish_stats('lod2', st, report['lod2_tris'], report['lod2_calls'])
+    p3_post(allobjs)
     export_glb(allobjs, os.path.join(OUT, 'car_lod2' + ('.raw.glb' if RAW else '.glb')), compress=not RAW)
     cleanup(allobjs)
 
@@ -1603,6 +1647,9 @@ if ONLY == 'all':
                 meta['decals'].update(v)
             else:
                 meta[k] = v
+    if shell2mod.QF_P3_TAILX and 'wing' in meta:          # the wing's pivot moves with the rear-end extension (p3_post)
+        _pv = meta['wing']['pivot']
+        _pv[0] = _pv[0] + shell2mod.p3_dx(_pv[0], -_pv[2], _pv[1])
     meta['report'] = report
     with open(os.path.join(OUT, 'car_meta.json'), 'w') as f:
         json.dump(meta, f, indent=1)

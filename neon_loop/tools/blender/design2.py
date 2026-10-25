@@ -3767,9 +3767,10 @@ QF_P3_UX = tuple(float(v) for v in os.environ.get('QF_P3_UX', '-1.37,-1.12,0.60,
 # QF_P3_LF: the shoulder crease L ahead of the front wheel is lower in the photos: 1.7 (x -2.4), 2.6 (-2.2), 3.2 (-2.0), 3.7 cm (-1.9) (L_front, sigma 0.8-1.5 cm; p018, p001, p016, p013).  The
 #   New L from the nose corner N (which stays) to QF_P3_LF_X1: one C2 spline through the measured heights QF_P3_LF_K (x:z) that rejoins the old L at X1 (value and slope; L_side agrees with
 #   the photos from x -1.2 on); over the front wheel opening it carries the measured slope across.  (The fitted line itself starts 1 cm above N and dips behind it: an end effect, not followed.)
-QF_P3_LF = os.environ.get('QF_P3_LF', '0') == '1'
+QF_P3_LF = os.environ.get('QF_P3_LF', '1') == '1'
 QF_P3_LF_K = [tuple(float(u) for u in kv.split(':')) for kv in os.environ.get('QF_P3_LF_K', '-2.30:0.549,-2.10:0.581,-1.90:0.610').split(',')]
 QF_P3_LF_X1 = float(os.environ.get('QF_P3_LF_X1', '-1.20'))
+QF_P3_LF_JOIN = float(os.environ.get('QF_P3_LF_JOIN', '0.30'))      # length of that window (m)
 
 
 def _p3_line(name):
@@ -3786,11 +3787,13 @@ def _p3_toward(name, line, win, k, hold=False):
     a, b, c, d = win
     zero = lambda x: 0.0 * np.asarray(x, float)
     of = (old.fy, old.fz)[k - 1]
-    if hold:
-        cor = P[:, k] - np.asarray(of(P[:, 0]), float)
-        dv = lambda x: sstep(a, b, x) * (1.0 - sstep(c, d, x)) * np.interp(x, P[:, 0], cor)
+    x0, x1 = P[0, 0], P[-1, 0]
+    if hold:                       # (the fitted samples are joined by a C2 spline, not linearly: no micro-kinks at the samples)
+        sp = Spline1D(P[:, 0], P[:, k] - np.asarray(of(P[:, 0]), float), 'natural')
+        dv = lambda x: sstep(a, b, x) * (1.0 - sstep(c, d, x)) * sp(np.clip(x, x0, x1))
     else:
-        dv = lambda x: sstep(a, b, x) * (1.0 - sstep(c, d, x)) * (np.interp(x, P[:, 0], P[:, k]) - np.asarray(of(x), float))
+        sp = Spline1D(P[:, 0], P[:, k], 'natural')
+        dv = lambda x: sstep(a, b, x) * (1.0 - sstep(c, d, x)) * (sp(np.clip(x, x0, x1)) - np.asarray(of(x), float))
     CURVES[name] = PlanMod(old, old.x0, dv if k == 1 else zero, dv if k == 2 else zero, name)
 
 
@@ -3806,10 +3809,10 @@ def p3_apply():
         sp = Spline1D([q[0] for q in k], [q[1] for q in k], 'clamped', (k[1][1] - k[0][1]) / (k[1][0] - k[0][0]),
                       (float(old.fz(xe + e)) - float(old.fz(xe - e))) / (2 * e))
 
-        def dz(x):
+        def dz(x):                     # the correction (0 with 0 slope at X1) times a C2 window ending at X1: the join is C2 (the spline alone left a 0.36 1/m curvature step)
             x = np.asarray(x, float)
             xc = np.clip(x, old.x0, xe)
-            return np.where(x < xe, sp(xc) - np.asarray(old.fz(xc), float), 0.0)
+            return np.where(x < xe, (sp(xc) - np.asarray(old.fz(xc), float)) * (1.0 - sstep(xe - QF_P3_LF_JOIN, xe, xc)), 0.0)
         CURVES['L'] = PlanMod(old, old.x0, lambda x: 0.0 * np.asarray(x, float), dz, 'L')
 
 

@@ -49,6 +49,15 @@ CFG = {
                 'obs': [('p018', -1, (0.35, 0.85), 'valley', 'lum', 20), ('p017', -1, (0.35, 0.85), 'valley', 'lum', 20), ('p011', -1, (0.35, 0.85), 'valley', 'lum', 20),
                         ('p016', -1, (0.35, 0.85), 'valley', 'lum', 20)],
                 'anchors': [('DS2b', 0.01)]},
+    # ------------------------------------------------------------------ rear-corner facet (SPEC L12; added in phase 3 to place the rear end: CALIB.md phase 3)
+    'seam_F': {'seed': [(2.149, 0.988, 0.733), (2.06, 1.022, 0.857), (1.972, 1.056, 0.981)], 'axis': 'z', 'range': (0.745, 0.97), 'dk': 0.1,
+               'doc': 'front edge of the rear-corner facet (the wing endplate seam), l3 -> L',
+               'obs': [('p018', -1, (0.75, 0.97), 'valley', 'lum', 14), ('p001', -1, (0.75, 0.97), 'valley', 'lum', 14), ('p017', -1, (0.75, 0.97), 'valley', 'lum', 14),
+                       ('p011', -1, (0.75, 0.97), 'valley', 'lum', 14)]},
+    'facet_R': {'seed': [(2.337, 0.943, 0.807), (2.355, 0.945, 0.90), (2.368, 0.946, 0.995)], 'axis': 'z', 'range': (0.815, 0.985), 'dk': 0.1,
+                'doc': 'rear edge of the rear-corner facet (facet | black tail panel side), PBc -> TP',
+                'obs': [('p018', -1, (0.82, 0.98), 'step', 'lum', 16), ('p001', -1, (0.82, 0.98), 'step', 'lum', 16), ('p017', -1, (0.82, 0.98), 'step', 'lum', 16),
+                        ('p011', -1, (0.82, 0.98), 'step', 'lum', 16), ('p012', -1, (0.82, 0.98), 'step', 'lum', 16), ('p019', -1, (0.82, 0.98), 'step', 'lum', 16)]},
     # ------------------------------------------------------------------ roof / glass
     'rail': {'seed': 'rail', 'range': (-0.40, 2.41), 'dk': 0.25, 'doc': 'roof rail: upper edge of the body-colour band (glass dome above), then the rear crest R-1',
              'obs': [('p018', -1, (-0.35, 2.30), 'dark_above', 'lum', 12), ('p001', -1, (0.40, 2.30), 'dark_above', 'lum', 12),

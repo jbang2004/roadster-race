@@ -1609,6 +1609,13 @@ QF_P3_HIP = os.environ.get('QF_P3_HIP', '1') == '1'
 QF_P3_HIP_A = tuple(tuple(float(u) for u in kv.split(':')) for kv in os.environ.get(
     'QF_P3_HIP_A', '1.00:0,1.20:1.6,1.40:3.9,1.60:4.4,1.80:4.3,2.00:3.9,2.20:2.6,2.38:0.9,2.46:0').split(','))
 QF_P3_HIP_Z0 = float(os.environ.get('QF_P3_HIP_Z0', '0.40'))                 # bottom of the field (z, m)
+QF_P3_HIP_W = tuple(float(v) for v in os.environ.get('QF_P3_HIP_W', '1.00,1.20,2.30,2.46').split(','))   # C2 window on A: in over [0..1], out over [2..3] (value, slope and
+#   curvature reach 0 at the ends; the spline alone ended with a curvature step of 1.1 / 4.7 1/m)
+# The rear-corner facet (SPEC L12, the wing's endplate side) is a PLANE: the field above would bend it (3.6 -> 7.9 mm off its plane).  Inside the box QF_P3_HIP_FACET (x0, x1, z0, z1, around
+# the facet: x 1.97-2.37, z 0.73-0.99) the hip is replaced by its least-squares affine fit a0 + a1 x + a2 z (an affine map keeps planes planar), blended back to the hip over QF_P3_HIP_FM (m)
+# outside the box; a pure function of position, so the panels sharing the facet's edges move with it.  '0' = off.
+QF_P3_HIP_FACET = os.environ.get('QF_P3_HIP_FACET', '1.95,2.39,0.71,1.00')
+QF_P3_HIP_FM = float(os.environ.get('QF_P3_HIP_FM', '0.08'))
 # QF_P3_FRONT=1: the front widening (p013: +3..5 cm from just behind the face corner N over the front wheel, tapering along the door to 0 at x ~0.45; L_front fitted 4-5 cm out, the fender
 # crest U_front ~unchanged at x -2.3 .. -1.8).  dy = A(x) g w(|y|) as above, with
 #   A(x)  a natural C2 spline through QF_P3_FRONT_A (x:cm) times a smoothstep rise from 0 at the face corner over QF_P3_FRONT_RISE (the front face itself stays);
@@ -1620,6 +1627,8 @@ QF_P3_FRONT = os.environ.get('QF_P3_FRONT', '1') == '1'
 QF_P3_FRONT_A = tuple(tuple(float(u) for u in kv.split(':')) for kv in os.environ.get(
     'QF_P3_FRONT_A', '-2.46:4.0,-1.85:4.8,-1.30:4.3,-0.80:2.7,-0.30:1.6,0.15:0.5,0.50:0').split(','))
 QF_P3_FRONT_RISE = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_RISE', '-2.46,-2.22').split(','))
+QF_P3_FRONT_END = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_END', '0.00,0.50').split(','))   # C2 window at the door end (the spline alone ended with a slope:
+#   a 0.66 deg corner in L's plan at x 0.50)
 QF_P3_FRONT_ZB = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_ZB', '0.10,0.30').split(','))
 QF_P3_FRONT_S0 = float(os.environ.get('QF_P3_FRONT_S0', '0.30'))
 QF_P3_FRONT_UK = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_UK', '-2.40,-2.00').split(','))
@@ -1634,11 +1643,16 @@ def _p3_hip_tables():
         k = np.array(QF_P3_FRONT_A)
         _P3_HIP['AF'] = (D.Spline1D(k[:, 0], k[:, 1], 'natural'), k[0, 0], k[-1, 0])
         for n in ('L', 'rail', 'U'):
-            xs = np.linspace(C[n].x0, C[n].x1, 1500)
+            xs = np.linspace(C[n].x0, C[n].x1, 600)
             P = np.asarray(C[n].at(xs))
-            _P3_HIP[n] = (xs, P[:, 2])                                 # heights tabulated once (evaluating the curves per vertex is slow)
-            _P3_HIP[n + 'y'] = (xs, P[:, 1])
+            _P3_HIP[n] = _tab(xs, P[:, 2])                             # heights tabulated once (evaluating the curves per vertex is slow) and joined by C2 splines
+            _P3_HIP[n + 'y'] = _tab(xs, P[:, 1])
     return _P3_HIP
+
+
+def _tab(xs, v):
+    sp = D.Spline1D(xs, v, 'natural')
+    return lambda x: float(sp(min(max(x, xs[0]), xs[-1])))
 
 
 def p3_front_dy(x, y, z):
@@ -1646,15 +1660,15 @@ def p3_front_dy(x, y, z):
     s, a, b = T['AF']
     if x <= a or x >= b or abs(y) < 0.30:
         return 0.0
-    A = 0.01 * max(0.0, float(s(x))) * float(D.sstep(QF_P3_FRONT_RISE[0], QF_P3_FRONT_RISE[1], x))
+    A = 0.01 * max(0.0, float(s(x))) * float(D.sstep(QF_P3_FRONT_RISE[0], QF_P3_FRONT_RISE[1], x)) * (1.0 - float(D.sstep(QF_P3_FRONT_END[0], QF_P3_FRONT_END[1], x)))
     if A <= 0.0:
         return 0.0
     ay = abs(y)
-    yl, zl = float(np.interp(x, *T['Ly'])), float(np.interp(x, *T['L']))
+    yl, zl = T['Ly'](x), T['L'](x)
     if z <= zl:
         g = float(D.sstep(QF_P3_FRONT_ZB[0], QF_P3_FRONT_ZB[1], z))
     else:
-        yu, zu = float(np.interp(x, *T['Uy'])), float(np.interp(x, *T['U']))
+        yu, zu = T['Uy'](x), T['U'](x)
         r, d = max(math.hypot(yu - yl, zu - zl), 1e-3), math.hypot(ay - yl, z - zl)
         k = 1.0 - float(D.sstep(QF_P3_FRONT_UK[0], QF_P3_FRONT_UK[1], x))
         if d <= r:
@@ -1664,20 +1678,109 @@ def p3_front_dy(x, y, z):
     return math.copysign(A * g * float(D.sstep(0.30, 0.50, ay)), y)
 
 
-def p3_hip_dy(x, y, z):
+def _p3_hip_raw(x, z):
+    """the hip displacement (m) at |y| >= 0.5 (w = 1), without the facet blend"""
     T = _p3_hip_tables()
     s, a, b = T['A']
-    if x <= a or x >= b or abs(y) < 0.30:
+    if x <= a or x >= b:
         return 0.0
-    A = 0.01 * max(0.0, float(s(x)))
+    w0, w1, w2, w3 = QF_P3_HIP_W
+    A = 0.01 * max(0.0, float(s(x))) * float(D.sstep(w0, w1, x)) * (1.0 - float(D.sstep(w2, w3, x)))
     if A <= 0.0:
         return 0.0
-    zl = float(np.interp(x, *T['L'])); zr = float(np.interp(x, *T['rail']))
+    zl, zr = T['L'](x), T['rail'](x)
     z0 = QF_P3_HIP_Z0
     if z <= z0 or z >= zr:
         return 0.0
     g = float(D.sstep(z0, zl, z)) if z <= zl else (zr - z) / max(zr - zl, 1e-6)
-    return math.copysign(A * g * float(D.sstep(0.30, 0.50, abs(y))), y)
+    return A * g
+
+
+def _p3_facet_aff():
+    """(box, coefficients) of the affine fit of the hip over the facet box, or None"""
+    if 'aff' not in _P3_HIP:
+        _P3_HIP['aff'] = None
+        if QF_P3_HIP_FACET != '0':
+            bx = tuple(float(v) for v in QF_P3_HIP_FACET.split(','))
+            G = [(x, z) for x in np.linspace(bx[0], bx[1], 23) for z in np.linspace(bx[2], bx[3], 15)]
+            M = np.array([(1.0, x, z) for x, z in G]); v = np.array([_p3_hip_raw(x, z) for x, z in G])
+            _P3_HIP['aff'] = (bx, np.linalg.lstsq(M, v, rcond=None)[0])
+    return _P3_HIP['aff']
+
+
+def p3_hip_dy(x, y, z):
+    if abs(y) < 0.30:
+        return 0.0
+    d = _p3_hip_raw(x, z)
+    F = _p3_facet_aff()
+    if F is not None:
+        (x0, x1, z0, z1), c = F
+        m = QF_P3_HIP_FM
+        lam = float(D.sstep(x0 - m, x0, x)) * (1.0 - float(D.sstep(x1, x1 + m, x))) * float(D.sstep(z0 - m, z0, z)) * (1.0 - float(D.sstep(z1, z1 + m, z)))
+        if lam > 0.0:
+            d += lam * (c[0] + c[1] * x + c[2] * z - d)
+    return math.copysign(d * float(D.sstep(0.30, 0.50, abs(y))), y)
+
+
+# QF_P3_TAILX=1: the rear end is QF_P3_TX_S (m) longer (CALIB.md phase 3, "rear deck"): p013's tail edge (+5.3 cm median over the width), the rear window's rear edge (+4.8), the rear
+# window corner P3 (+4.9), the facet's front seam (+4.5..5.0) and rear edge (+5..6) and the tail lamp bar all sit further aft in the calibrated photos, while the window tip WT, the rear
+# arch (round the fixed hub) and the hips do not.  A field of x displacement, applied to the whole built car at export (build_game_car.p3_post: every mesh but the wheels; the wing node
+# moves rigidly), so that the regions' parts go with the shell.  s = S ((1 - b) Rs + b Rd):
+#   Rs  the side: a ramp in the slanted coordinate xi = x + K (Zs(z) - QF_P3_TX_Z0) whose level lines are parallel to the facet's front seam (S -> E, dx/dz = -K), from xi1 - W to
+#       xi1 (= the seam): the facet and everything aft of it move rigidly by S (the facet stays planar), the stretch lies in the band between the rear arch and the seam (the arch
+#       circle and the wheel well stay where they are); Zs = z clamped (C2) to QF_P3_TX_ZC so that the band runs straight down behind the arch and stops tilting above the deck.
+#   Rd  the deck / glass: a ramp in x over QF_P3_TX_XD (window tip -> the rear window's rear edge): the rear window gets longer, the deck behind it moves by S.
+#   b   0 at and below L, 1 inboard of the roof rail / crest (the lateral position across the rear shoulder from L to the rail), so the rear shoulder blends the two.
+#   ramps: linear in their middle, C2 ends (the integral of a smoothstep window, QF_P3_TX_E of the width at each end).
+QF_P3_TAILX = os.environ.get('QF_P3_TAILX', '0') == '1'
+QF_P3_TX_S = float(os.environ.get('QF_P3_TX_S', '0.05'))
+QF_P3_TX_K, QF_P3_TX_Z0, QF_P3_TX_XI1, QF_P3_TX_W = 0.714, 0.733, 2.149, float(os.environ.get('QF_P3_TX_W', '0.20'))
+QF_P3_TX_ZC = tuple(float(v) for v in os.environ.get('QF_P3_TX_ZC', '0.50,1.10,0.06').split(','))      # z clamp: low, high, rounding
+QF_P3_TX_XD = tuple(float(v) for v in os.environ.get('QF_P3_TX_XD', '1.22,2.10').split(','))
+QF_P3_TX_E = float(os.environ.get('QF_P3_TX_E', '0.25'))
+
+
+def _p3_ramp(t, e):
+    """0 for t <= 0, 1 for t >= 1, linear over [e, 1 - e]; C3 (the integral of a C2 window of smoothsteps), normalised"""
+    def I(v):                                   # integral of the quintic smoothstep from 0 to v
+        return v ** 6 - 3.0 * v ** 5 + 2.5 * v ** 4
+    if t <= 0.0:
+        return 0.0
+    if t >= 1.0:
+        return 1.0
+    if t < e:
+        w = e * I(t / e)
+    elif t <= 1.0 - e:
+        w = 0.5 * e + (t - e)
+    else:
+        v = (t - (1.0 - e)) / e
+        w = 0.5 * e + (1.0 - 2.0 * e) + e * (v - I(v))
+    return w / (1.0 - e)
+
+
+def _p3_zclamp(z):
+    lo, hi, r = QF_P3_TX_ZC
+    wd = hi - lo + 2.0 * r
+    e = r / wd
+    return lo - 0.5 * r + _p3_ramp((z - (lo - r)) / wd, e) * (1.0 - e) * wd
+
+
+def p3_dx(x, y, z):
+    """x displacement (m) of the rear-end extension at (x, y, z) (0 when QF_P3_TAILX is off)"""
+    if not QF_P3_TAILX or x < QF_P3_TX_XD[0] - 0.05:
+        return 0.0
+    T = _p3_hip_tables()
+    xi = x + QF_P3_TX_K * (_p3_zclamp(z) - QF_P3_TX_Z0)
+    rs = _p3_ramp((xi - (QF_P3_TX_XI1 - QF_P3_TX_W)) / QF_P3_TX_W, QF_P3_TX_E)
+    rd = _p3_ramp((x - QF_P3_TX_XD[0]) / (QF_P3_TX_XD[1] - QF_P3_TX_XD[0]), QF_P3_TX_E)
+    if rs == rd:
+        return QF_P3_TX_S * rs
+    xl = min(x, 2.41)
+    yl, zl, yr = T['Ly'](xl), T['L'](xl), T['raily'](xl)
+    bz = float(D.sstep(zl - 0.01, zl + 0.03, z))
+    by = float(D.sstep(0.0, 1.0, (yl - abs(y)) / max(yl - yr, 1e-3))) if bz > 0.0 else 0.0
+    b = by * bz
+    return QF_P3_TX_S * ((1.0 - b) * rs + b * rd)
 
 
 def p3_dy(x, y, z):
@@ -1942,18 +2045,27 @@ _AZ_F = _pchip([k[0] for k in QF_AZ_K], [k[1] for k in QF_AZ_K])
 
 
 # P3 (reconstruction phase 3, 2026-10-25): the REAR arch outline.  The arch lip fitted from p018 + p001 (calib/lines fit.json arch_R, sigma 1-4 mm) lies OUTSIDE the R_ARCH circle round the rear hub:
-# +12..14 mm from 85 to 150 deg, +5..7 mm just behind the top (63-78 deg), opening to +27 mm at 40 deg (its lowest fitted point).  QF_P3_ARR_K = (angle, mm outside the circle), monotone cubic like
-# QF_AZ_K, held at the end values beyond the fitted angles; the well wall follows the cut (it is extruded from the cut ring).
-QF_P3_ARR = os.environ.get('QF_P3_ARR', '0') == '1'
-QF_P3_ARR_K = ((-90.0, 27.0), (40.0, 27.0), (48.0, 20.0), (56.0, 12.0), (63.0, 7.0), (71.0, 5.0), (78.0, 7.0), (85.0, 10.0), (91.0, 13.0), (98.0, 14.0), (105.0, 13.0), (120.0, 12.0),
-               (136.0, 13.0), (148.0, 10.0), (270.0, 10.0))
-_ARR_F = _pchip([k[0] for k in QF_P3_ARR_K], [k[1] for k in QF_P3_ARR_K])
+# +27 mm at 40 deg (its lowest fitted point aft of the hub), +5..7 mm just behind the top (63-78 deg), +12..14 mm from 85 to 136 deg, +10 mm at 148 deg.  QF_P3_ARR_K = (angle in deg as
+# qf_az_depth, mm outside the circle): consecutive knots are joined by quintic smoothsteps (slope and 2nd derivative 0 at every knot: the outline is C2 and never overshoots the
+# knots), held at the end values beyond them; within 2 mm of every fitted point.  The well wall follows the cut (it is extruded from the cut ring).
+QF_P3_ARR = os.environ.get('QF_P3_ARR', '1') == '1'
+QF_P3_ARR_K = tuple(tuple(float(u) for u in kv.split(':')) for kv in os.environ.get('QF_P3_ARR_K', '38:27,66:5.5,94:13,128:13,150:10').split(','))
+
+
+def _arr_mm(p):
+    K = QF_P3_ARR_K
+    if p <= K[0][0]:
+        return K[0][1]
+    for (a0, v0), (a1, v1) in zip(K, K[1:]):
+        if p <= a1:
+            return v0 + (v1 - v0) * float(D.sstep(a0, a1, p))
+    return K[-1][1]
 
 
 def p3_arr(phi_deg):
     """how far (m) the rear arch outline lies outside the R_ARCH circle at the angle phi (deg, as qf_az_depth)"""
     p = phi_deg + 360.0 if phi_deg < -90.0 else phi_deg
-    return 1e-3 * _ARR_F(p) if QF_P3_ARR else 0.0
+    return 1e-3 * _arr_mm(p) if QF_P3_ARR else 0.0
 
 
 def qf_az_depth(phi_deg):

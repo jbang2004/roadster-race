@@ -1,7 +1,7 @@
 """
 The current model's feature curves (design2.CURVES, with the QF_* environment of this run) against the lines traced in the photos (calib/lines/traced.json):
 rms / max image distance (px) of the traced points to the projected model curve, per line and photo.  numpy only.
-The curves also take the shell's position fields (shell2.p3_dy: QF_P3_HIP / QF_P3_FRONT), as the built body does.
+The curves also take the shell's position fields (shell2.p3_dy: QF_P3_HIP / QF_P3_FRONT; shell2.p3_dx: QF_P3_TAILX), as the built car does.
 
   [QF_...=...] python3 tools/blender/calib/linecheck.py [LINE ...]
 """
@@ -20,7 +20,9 @@ def morph(P):
     import shell2
     P = np.array(P, float)
     for k in range(len(P)):
-        P[k, 1] += shell2.p3_dy(P[k, 0], P[k, 1], P[k, 2])
+        x, y, z = P[k]
+        P[k, 1] += shell2.p3_dy(x, y, z)
+        P[k, 0] += shell2.p3_dx(x, P[k, 1], z)
     return P
 
 
