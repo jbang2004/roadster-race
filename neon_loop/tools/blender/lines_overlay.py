@@ -59,7 +59,7 @@ def make_cam(n):
     cd = bpy.data.cameras.new(n); cd.lens = lens; cd.sensor_width = 36; cd.sensor_fit = 'HORIZONTAL'; cd.shift_x, cd.shift_y = sx, sy
     cam = bpy.data.objects.new(n, cd); sc.collection.objects.link(cam); cam.location = loc
     d = (Vector(tgt) - Vector(loc)).normalized(); r = math.radians(roll[0]) if roll else 0.0
-    cam.rotation_euler = Euler((0, 0, r)) if abs(d.z) > 0.999 else (d.to_track_quat('-Z', 'Y') @ Quaternion((0, 0, 1), r)).to_euler()
+    cam.rotation_euler = Euler((0, 0, r)) if abs(d.z) > 0.999999 else (d.to_track_quat('-Z', 'Y') @ Quaternion((0, 0, 1), r)).to_euler()
     sc.camera = cam; sc.render.resolution_x, sc.render.resolution_y = w, h
     bpy.context.view_layer.update()
     return cam, w, h
@@ -91,7 +91,7 @@ for n in NAMES:
     cd = bpy.data.cameras.new(n); cd.lens = lens; cd.sensor_width = 36; cd.sensor_fit = 'HORIZONTAL'; cd.shift_x, cd.shift_y = sx, sy
     cam = bpy.data.objects.new(n, cd); sc.collection.objects.link(cam); cam.location = loc
     d = (Vector(tgt) - Vector(loc)).normalized(); r = math.radians(roll[0]) if roll else 0.0
-    cam.rotation_euler = Euler((0, 0, r)) if abs(d.z) > 0.999 else (d.to_track_quat('-Z', 'Y') @ Quaternion((0, 0, 1), r)).to_euler()
+    cam.rotation_euler = Euler((0, 0, r)) if abs(d.z) > 0.999999 else (d.to_track_quat('-Z', 'Y') @ Quaternion((0, 0, 1), r)).to_euler()
     sc.camera = cam; sc.render.resolution_x, sc.render.resolution_y = w, h
     bpy.context.view_layer.update()
     im = bpy.data.images.load(os.path.join(REFS, PHOTO[n]))

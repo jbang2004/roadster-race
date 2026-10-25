@@ -36,14 +36,31 @@ SAMPLES = int(arg('--samples', '48'))
 SCALE = float(arg('--scale', '1.0'))
 os.makedirs(OUT, exist_ok=True)
 
-# name: (camera location, target, lens mm, (w, h) px, (shift_x, shift_y))   Blender frame, car faces -x
+# name: (camera location, target, lens mm, (w, h) px, (shift_x, shift_y)[, roll deg])   Blender frame, car faces -x
 VIEWS = {
+    # CALIB 2026-10-25: joint calibration of all exterior photos (calib/solve.py, CALIB.md): 15 cameras + 15 landmark points + wheel rims in one bundle adjustment,
+    # residual rms 0.8-3.7 px per photo (sigma0 1.14).  The pre-calibration cameras are kept as <name>_v1 (the door-seam lines of regions/side.py still use p018_v1).
+    'r81': ((20.7283, 0.2261, 1.7832), (10.7343, 0.0998, 1.4618), 86.782, (1920, 1317), (0.0, 0.0), -0.213),   # straight rear, eye level, long lens (r81.png 1920x1317); rms 2.54 px (old camera 14.2 px)
+    'thrust': ((3.8672, -1.6088, 0.6682), (-2.6472, 5.9727, 0.9567), 52.267, (2048, 1536), (0.113, -0.05), -0.993),   # low rear quarter close-up from the left (rear-thrusters.jpg 2048x1536); rms 3.13 px (old camera 66.8 px)
+    'high': ((11.9178, 0.3250, 6.9460), (3.5566, 0.0486, 1.4674), 84.155, (2048, 1365), (0.0, 0.1), -1.423),   # high rear, wing deployed (official-02.jpg 2048x1365); rms 1.02 px (old camera 5.7 px)
+    'p016': ((-10.2292, -6.0444, 1.0201), (-1.7359, -0.7752, 0.7047), 77.476, (1800, 1200), (0.0, 0.0), -0.546),   # front-left 3/4, studio (front wheels steered -18 deg); rms 0.99 px (old camera 6.8 px)
+    'p017': ((8.6327, -8.4518, 1.1170), (1.6694, -1.2898, 0.6487), 72.389, (1800, 1200), (0.0, 0.0), 0.042),   # rear-left 3/4, studio (front wheels steered +19 deg); rms 1.37 px (old camera 13.4 px)
+    'p018': ((0.1238, -10.4736, 0.2423), (0.0097, -0.4811, 0.6110), 53.224, (1800, 1200), (0.0, 0.0), -0.012),   # left profile, studio; rms 1.78 px (old camera 3.0 px)
+    'p013': ((-0.1173, -0.0395, 10.8722), (-0.0031, -0.0209, 0.8728), 61.824, (1800, 1200), (0.0, 0.0), 80.702),   # straight down, nose left (desert); rms 2.58 px (old camera 13.9 px)
+    'p014': ((-4.8937, 0.0000, 1.6207), (4.8721, 0.0071, -0.5310), 23.311, (1800, 1200), (0.0, 0.0), 0.531),   # night front, high: the light bar (weak: 2 landmarks + priors); rms 0.01 px (old camera 7.0 px)
+    'p003': ((0.7460, -2.7566, 0.7833), (-6.7969, 3.7105, -0.3488), 53.190, (1800, 1200), (0.0, 0.0), 1.019),   # front-left wheel close-up from behind the wheel (front wheel steered +23 deg); rms 3.43 px
+    'p001': ((0.1130, -12.9349, 0.3006), (0.1005, -2.9489, 0.8300), 66.626, (1800, 1200), (0.0, 0.0), -0.011),   # left profile, doors open, wing raised (same shoot as p018); rms 0.97 px
+    'p002': ((11.2558, 0.3091, 6.5481), (2.6657, 0.0296, 1.4362), 96.409, (1800, 1200), (0.0, 0.0), -1.317),   # high rear, wing deployed (official-02 framing); rms 0.76 px
+    'p004': ((3.9225, -1.6765, 0.6609), (-2.0067, 6.3761, 0.6266), 54.332, (1800, 1200), (0.0, 0.0), -1.194),   # rear-left close-up (thrust framing); rms 2.37 px
+    'p011': ((9.3270, -7.6619, 0.5097), (1.7792, -1.1030, 0.6147), 85.902, (1799, 1200), (0.0, 0.0), -1.010),   # rear-left 3/4, desert; rms 1.60 px
+    'p012': ((11.7354, -0.1378, 0.2626), (1.7475, 0.0077, 0.7317), 103.624, (1800, 1200), (0.0, 0.0), -0.186),   # straight rear, low, desert, wing deployed; rms 3.23 px
+    'p019': ((9.5840, 0.0138, -0.4409), (-0.3179, 0.0287, 0.9563), 70.899, (1800, 1200), (0.0, 0.0), -0.025),   # straight rear, CG, thrusters firing, wing deployed (camera height not determined); rms 3.72 px
     # straight rear, eye level, long lens (r81.png 1920x1317)
-    'r81':    ((20.9, 0.0, 1.25), (2.0, 0.0, 1.25), 85, (1920, 1317), (0.0, 0.0)),
+    'r81_v1':    ((20.9, 0.0, 1.25), (2.0, 0.0, 1.25), 85, (1920, 1317), (0.0, 0.0)),
     # low rear quarter close-up from the left (2026-Tesla-Roadster-rear-thrusters.jpg 2048x1536)
-    'thrust': ((4.64, -1.84, 0.71), (2.33, 0.0, 0.75), 59, (2048, 1536), (0.113, -0.05)),
+    'thrust_v1': ((4.64, -1.84, 0.71), (2.33, 0.0, 0.75), 59, (2048, 1536), (0.113, -0.05)),
     # high rear (official-02.jpg 2048x1365)
-    'high':   ((11.97, 0.0, 7.01), (2.33, 0.0, 0.75), 85, (2048, 1365), (0.0, 0.10)),
+    'high_v1':   ((11.97, 0.0, 7.01), (2.33, 0.0, 0.75), 85, (2048, 1365), (0.0, 0.10)),
     # extra inspection views
     'side':   ((2.3, -9.0, 0.75), (2.0, 0.0, 0.70), 85, (1600, 900), (0.0, 0.0)),
     'top':    ((2.0, 0.0, 12.0), (2.0, 0.0, 0.0), 85, (1600, 1000), (0.0, 0.0)),
@@ -55,16 +72,17 @@ VIEWS = {
     'corner2': ((3.2, -2.6, 0.55), (2.1, -0.95, 0.60), 40, (1600, 1000), (0.0, 0.0)),
     # whole-car press set (refs/press2, electrive 1800x1200), cameras solved from wheel / lamp / plate points;
     # optional 6th element = camera roll in degrees.  All four show the wing stowed.
-    'p016': ((-8.130, -4.773, 1.059), (-1.383, -0.488, 0.706), 65.26, (1800, 1200), (0.0, 0.0), -0.88),   # front-left 3/4, studio (FRONT refit 2026-10-19; was (-6.772, -4.276, 0.597), (-0.24, 0.342, 0.721), 51.58, roll -4.62)
-    'p017': ((6.665, -6.044, 0.973), (0.956, -0.452, 0.609), 55.59, (1800, 1200), (0.0, 0.0)),          # rear-left 3/4, studio
-    'p018': ((0.0, -10.0, 0.61), (0.0, 0.0, 0.61), 51.2, (1800, 1200), (0.0, 0.0)),                     # left profile, studio
+    'p016_v1': ((-8.130, -4.773, 1.059), (-1.383, -0.488, 0.706), 65.26, (1800, 1200), (0.0, 0.0), -0.88),   # front-left 3/4, studio (FRONT refit 2026-10-19; was (-6.772, -4.276, 0.597), (-0.24, 0.342, 0.721), 51.58, roll -4.62)
+    'p017_v1': ((6.665, -6.044, 0.973), (0.956, -0.452, 0.609), 55.59, (1800, 1200), (0.0, 0.0)),          # rear-left 3/4, studio
+    'p018_v1': ((0.0, -10.0, 0.61), (0.0, 0.0, 0.61), 51.2, (1800, 1200), (0.0, 0.0)),                     # left profile, studio
     # R1e3: re-matched by cam_fit.py on the features the nose round does not touch (tail edge, lit side, side glass): height 10.5 m, lens 61.5 mm (was 30 m / 188 mm, x0 .018: rms 5.39 px -> 4.44 px).
     #       the height is only weakly determined (rms 4.44-4.46 px for 9-12 m, 4.94 at 30 m); nose-edge residual of the R1e2 model: +18 px (old camera) -> -4 px
-    'p013': ((0.0262, -0.0042, 10.5), (0.0262, -0.0042, 0.0), 61.47, (1800, 1200), (0.0, 0.0)),            # straight down, nose left (desert)
+    'p013_v1': ((0.0262, -0.0042, 10.5), (0.0262, -0.0042, 0.0), 61.47, (1800, 1200), (0.0, 0.0)),            # straight down, nose left (desert)
     # R2 front-end close-ups (refs/press2 014 / 005 / 003, 1800x1200); cameras solved from the cowl corners, the wheel and the door-front junction (matching by eye)
-    'p014': ((-4.768, 0.0, 1.563), (2.349, 0.0, 0.165), 23.83, (1800, 1200), (0.0, 0.0), 0.0),            # night front, high: the light bar
+    'p014_v1': ((-4.768, 0.0, 1.563), (2.349, 0.0, 0.165), 23.83, (1800, 1200), (0.0, 0.0), 0.0),            # night front, high: the light bar
+    # p005 is not calibrated (it shares only the hood-corner flap with p013, which cannot fix the flap's height): the camera matched by eye
     'p005': ((-1.822, 0.29, 2.709), (-2.2, -1.226, -0.8), 50.0, (1800, 1200), (0.0, 0.0), 127.37),        # front-left corner from above: flap, hood seam
-    'p003': ((-4.648, -4.2, 2.297), (-1.174, -0.813, 0.399), 85.0, (1800, 1200), (0.0, 0.0), 0.0),        # front-left wheel close-up: side-marker assembly
+    'p003_v1': ((-4.648, -4.2, 2.297), (-1.174, -0.813, 0.399), 85.0, (1800, 1200), (0.0, 0.0), 0.0),        # front-left wheel close-up: side-marker assembly
 }
 VIEWS.update(eval(arg('--extra-views', '{}')))
 names = arg('--views', 'r81,thrust,high').split(',')
@@ -315,7 +333,7 @@ for n in names:
     from mathutils import Quaternion, Euler
     _d = (Vector(tgt) - Vector(loc)).normalized()
     _r = math.radians(roll[0]) if roll else 0.0
-    cam.rotation_euler = Euler((0, 0, _r)) if abs(_d.z) > 0.999 else (_d.to_track_quat('-Z', 'Y') @ Quaternion((0, 0, 1), _r)).to_euler()
+    cam.rotation_euler = Euler((0, 0, _r)) if abs(_d.z) > 0.999999 else (_d.to_track_quat('-Z', 'Y') @ Quaternion((0, 0, 1), _r)).to_euler()
     scene.camera = cam
     scene.render.resolution_x, scene.render.resolution_y = int(w * SCALE), int(h * SCALE)
     scene.render.filepath = os.path.join(OUT, f'{n}.png')

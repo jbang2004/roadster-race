@@ -24,7 +24,7 @@ class Cam:
         d = np.array(tgt, float) - self.loc
         d /= np.linalg.norm(d)
         up = np.array([0.0, 0.0, 1.0])
-        if abs(d[2]) > 0.999:
+        if abs(d[2]) > 0.999999:          # (only an exactly vertical view: render_ref_views.py, overlay_views.py, mask_views.py and lines_overlay.py use the same test)
             right = np.array([1.0, 0.0, 0.0]); u = np.cross(right, d) if False else np.array([0.0, 1.0, 0.0])
             right = np.cross(d, u)
         else:

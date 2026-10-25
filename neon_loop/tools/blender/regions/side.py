@@ -201,7 +201,7 @@ def door_notches(ctx, level):
     is the seam itself).  Here: the cut's rear edge, NOTCH_DX behind the seam, from L inboard to NOTCH_REACH of the way to the belt, closed back to the seam with a rounded corner."""
     objs = []
     cast = ctx.surf_hi.cast
-    sh = [c for c in photo_line(ctx, 'p018', P018_REAR, BELT_Y, 523.0, 1.5) if c is not None]       # the seam's shoulder part, belt -> L
+    sh = [c for c in photo_line(ctx, 'p018_v1', P018_REAR, BELT_Y, 523.0, 1.5) if c is not None]       # the seam's shoulder part, belt -> L
     if len(sh) < 6:
         return objs
     sh.reverse()                                                                # L -> belt
@@ -238,12 +238,12 @@ def door_seams(ctx, level):
     def width(y):                                 # 3 mm on paint, 6 mm in the glass (above the belt), blended over 14 px
         t = min(max((BELT_Y + 7.0 - y) / 14.0, 0.0), 1.0)
         return k * (SEAM_W + (GLASS_W - SEAM_W) * t)
-    lines = (('DoorSeamFront', photo_line(ctx, 'p018', P018_FRONT, 560, 686, step)),
-             ('DoorCutDiag', photo_line(ctx, 'p018', P018_DIAG, 524, 561, step * 0.7)),
-             ('DoorSeamRear', photo_line(ctx, 'p018', P018_REAR, 409, 682, step if level else 1.5)),      # (hi: dense, or its quads sink into the rounded roof-rail band it crosses)
-             ('BPillarFront', photo_line(ctx, 'p018', P018_BFRONT, 424, 499, step * 0.7)))
-    glass = (('DoorGlassFront', photo_line(ctx, 'p018', P018_QF1, 437, 525, step * 0.7)),        # the door glass' front frame: wholly in the glass (its belt is lower than BELT_Y)
-             ('DoorGlassFront2', photo_line(ctx, 'p018', P018_QF2, 441, 525, step * 0.7)))
+    lines = (('DoorSeamFront', photo_line(ctx, 'p018_v1', P018_FRONT, 560, 686, step)),
+             ('DoorCutDiag', photo_line(ctx, 'p018_v1', P018_DIAG, 524, 561, step * 0.7)),
+             ('DoorSeamRear', photo_line(ctx, 'p018_v1', P018_REAR, 409, 682, step if level else 1.5)),      # (hi: dense, or its quads sink into the rounded roof-rail band it crosses)
+             ('BPillarFront', photo_line(ctx, 'p018_v1', P018_BFRONT, 424, 499, step * 0.7)))
+    glass = (('DoorGlassFront', photo_line(ctx, 'p018_v1', P018_QF1, 437, 525, step * 0.7)),        # the door glass' front frame: wholly in the glass (its belt is lower than BELT_Y)
+             ('DoorGlassFront2', photo_line(ctx, 'p018_v1', P018_QF2, 441, 525, step * 0.7)))
     for sd in (-1, 1):
         for nm, cl in lines + glass:
             M = Mesh()

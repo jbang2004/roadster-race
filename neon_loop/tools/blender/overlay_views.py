@@ -21,7 +21,9 @@ WING = arg('--wing', 'stow')
 REFS = os.path.abspath(os.path.join(ROOT, '..', 'refs'))
 PHOTO = {'p016': 'press2/telsa-roadster-2026-016.jpg', 'p017': 'press2/tesla-roadster-2026-017.jpg', 'p018': 'press2/tesla-roadster-2026-018.jpg',
          'p013': 'press2/tesla-roadster-2026-013-1.jpg', 'p014': 'press2/tesla-roadster-2026-014.jpg', 'p005': 'press2/tesla-roadster-2026-005.jpg', 'p003': 'press2/tesla-roadster-2026-003.jpg', 'r81': 'press/r81.png', 'thrust': 'press/2026-Tesla-Roadster-rear-thrusters.jpg',
-         'high': 'press/2026-Tesla-Roadster-official-02.jpg'}
+         'high': 'press/2026-Tesla-Roadster-official-02.jpg', 'p001': 'press2/tesla-roadster-2026-001.jpg', 'p002': 'press2/tesla-roadster-2026-002.jpg',
+         'p004': 'press2/tesla-roadster-2026-004.jpg', 'p011': 'press2/tesla-roadster-2026-011.jpg', 'p012': 'press2/tesla-roadster-2026-012.jpg', 'p019': 'press2/tesla-roadster-2026-019.jpg'}
+PHOTO.update({k + '_v1': v for k, v in list(PHOTO.items())})      # the pre-calibration cameras (render_ref_views.py VIEWS <name>_v1) show the same photos
 
 src = open(os.path.join(HERE, 'render_ref_views.py')).read()
 VIEWS = next(ast.literal_eval(n.value) for n in ast.parse(src).body
@@ -42,7 +44,7 @@ for n in NAMES:
     cd = bpy.data.cameras.new(n); cd.lens = lens; cd.sensor_width = 36; cd.sensor_fit = 'HORIZONTAL'; cd.shift_x, cd.shift_y = sx, sy
     cam = bpy.data.objects.new(n, cd); sc.collection.objects.link(cam); cam.location = loc
     d = (Vector(tgt) - Vector(loc)).normalized(); r = math.radians(roll[0]) if roll else 0.0
-    cam.rotation_euler = Euler((0, 0, r)) if abs(d.z) > 0.999 else (d.to_track_quat('-Z', 'Y') @ Quaternion((0, 0, 1), r)).to_euler()
+    cam.rotation_euler = Euler((0, 0, r)) if abs(d.z) > 0.999999 else (d.to_track_quat('-Z', 'Y') @ Quaternion((0, 0, 1), r)).to_euler()
     sc.camera = cam; sc.render.resolution_x, sc.render.resolution_y = w, h
     sc.render.filepath = os.path.join(OUT, f'{n}_wb.png'); bpy.ops.render.render(write_still=True)
     if n in PHOTO:

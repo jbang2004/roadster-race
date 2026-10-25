@@ -17,7 +17,7 @@
 | `overlay.py <kind>` | 叠图总入口（views lines proj outline nose rear reading dump） |
 | 引擎（上面两个分发到它们） | `render_ref_views.py`（Cycles/视角表 `VIEWS`）`mask_views.py` `overlay_views.py` `lines_overlay.py` `measure_*.py` `plan_report.py` `crease_report.py` `fold_report.py` `fold_fit.py` `dihedral_u.py` `cam.py` `cam_fit.py` `proj_overlay.py` `nose_overlay.py` `outline_overlay.py` `rear_overlay.py` `reading_overlay.py` `dump_lines.py` `dump_panels.py` `compare_panels.py` `glb_compare.py` `imgio.py` `shell2_view.py` |
 | `_attic/` | 过期或一次性脚本（旧 `shots_r1*.sh`、`full_sheets.sh`、R1b 的 `front.py` / `shell_r1b.py`、`HANDOFF.md` …），不要用，需要时翻 |
-| 文档 | `AGENT_GUIDE.md`（本页）`REGIONS.md` `SPEC.md` `REFS.md` `HISTORY.md` |
+| 文档 | `AGENT_GUIDE.md`（本页）`REGIONS.md` `SPEC.md` `REFS.md` `CALIB.md` `HISTORY.md` |
 
 ## 2. 坐标和固定值
 
@@ -29,7 +29,7 @@
 
 ## 3. 相机和参考照片
 
-`REFS.md` 是照片索引：哪张照片可信、用来判断什么、冲突时谁说了算。相机已匹配的视角在 `render_ref_views.py` 的 `VIEWS`（p003 p005 p013 p014 p016 p017 p018 r81 thrust high）；`cam.py` 是同一组相机的 numpy 版（`Cam(view).project(P)`）。
+`REFS.md` 是照片索引：哪张照片可信、用来判断什么、冲突时谁说了算。相机在 `render_ref_views.py` 的 `VIEWS`：p001 p002 p003 p004 p011 p012 p013 p014 p016 p017 p018 p019 r81 thrust high 来自统一校准（`CALIB.md`、`calib/solve.py`，2026-10-25）；p005 和旧机位 `<名>_v1` 是手配的。`cam.py` 是同一组相机的 numpy 版（`Cam(view).project(P)`）。`CALIB.md` 还有 15 个校准地标的 3D 位置（σ 5–10 mm）。
 规则：车头车尾的前后位置以能看到车轮的视角为准；p013 只给俯视形状；两张高可信度照片互相矛盾时不要自己选，写 3 行报告。精度目标：轮廓 / 线条残差 ≤ 图宽的 1 %（1800 px 宽 → 18 px），`check.py` 按这个出 PASS/FAIL。新匹配一个相机要在 ≥ 3 处不改动的部位上验证。
 
 ## 4. 锁定规则（违反 = 该轮不合格）
