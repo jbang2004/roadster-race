@@ -222,8 +222,10 @@ LIP_Z = (LIP_BOT, 0.880 if REAR_LOW else 0.930 + DZ_TAIL)   # the convex lip rol
 PLATE_T, PLATE_B = (2.441 - TAILX_S, 0.809), (2.486 - TAILX_S, 0.649)     # (x, z) of the frame's top and bottom edges (build frame)
 PLATE_TAN = (PLATE_B[0] - PLATE_T[0]) / (PLATE_T[1] - PLATE_B[1])         # dx / dz of the plate's face (0.281: bottom aft)
 PLATE = dict(uv=(1024, 512, 1024, 216), y=(-0.169, 0.169), z=(PLATE_B[1], PLATE_T[1])) if REAR_LOW else dict(uv=(1024, 512, 1024, 216), y=(-0.17, 0.17), z=(0.668 + DZ_TAIL, 0.838 + DZ_TAIL))
-LOBE_Y = (0.47, 0.67)            # the plate's panel: flat face to |y| 0.47, blended into the shell's tail face by 0.67 (r81: the lit face round the plate spans |y| ~0.47; p011: lit to ~0.5, then it turns
-                                 # forward in a scoop beside the corner blade)
+LOBE_A = 0.142                   # the lower tail face (build_lobe): x = the plate's plane - LOBE_GAP - LOBE_A y^2 (plan-convex; p018 keeps its near side at x <= ~2.40 at |y| 0.8), down to a level
+LOBE_ZL = 0.672                  # ledge at LOBE_ZL across the whole width with a flat underside to the shell (r81 row 789 - 791 from |y| ~0.95 to 0.95, z 0.674; p012 row 615, 0.676; overlaid on thrust /
+                                 # p011 / r81 this line runs exactly along the face's lower edge, 3 cm above the beam's top).  (A first version was a narrow panel round the plate blended into the
+                                 # shell from |y| 0.47 to 0.67: a hump in p011 / p017.)
 LOBE_GAP = 0.010                 # the plate (frame + backing) stands this far proud of its panel
 CAM_Z = 0.842 if REAR_LOW else 0.866 + DZ_TAIL      # the camera bar under the lip (thrust: strip z 0.847 - 0.85 right under the lip, reverse lamps |y| ~0.12, camera in the middle hanging to 0.824)
 DIFF_W = 0.680 if REAR_LOW else 0.700     # half width of the diffuser module (r81 / 012: |y| 0.70 ... 0.72) (REAR_LOW: r81 790 / 1126 px on the beam's plane = 0.676 / 0.65 .. 0.68, the endplates under the beam's ends)
@@ -851,32 +853,32 @@ def plate_x(z):
 
 
 def build_lobe(ctx, level, cb=None, col=W_DARK):
-    """the plate's raised panel (black): from under the lip roll down into the beam's top, its face parallel to the plate and LOBE_GAP behind it; from |y| LOBE_Y[0] it blends (C2) into
-    the shell's own tail face, which it meets 4 mm under the surface at LOBE_Y[1].  r81 / p012: the plate sits on a face that comes down to the beam; thrust / p004 / p011: that face stands
-    aft of the undercut tail and turns forward in a smooth scoop beside the plate.  (The shell's tail face there is 7 - 15 cm further forward than the plate.)
-    Into `cb` (the Thrusters node, levels 0 / 1: satin black metal, the blend's curvature mirrored the studio as a white crescent in gloss black) or, without it, its own object (lod2, Trim)."""
-    nu, nv = ((60, 16), (16, 6), (8, 3))[level]
-    Y1 = LOBE_Y[1]
-    ztop = LIP_Z[0] + 0.008                  # (under the lip roll: its front edge is hidden there)
+    """the lower tail face that carries the plate (black): from under the lip roll down to a level ledge at LOBE_ZL, then a flat underside forward into the shell.  Its face leans with the
+    plate (LOBE_GAP behind it) and is convex in plan (- LOBE_A y^2); where it falls behind the shell's own (undercut) tail face it runs 4 mm under that surface, so it emerges from the shell
+    along a clean curve towards the corners.  r81 / p012 / high: one face from the lip to a level edge across the whole width, the plate overlapping its edge, the beam 3 cm lower;
+    thrust / p004 / p011: that face stands well aft of the undercut tail (7 - 15 cm at the plate) and rounds forward towards the corner blades.
+    Into `cb` (the Thrusters node, levels 0 / 1: satin black metal like plane_cover; gloss black mirrored the studio as white glints on its curvature) or its own object (lod2, Trim)."""
+    nu, nv = ((72, 12), (18, 4), (8, 2))[level]
+    YM = 0.90                                # (towards the corners it is already under the shell: the tail face there is at 2.30 - 2.38)
+    ztop = LIP_Z[0] + 0.008                  # (under the lip roll: its top edge is hidden there)
     own = cb is None
     cb = ctx.CB() if own else cb
-    G = []
+    G, U = [], []
     for i in range(nu + 1):
-        y = Y1 * math.sin(math.pi * (i / nu - 0.5))          # denser towards the blends
-        a = abs(y)
-        zb = min(beam_top(min(a, BEAM_W)), BEAM_Z[1]) - 0.012                # (into the beam's top / chamfer)
-        S = smoother(LOBE_Y[0], Y1, a)
+        y = YM * (-1.0 + 2.0 * i / nu)
         row = []
         for j in range(nv + 1):
-            z = ztop + (zb - ztop) * j / nv
-            xl = plate_x(z) - LOBE_GAP
+            z = ztop + (LOBE_ZL - ztop) * j / nv
+            xl = plate_x(z) - LOBE_GAP - LOBE_A * y * y
             xs = tail_x(ctx.surf, y, z)
-            xs = xl if xs is None else xs
-            row.append(cb.v((xs - 0.004 * S + (xl - xs) * (1.0 - S), y, z)))
+            row.append(cb.v((xl if xs is None else max(xl, xs - 0.004), y, z)))
         G.append(row)
+        xs = tail_x(ctx.surf, y, LOBE_ZL)                # the ledge's underside runs forward into the shell
+        U.append(cb.v((min(row[-1].co.x, (xs if xs is not None else row[-1].co.x - 0.10) - 0.004), y, LOBE_ZL)))
     for i in range(nu):
         for j in range(nv):
             cb.face([G[i][j], G[i][j + 1], G[i + 1][j + 1], G[i + 1][j]], col)
+        cb.face([G[i][nv], U[i], U[i + 1], G[i + 1][nv]], col)
     return ctx.cb_obj(cb, 'R_Lobe', 'GlossBlack' if level < 2 else 'Trim', sharp=50) if own else None
 
 
@@ -1348,8 +1350,8 @@ def build(ctx, level):
     lean = plate_lean(ctx)
     # plate backing and the reversing camera pod (parallel to the leaning tail face)
     if REAR_LOW:        # the backing fills the gap between the panel and the plate (LOBE_GAP), a few mm larger than the plate all round (its dark edge)
-        pc = fascia(ctx, sum(PLATE['z']) / 2, off=0.5 * LOBE_GAP)
-        B.rbox('Trim' if level < 2 else 'Paint', tuple(pc), (LOBE_GAP, 0.350, 0.178), rot=(0, lean, 0), bev=0.002 if level < 2 else 0, seg=1)
+        pc = fascia(ctx, sum(PLATE['z']) / 2, off=0.5 * LOBE_GAP - 0.003)          # (reaching 6 mm into the panel: its face curves back 4 mm at the plate's ends)
+        B.rbox('Trim' if level < 2 else 'Paint', tuple(pc), (LOBE_GAP + 0.006, 0.350, 0.178), rot=(0, lean, 0), bev=0.002 if level < 2 else 0, seg=1)
     else:
         pc = fascia(ctx, sum(PLATE['z']) / 2, off=0.006)
         B.rbox('Trim' if level < 2 else 'Paint', tuple(pc), (0.012, 0.356, 0.182), rot=(0, K.FAS_LEAN, 0), bev=0.003 if level < 2 else 0, seg=1)
