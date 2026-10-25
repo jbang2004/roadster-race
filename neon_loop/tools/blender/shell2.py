@@ -509,7 +509,15 @@ def on_tail(a, b, n):
 
 def e_tail_a(R):
     a, b = R._edge('L')[-1], R._edge('rail')[-1]
-    return on_tail(a, b, max(1, int(round(np.linalg.norm(b - a) / HC['tail']))))
+    n = max(1, int(round(np.linalg.norm(b - a) / HC['tail'])))
+    if D.QF_TAIL:
+        # (tail rebuild: the top edge from the corner to the ear tip is the end section itself, level from E outwards and rolled down to the corner, not the chord)
+        sol = D.q16_section(0.5 * (a[0] + b[0]), a[1:], b[1:], a[0], b[0])
+        r = D.fold_points(sol, np.linspace(0.0, sol['S'], n + 1), a[0], b[0])
+        r[0], r[-1] = a, b
+        r[1:-1, 0] = D.tail_x(r[1:-1, 1], r[1:-1, 2])
+        return r
+    return on_tail(a, b, n)
 
 
 def e_tail_b(R):

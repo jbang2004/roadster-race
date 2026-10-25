@@ -703,6 +703,10 @@ QF_Q17_ROLL = tuple(float(v) for v in _roll_.split(',')) if ',' in _roll_ else N
 #   to the level edge in the last few cm, as the deck is.  p018: the bright band of the platform (seen from below at 2 deg) runs on past the seam to the tail; the twist from 2.0
 #   (QF_Q17_XT, the least-squares 'straightest' law) laid it flat from the seam on: the band stopped there and the near shoulder fell 1.4 cm under the photo's outline at x 2.3.
 #   With the roll QF_Q17_XT is not used (both faces follow the reading to QF_Q16_XC).  0: off
+_tl_ = os.environ.get('QF_TAIL', '0')
+QF_TAIL = tuple(float(v) for v in _tl_.split(',')) if ',' in _tl_ else ()      # (knee |y|, roll radius, x where the blend starts) tail rebuild (2026-10-25, user: "车尾还是有个梯形台阶，斜前看也还是车尾有个尖锐翘起，如何重构？请从第一性原理分析"
+#   -> "按这个方案做"): (|y| of the end section's knee, the roll radius there).  The rows aft of the seam are lofted by their knee from the soft arc to a level top running from R-1 out to
+#   the knee and rolling down to the corner (q16_section_ruled); the tail's top edge is that end section (shell2.e_tail_a), not the chord L -> E.  () = off
 QF_EAR = float(os.environ.get('QF_EAR', '7.5'))      # q17 ear step (deg; 0 = off, the window and deck flush with R-1).  2026-10-25 (user: "车后的两个耳朵是不是有一条折线往里折……不是平滑过渡，
 #   而是有一个阶梯的" -> "按方案执行"): the ear's inner face (R-3 band beside the rear window and the R-5 triangle on the wing panel) is ONE face folded down inward from R-1.  p013 (sun from one
 #   side): it is darker than the deck beside it on the shaded ear (166 / 191) and brighter on the lit one (197 / 178), with the same tone ahead of and behind the seam; r81 at the seam:
@@ -1425,24 +1429,56 @@ def q16_section_ruled(x, a, c):
         t2, t1 = math.tan(float(th2)), math.tan(float(th1))
         w = float(sstep(X_TIP, X_TIP + QF_Q16_R[2] if len(QF_Q16_R) > 2 else float(E_TARGET[0]), x))
         r = QF_Q16_R[0] + (QF_Q16_R[1] - QF_Q16_R[0]) * w
-        k = r * max(t1 - t2, 0.0) ** 2 / (1.0 + (0.5 * (t1 + t2)) ** 2) ** 1.5
+        k = r * abs(t1 - t2) ** 2 / (1.0 + (0.5 * (t1 + t2)) ** 2) ** 1.5
+        if QF_TAIL and x > _Q16['rc'][0] and not _Q16.get('_tail_in'):
+            # QF_TAIL: aft of the seam the row is the BLEND, point for point along L -> R-1, of the row the platform law gives (concave: the soft arc beside R-1) and the end section on
+            # this row's own L and R-1 (convex: level from R-1 out to |y| QF_TAIL[0], rolled down to L with radius QF_TAIL[1]), weight smootherstep from QF_TAIL[2] to the tail edge.
+            # (A knee moved across instead drew a diagonal crease over the rear quarter: highlights in p013's sun.)  Each row stays smooth; the soft arc fades and the roll grows in place
+            xc_, xe_ = max(_Q16['rc'][0], QF_TAIL[2] if len(QF_TAIL) > 2 else 0.0), _Q16['rc'][3]
+            tt = min(1.0, max(0.0, (x - xc_) / (xe_ - xc_)))
+            W = tt ** 3 * (10.0 - 15.0 * tt + 6.0 * tt * tt)
+            if W > 0.0:
+                _Q16['_tail_in'] = True
+                try:
+                    sb = q16_section_ruled(x, a, c)
+                finally:
+                    _Q16.pop('_tail_in', None)
+                yt = min(max(QF_TAIL[0], c[0] + 0.02), a[0] - 0.02)
+                te2, te1 = (c[1] - a[1]) / (a[0] - yt), 0.0
+                ke = QF_TAIL[1] * te2 ** 2 / (1.0 + (0.5 * te2) ** 2) ** 1.5
+                ze = _smin(a[1] + (a[0] - y) * te2, c[1] + 0.0 * y, ke)
+                if float(ze[-1]) < c[1] - 1e-9:
+                    ze = ze + (c[1] - float(ze[-1])) * (y - a[0]) / (c[0] - a[0])
+                z = (1.0 - W) * (sb['z'] + a[1]) + W * ze
+                s = np.r_[0.0, np.cumsum(np.hypot(np.diff(y), np.diff(z)))]
+                ie = int(np.argmin(np.abs(y - yt)))
+                the = math.atan(te2)
+                th = (1.0 - W) * sb['th'] + W * the
+                sc = (1.0 - W) * sb['sc'] + W * float(s[ie])
+                ell = (1.0 - W) * sb['ell'] + W * QF_TAIL[1] * the
+                return dict(x=float(x), a=a, c=c, phi0=math.atan2(z[1] - z[0], y[0] - y[1]), S=float(s[-1]), sc=sc, ell=ell, th=th, s=s, y=y - a[0], z=z - a[1], dl=0.0, k=k)
     z2 = a[1] + (a[0] - y) * t2
     z1 = c[1] + (c[0] - y) * t1
-    smax = lambda p, q: -_smin(-np.atleast_1d(p), -np.atleast_1d(q), k)
+    cvx = t1 < t2          # (QF_TAIL: the knee above the chord, a convex roll: smooth MIN of the two lines; the soft arc ahead is concave: smooth max)
+    sm = (lambda p, q: _smin(np.atleast_1d(p), np.atleast_1d(q), k)) if cvx else (lambda p, q: -_smin(-np.atleast_1d(p), -np.atleast_1d(q), k))
+    sg = -1.0 if cvx else 1.0
     dl = 0.0
-    if float(smax(z2[-1], z1[-1])[0]) > c[1] + 1e-12:
+    if sg * (float(sm(z2[-1], z1[-1])[0]) - c[1]) > 1e-12:
         lo, hi = 0.0, k + abs(z1[-1] - z2[-1])
         for _ in range(60):
             dl = 0.5 * (lo + hi)
-            lo, hi = (dl, hi) if float(smax(z2[-1], z1[-1] - dl)[0]) > c[1] else (lo, dl)
+            lo, hi = (dl, hi) if sg * (float(sm(z2[-1], z1[-1] - sg * dl)[0]) - c[1]) > 0 else (lo, dl)
         dl = 0.5 * (lo + hi)
-    z = smax(z2, z1 - dl)
+    up = z1 - sg * dl
+    z = sm(z2, up)
     s = np.r_[0.0, np.cumsum(np.hypot(np.diff(y), np.diff(z)))]
-    up = z1 - dl
-    i = int(np.argmax(up >= z2)) if np.any(up >= z2) else len(s) - 1
+    if cvx:
+        i = int(np.argmin(np.abs(z2 - up)))
+    else:
+        i = int(np.argmax(up >= z2)) if np.any(up >= z2) else len(s) - 1
     blend = np.abs(z2 - up) < k
     sc, ell = float(s[i]), (float(s[blend].max() - s[blend].min()) if blend.any() else 0.0)
-    return dict(x=float(x), a=a, c=c, phi0=math.atan(t2), S=float(s[-1]), sc=sc, ell=ell, th=math.atan(t1) - math.atan(t2), s=s, y=y - a[0], z=z - a[1], dl=dl, k=k)
+    return dict(x=float(x), a=a, c=c, phi0=math.atan(t2), S=float(s[-1]), sc=sc, ell=ell, th=abs(math.atan(t1) - math.atan(t2)), s=s, y=y - a[0], z=z - a[1], dl=dl, k=k)
 
 
 def q16_section(x, a, c, ax=None, cx=None):
