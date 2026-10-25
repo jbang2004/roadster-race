@@ -699,6 +699,11 @@ QF_Q17_ROLL = tuple(float(v) for v in _roll_.split(',')) if ',' in _roll_ else N
 #   to the level edge in the last few cm, as the deck is.  p018: the bright band of the platform (seen from below at 2 deg) runs on past the seam to the tail; the twist from 2.0
 #   (QF_Q17_XT, the least-squares 'straightest' law) laid it flat from the seam on: the band stopped there and the near shoulder fell 1.4 cm under the photo's outline at x 2.3.
 #   With the roll QF_Q17_XT is not used (both faces follow the reading to QF_Q16_XC).  0: off
+QF_EAR = float(os.environ.get('QF_EAR', '7.5'))      # q17 ear step (deg; 0 = off, the window and deck flush with R-1).  2026-10-25 (user: "车后的两个耳朵是不是有一条折线往里折……不是平滑过渡，
+#   而是有一个阶梯的" -> "按方案执行"): the ear's inner face (R-3 band beside the rear window and the R-5 triangle on the wing panel) is ONE face folded down inward from R-1.  p013 (sun from one
+#   side): it is darker than the deck beside it on the shaded ear (166 / 191) and brighter on the lit one (197 / 178), with the same tone ahead of and behind the seam; r81 at the seam:
+#   R-1 4 px (1.7 cm) over the window's corner P3, P3 level with the centre.  The window and the deck sit that much under R-1 (the face ~7.5 deg, 1.75 cm at the seam, 0 at the glass
+#   corner and at E); the model had them flush (q13, "三角带与后窗玻璃共面").
 QF_Q16_R1 = tuple(float(v) for v in os.environ.get('QF_Q16_R1', '0.80,0.013,1.50').split(','))      # R-1 raised (p018 top outline, user 2026-10-23 "R-1 和后窗玻璃边一起抬高"): by [1] at the tip, a quintic from [0] (G2), straight to E aft; the rear glass edge and centre line rise with it; 0 = off.
 #   [2] (2026-10-24, user: "顶梁尾部上边还是有点拱起，应该调成跟实车一样完全平滑"): the quintic runs on past the tip to x [2], G2 with R-1's raised straight line there (the line itself, E and
 #   the raise at E unchanged).  Ending at the tip with the line's slope, it flattened the roof rail to -0.074 at x 1.0 before steepening to -0.172 (a hump; p018's top outline is 6 - 9 mm
@@ -3371,10 +3376,33 @@ def build_all():
         def _Dr_(x, _q=_qr_):
             x = np.asarray(x, float)
             return np.where(x <= _q[0], 0.0, np.where(x < _q[4], quint1(np.clip(x, _q[0], _q[4]), *_q), _Dg_(x)))
-        _Q16['q17'] = (_dg_, _Dg_, _Dr_)
+        _Ld_ = lambda x: np.where(np.asarray(x, float) >= X_SEAM, _Dg_(x), 0.0)
+        if QF_EAR > 0.0:
+            # the ear step (QF_EAR): the window and the deck go down by L(x) under R-1 (the window: tan(QF_EAR) x the band's width over the 5 mm beam face, laterally unchanged; past the seam
+            # that carried on (value and rate) plus the rest of the old drop, w(t) as before, to the level edge at E).  R-1 keeps its line to the seam, then a quintic (G2 at the seam) brings
+            # it down onto the deck at E with the face at its own angle there (s'(E) = tan(QF_EAR) * w'(E), s = R-1 over the panel edge, w = their distance in plan)
+            _tn_ = np.tan(np.radians(QF_EAR))
+            _wf_ = lambda x: (lambda x: np.maximum(_r0_.at(x)[..., 1] - _g0_.at(x)[..., 1] - 0.005, 0.0) * sstep(0.95, 1.10, x))(np.maximum(np.asarray(x, float), 0.95))
+            _sb0_ = _tn_ * float(_wf_(X_SEAM))
+            _sb1_ = _tn_ * float(_wf_(X_SEAM) - _wf_(X_SEAM - _e_)) / _e_
+            _rest_ = _dg_ - (_sb0_ + _sb1_ * (_xe_ - X_SEAM))
+
+            def _Ld_(x):
+                x = np.asarray(x, float)
+                return np.where(x <= X_SEAM, _tn_ * _wf_(np.minimum(x, X_SEAM)), _sb0_ + _sb1_ * (x - X_SEAM) + _rest_ * _wg_(x))
+            _rg_ = lambda x: float(_r0_.at(x)[2] - _g0_.at(x)[2])
+            _wr_ = lambda x: float(_r0_.at(x)[1] - _g0_.at(x)[1])
+            _DrE_ = float(_r0_.at(_xe_)[2]) - _ze_
+            _DrpE_ = (_rg_(_xe_) - _rg_(_xe_ - _e_)) / _e_ + float(_Ld_(_xe_) - _Ld_(_xe_ - _e_)) / _e_ - _tn_ * (_wr_(_xe_) - _wr_(_xe_ - _e_)) / _e_
+
+            def _Dr_(x):
+                x = np.asarray(x, float)
+                q = quint1(np.clip(x, X_SEAM, _xe_), X_SEAM, 0.0, 0.0, 0.0, _xe_, _DrE_, _DrpE_, 0.0)
+                return np.where(x <= X_SEAM, 0.0, np.where(x <= _xe_, q, _DrE_ + _DrpE_ * (x - _xe_)))
+        _Q16['q17'] = (_dg_, _Ld_, _Dr_)
 
         def _q17_deck(c, name):
-            return Fn(c.x0, c.x1, lambda x, _c=c: _c.at(x)[..., 1], lambda x, _c=c: _c.at(x)[..., 2] - np.where(np.asarray(x, float) >= X_SEAM, _Dg_(x), 0.0), name)
+            return Fn(c.x0, c.x1, lambda x, _c=c: _c.at(x)[..., 1], lambda x, _c=c: _c.at(x)[..., 2] - _Ld_(x), name)
         CURVES['gedge'], CURVES['top'] = _q17_deck(_g0_, 'gedge'), _q17_deck(_t0_, 'top')
         CURVES['rail'] = Fn(_r0_.x0, _r0_.x1, lambda x, _r=_r0_: _r.at(x)[..., 1], lambda x, _r=_r0_: _r.at(x)[..., 2] - _Dr_(x), 'rail')
         gedge = CURVES['gedge']
