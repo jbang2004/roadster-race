@@ -13,16 +13,16 @@
 | `common.py` | 共享纯函数和常量（`HUBS` `W_DARK` `pchip` `Mesh/grid/prism`；锁定的 shell2.py 也从这里取 `HUBS` `cut_intake` 等） |
 | `shell2.py` `design2.py` `curves2.py` `shell_lock.json` | **锁定外壳**，只读 |
 | `shots.sh` | 出图总入口：构建 + 遮罩 + 叠图 + Cycles 对照表 + 反光 + 放大对 |
-| `check.py <metric>` | 测量总入口，有目标值的打印 PASS/FAIL 表（nose rear roofline masks plan crease fold dihedral cam lock budget equiv panels） |
+| `check.py <metric>` | 测量总入口，有目标值的打印 PASS/FAIL 表（nose rear roofline masks plan crease fold dihedral cam lock budget equiv panels smooth clearance） |
 | `overlay.py <kind>` | 叠图总入口（views lines proj outline nose rear reading dump） |
-| 引擎（上面两个分发到它们） | `render_ref_views.py`（Cycles/视角表 `VIEWS`）`mask_views.py` `overlay_views.py` `lines_overlay.py` `measure_*.py` `plan_report.py` `crease_report.py` `fold_report.py` `fold_fit.py` `dihedral_u.py` `cam.py` `cam_fit.py` `proj_overlay.py` `nose_overlay.py` `outline_overlay.py` `rear_overlay.py` `reading_overlay.py` `dump_lines.py` `dump_panels.py` `compare_panels.py` `glb_compare.py` `imgio.py` `shell2_view.py` |
+| 引擎（上面两个分发到它们） | `render_ref_views.py`（Cycles/视角表 `VIEWS`）`mask_views.py` `overlay_views.py` `lines_overlay.py` `measure_*.py` `plan_report.py` `crease_report.py` `fold_report.py` `fold_fit.py` `dihedral_u.py` `cam.py` `cam_fit.py` `proj_overlay.py` `nose_overlay.py` `outline_overlay.py` `rear_overlay.py` `reading_overlay.py` `dump_lines.py` `dump_panels.py` `compare_panels.py` `glb_compare.py` `imgio.py` `shell2_view.py` `wingpose.py` `wheelpose.py`（出图时的尾翼位姿 / 前轮转向） |
 | `_attic/` | 过期或一次性脚本（旧 `shots_r1*.sh`、`full_sheets.sh`、R1b 的 `front.py` / `shell_r1b.py`、`HANDOFF.md` …），不要用，需要时翻 |
 | 文档 | `AGENT_GUIDE.md`（本页）`REGIONS.md` `SPEC.md` `REFS.md` `CALIB.md` `HISTORY.md` |
 
 ## 2. 坐标和固定值
 
 * Blender 车身系：x 向**后**、y 横向（−y = 左）、z 向上，米。GLB / 游戏里是 −X 向前、+Z 向左、+Y 向上（`src/car/index.js` 再包一层，车头 −Z）。
-* 轮心 x **−1.487**（前）/ **1.61**（后），|y| **0.885**，z **0.39**，轮胎半径 **0.39**（`ctx.HUBS` `HUB_Z` `R_TYRE` `R_ARCH` `WHEEL_Y`）。车头角 N 在 x −2.46（`design2.NOSE_XN`），尾翼后缘约 x 2.44。
+* 轮心 x **−1.487**（前）/ **1.61**（后），|y| **0.979**，z = 轮胎半径 **0.353**（前）/ **0.39**（后）（2026-10-25 按 CALIB 校准；`ctx.WHEEL_Y` `WHEEL_Z` `R_TYRE`，build_game_car.py `QF_WH_*`）。轮拱不动：`ctx.HUBS` `HUB_Z`（0.39）`R_ARCH` 是**轮拱圆心**（原轮心）。车头角 N 在 x −2.46（`design2.NOSE_XN`），尾翼后缘约 x 2.44。
 * 外壳 18 块面片的缝、棱线和曲线名在 `ctx.A.D`（design2 的命名曲线 / 锚点：`bar_top` `face_black_bot` …）；用 `ctx.surf` / `ctx.surf_hi` 的 `cast()` 把部件贴到车身上，不要硬编码车身表面的数。
 * 材质只用现有 23 种（REGIONS.md §1）；对象名前缀 `F_` `S_` `R_`；运行时依赖的名字（`Wing` `Wheel_*` …）不能改。
 * 尾翼：默认**收起**（`ctx.cache` 里的收起位姿）；`high` 视角展开。`car_meta.json` 里的 `wing` 给游戏和出图工具用，只有 `--only all` 的构建才写它。

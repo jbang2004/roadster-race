@@ -7,10 +7,11 @@ import { loadGLTF } from '../core/assets.js';
 import { bus } from '../core/bus.js';
 import { createUI } from '../ui/index.js';
 import { createAudio } from '../audio/index.js';
+import { CAR } from '../game/params.js';
 
 const NAMES = ['你 YOU', '陈暮雪', 'Kenji Mori', '朴智恩', 'Lucas Vale', '林夜航', 'Aiko Sato', 'Dmitri Volkov'];
 const NAME_P = '玩家 · NEO';
-const RAD = 0.39;
+const RAD = CAR.wheelR;        // the motor-speed estimate's reference wheel (the rear); the front wheels spin at CAR.wheelRF
 
 export default async function (app) {
   const T = getTrack();
@@ -190,7 +191,7 @@ export default async function (app) {
       c.lights.brake = g.brake;
       const lat = Math.abs(kk) * c._v * c._v / 9.81;
       c.wheels.forEach((w, i) => {
-        w.spinRate = c._v / RAD; w.spin += w.spinRate * dt; w.steer = g.steer * 0.12 * (i < 2 ? 1 : 0);
+        w.spinRate = c._v / (i < 2 ? CAR.wheelRF : CAR.wheelR); w.spin += w.spinRate * dt; w.steer = g.steer * 0.12 * (i < 2 ? 1 : 0);
         const slide = Math.max(0, lat - 1.05);
         w.slipAngle = (kk > 0 ? -1 : 1) * Math.min(0.5, slide * 0.4 + lat * 0.03); w.slipRatio = Math.max(-0.3, Math.min(0.3, a * 0.012)) ;
         w.skid = Math.min(1, slide * 1.8 + Math.max(0, -a - 20) * 0.04); w.grounded = true;

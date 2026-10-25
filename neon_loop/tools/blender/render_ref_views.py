@@ -17,6 +17,8 @@ Options:  --wing deploy|stow|hide   wing pose (the r81 / thrusters photos show i
           --reflect h|v|hv          reflection-line check: the paint becomes a perfect mirror under a striped sky (24 bands per
                                     revolution; h = horizontal bands, v = vertical, hv = both), no lights.  A clean surface
                                     gives smooth, parallel stripes; pinches / ripples / creases show as kinks and whorls.
+          --steer auto|off|<deg>    front wheels turned per view (wheelpose.py): auto (default) = the photo's calibrated angle (p016 -18, p017 +19,
+                                    p003 +23 deg, calib/result.json), off = straight, <deg> = that angle in every view
 """
 import bpy, json, math, os, sys
 from mathutils import Vector
@@ -92,6 +94,7 @@ REFLECT = arg('--reflect', '')      # '' | h | v | hv : reflection-line check: m
 BANDS = float(arg('--bands', '24'))   # (--reflect) stripe pairs per revolution: 24 = bands of 7.5 deg; 72 = 2.5 deg, for the flatter panels
 GLASS_DARK = '--glass-dark' in argv       # glass without any specular reflection (see the Glass material below)
 HIDE = [h for h in arg('--hide', '').split(',') if h]      # object-name prefixes to hide (e.g. TailLower,TailCheek to see the bare body)
+STEER = arg('--steer', 'auto')      # front-wheel steering per view (wheelpose.py)
 
 # ------------------------------------------------------------------ scene
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -242,7 +245,7 @@ for m in bpy.data.materials:
         b.inputs['Emission Strength'].default_value = 4.0
 
 # the wing: stowed / deployed / hidden per car_meta.json (wingpose.py handles the old meta.wing.stow format and the new meta.wing.deploy + WingWell one)
-sys.path.insert(0, HERE); import wingpose
+sys.path.insert(0, HERE); import wingpose, wheelpose
 wingpose.apply(WING, GLB)
 
 # floor + world
@@ -337,6 +340,7 @@ for n in names:
     scene.camera = cam
     scene.render.resolution_x, scene.render.resolution_y = int(w * SCALE), int(h * SCALE)
     scene.render.filepath = os.path.join(OUT, f'{n}.png')
+    print('[ref] %s: front wheels steered %+.1f deg' % (n, wheelpose.apply(n, STEER)))
     if '--info' in argv:
         from bpy_extras.object_utils import world_to_camera_view
         bpy.context.view_layer.update()

@@ -416,10 +416,11 @@ export function createMaterialSet(livery, lod, shared, { env = null, atlas = nul
 
 // -------------------------------------------------------------------------------- speed-blur wheel disc
 /**
- * Transparent disc over the rim face. Shows the six parallel-sided gloss-black spoke channels (half width CH_A 2.85 cm), the graphite bevels along
- * the aero panel edges (1.1 cm) and the body-colour panels, box-blurred over the rotation angle covered in one shutter time; alpha ramps in with
- * spin rate so the strobing of the real spokes disappears. The star hub (r < 10.5 cm) is left to the real geometry. Numbers = build_game_car.py
- * (CH_A, CH_B, S_ARM); spoke 0 points up, so the pattern is turned by 90 degrees.
+ * Transparent disc over the rim face. Shows the six spokes (2026-10-25: a gloss-black blade, half width 2.5 cm, with a graphite band to 3.1 cm and a bright
+ * edge line to 3.6 cm; a dark slot out to the aero panel's edge, 4.7 cm from the spoke axis at r 0.26 leaning out to 5.6 cm at r 0.14) and the body-colour
+ * panels, box-blurred over the rotation angle covered in one shutter time; alpha ramps in with spin rate so the strobing of the real spokes disappears.
+ * The star hub (r < 11 cm) is left to the real geometry. Numbers = build_game_car.py (BL_BANDS, CH_E, S_ARM) at the nominal rim (FACE_R 0.296; the disc
+ * node is scaled per axle by car_meta.json rimScale); spoke 0 points up, so the pattern is turned by 90 degrees.
  */
 export function createBlurDiscMaterial(shared, accentColor) {
   const m = new THREE.MeshStandardMaterial({
@@ -451,11 +452,14 @@ export function createBlurDiscMaterial(shared, accentColor) {
           float r = length(vObjPos.xy);
           float ang = atan(vObjPos.y, vObjPos.x) - uSpin - 1.5707963268;
           float w = max(uBlurW, 0.03);
-          float spoke = cover(ang, w, chHalf(r, 0.0285));                    // gloss-black channel
-          float edge = clamp(cover(ang, w, chHalf(r, 0.0395)) - spoke, 0.0, 1.0);       // graphite bevel on both sides
-          vec3 col = mix(uPlateC * 0.9, vec3(0.05, 0.052, 0.058), edge);
-          col = mix(col, mix(vec3(0.004), uAcc * 0.3, 0.35 * (1.0 - smoothstep(0.105, 0.265, r))), spoke);      // a little copper from the wall wedges near the hub
-          float hub = smoothstep(0.118, 0.100, r);
+          float open_ = cover(ang, w, chHalf(r, 0.0665 - 0.075 * r));       // everything between two panels' edges
+          float line = cover(ang, w, chHalf(r, 0.036));                       // the blade, out to its bright edge lines
+          float band = cover(ang, w, chHalf(r, 0.031));
+          float core = cover(ang, w, chHalf(r, 0.025));                       // its gloss-black core
+          vec3 slot = mix(vec3(0.004), uAcc * 0.3, 0.35 * (1.0 - smoothstep(0.105, 0.265, r)));      // dark slots, a little copper from their walls near the hub
+          vec3 col = uPlateC * 0.9 * (1.0 - open_) + slot * max(open_ - line, 0.0) + vec3(0.55) * max(line - band, 0.0)
+                   + vec3(0.05, 0.052, 0.058) * max(band - core, 0.0) + vec3(0.004) * core;
+          float hub = smoothstep(0.122, 0.104, r);
           diffuseColor.rgb = col;
           diffuseColor.a = uBlurA * (1.0 - hub) * smoothstep(0.299, 0.293, r);
         }`)

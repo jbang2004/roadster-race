@@ -131,7 +131,7 @@ export default async function (app) {
   const focus = new THREE.Object3D();
 
   // ---------------------------------------------------------------- cars + synthetic Car state
-  await loadCarAssets(app);
+  const { meta } = await loadCarAssets(app);
   const env = app.q.get('env') === 'hdri' ? hdrEnv : probeRT.texture;
   const forceLod = app.q.has('lod') ? +app.q.get('lod') : -1;
   const nAI = +(app.q.get('n') ?? 2);
@@ -161,8 +161,9 @@ export default async function (app) {
   // ---- the simulator -------------------------------------------------------------------------------------------
   const SIM = { mode: app.q.get('sim') ?? 'circle', t: 0, speedKmh: null };
   const tmpE = new THREE.Euler(), tmpV = new THREE.Vector3();
-  const WB = 3.097, FA = -1.487, RA = 1.61, TRACK = 0.885, WR = 0.39;
-  const hubs = [[-TRACK, FA], [TRACK, FA], [-TRACK, RA], [TRACK, RA]];   // [x(right), z(forward -)]
+  const WB = 3.097;
+  const hubs = ['FL', 'FR', 'RL', 'RR'].map(w => [meta.hubs[w][1], meta.hubs[w][0]]);   // [x(right), z(forward -)] (car_meta.json: build frame x rear, y right)
+  const WR = ['F', 'F', 'R', 'R'].map(a => (typeof meta.tyreRadius === 'number' ? meta.tyreRadius : meta.tyreRadius[a]));      // per wheel (2026-10-25: front 0.353, rear 0.39)
   const rnd = (x) => Math.sin(x * 12.9898) * 43758.5453 % 1;
 
   function script(t, c, k) {
@@ -213,13 +214,13 @@ export default async function (app) {
     c.motor.rpm = s.v * 160; c.motor.load = thr; c.motor.power = thr * 600 * Math.min(1, s.v / 20) - brk * 200;
     for (let i = 0; i < 4; i++) {
       const w = c.wheels[i], front = i < 2, right = i % 2;
-      const rollC = (right ? -1 : 1) * s.roll * 0.9 * 0.885 * 0.7;    // right wheel: roll>0 lifts the right body side → wheel relatively compresses less
+      const rollC = (right ? -1 : 1) * s.roll * 0.9 * Math.abs(hubs[i][0]) * 0.7;    // right wheel: roll>0 lifts the right body side → wheel relatively compresses less
       const pitchC = (front ? 1 : -1) * -s.pitch * 1.5 * 0.6;
       const bump = 0.004 * Math.sin(t * 31 + i * 1.7 + s.v * 0.4) * Math.min(1, s.v / 15);
       w.compression = THREE.MathUtils.clamp(rollC + pitchC + bump, -0.06, 0.08);
       w.suspensionTravel = w.compression;
       w.steer = front ? str * 0.4 / (1 + s.v * 0.05) : 0;
-      w.spinRate = s.v / WR * (hb > 0.5 && !front ? 0.15 : 1) * (brk > 0.9 && s.v < 12 ? 0.3 : 1);
+      w.spinRate = s.v / WR[i] * (hb > 0.5 && !front ? 0.15 : 1) * (brk > 0.9 && s.v < 12 ? 0.3 : 1);
       w.spin += w.spinRate * h;
       w.slipRatio = (thr > 0.9 && s.v < 12 && !front) ? 0.5 : (brk > 0.9 ? -0.4 : 0);
       w.skid = hb > 0.5 ? 0.9 : (brk > 0.95 && s.v > 10 ? 0.6 : (w.slipRatio > 0.3 ? 0.5 : 0));

@@ -2,7 +2,9 @@
 Flat-colour mask renders of a car GLB from the matched press-photo cameras (VIEWS in render_ref_views.py), for measuring (silhouette diffs, glass outline, ear tips): Workbench, FLAT light, no
 anti-aliasing, transparent background.  Paint = white, Glass = red, everything else = grey (Trim / lamps / wheels ...).
 
-  Blender -b --python tools/blender/mask_views.py -- --glb <car.raw.glb> --out <dir> [--views p013,p018,r81,high] [--wing stow|deploy|hide]
+  Blender -b --python tools/blender/mask_views.py -- --glb <car.raw.glb> --out <dir> [--views p013,p018,r81,high] [--wing stow|deploy|hide] [--steer auto|off|<deg>]
+
+(--steer: the front wheels are turned per view as in the photo, wheelpose.py; default auto.)
 
 Writes <view>_mask.png (RGBA; alpha = silhouette).  Use measure_masks.py (numpy) to compare two sets.
 """
@@ -22,8 +24,9 @@ VIEWS = next(ast.literal_eval(n.value) for n in ast.parse(src).body if isinstanc
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=GLB)
 sc = bpy.context.scene
-sys.path.insert(0, HERE); import wingpose             # the wing pose (stow / deploy / hide, old and new meta.wing format) lives in wingpose.py
+sys.path.insert(0, HERE); import wingpose, wheelpose  # the wing pose (stow / deploy / hide, old and new meta.wing format) lives in wingpose.py; the front-wheel steer per view in wheelpose.py
 wingpose.apply(WING, GLB)
+STEER = arg('--steer', 'auto')
 for m in bpy.data.materials:
     col = (1, 1, 1, 1) if m.name.startswith('Paint') else (1, 0, 0, 1) if m.name.startswith('Glass') else (0.25, 0.25, 0.25, 1)
     m.diffuse_color = col
@@ -67,5 +70,6 @@ for n in NAMES:
     d = (Vector(tgt) - Vector(loc)).normalized(); r = math.radians(roll[0]) if roll else 0.0
     cam.rotation_euler = Euler((0, 0, r)) if abs(d.z) > 0.999999 else (d.to_track_quat('-Z', 'Y') @ Quaternion((0, 0, 1), r)).to_euler()
     sc.camera = cam; sc.render.resolution_x, sc.render.resolution_y = w, h
+    wheelpose.apply(n, STEER)
     sc.render.filepath = os.path.join(OUT, f'{n}_mask.png'); bpy.ops.render.render(write_still=True)
     print('MASK', n, sc.render.filepath)

@@ -22,7 +22,8 @@ ctx attributes (set by build_game_car.py)
   patch(name, mat_name, ranges, origin_fn, direction, off, nu, nv, ...)   grid projected onto ctx.surf (see build_game_car.patch)
   CB, Builder, W_DARK, smooth, mark_sharp(me, deg), cb_obj(cb, name, mat_name, keep_color=False, sharp=40), link(ob), join(objs, name)
   A                shell interface: A.D (design2 module: curves, anchors), A.S2 (shell2 module), A.glass_half_width(x)
-  HUBS ((x, side), ...), HUB_Z, R_ARCH, R_TYRE;  WHEEL_Y
+  HUBS ((x, side), ...), HUB_Z, R_ARCH: the wheel ARCHES (centres x -1.487 / 1.61, z 0.39; the old hubs)
+  R_TYRE, WHEEL_Z (front, rear);  WHEEL_Y: the wheels themselves (hub |y|, z and tyre radius per axle; build_game_car.py, CALIB.md)
   oldbody / front_r2   the --oldbody / --front flags;   argv, flag(name), arg(name, default)
   cache            dict a region may use to memoise constants for one build (rear: FAS_LEAN, the stowed wing pose)
   report(key, value)   adds a note to this region's entry in the build REPORT

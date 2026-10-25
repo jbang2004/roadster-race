@@ -22,6 +22,7 @@ is 1 when something fails that is not an accepted known deviation).  Targets: SP
   equiv      <dirA> <dirB> | <a.raw.glb> <b.raw.glb>: per object / material triangles + bbox (glb_compare.py)   0 tris, 0.1 mm
   panels     dump <out.npz> | compare <old.npz> <new.npz> [...]: per-panel deviation proof (dump / compare_panels.py)
   smooth     P3 corrections: slope / curvature steps at every piece boundary, planarity of the designed planes (smooth_report.py)   <= 0.02 deg, 0.05 1/m; planes
+  clearance  <car_hi.raw.glb> [--step deg] [--bump m]: tyre to body gap, front wheels over the game's steering range (here)   > 0 mm
 
 Exit code: 0 = no unexpected FAIL, 1 = FAIL, 2 = usage / the engine itself failed.
 """
@@ -327,8 +328,104 @@ def m_smooth(args):
     return max(t.code(), 2 if rc else 0)
 
 
+def _glb_tris(path):
+    """{node name: (world vertices in the car frame (x rear, y right, z up), triangles, material name per triangle)} and {node name: world position} of a raw GLB
+    (glb_compare.py's reader)"""
+    import numpy as np
+    from glb_compare import load_glb, accessor, node_matrix
+    js, binc = load_glb(path)
+    meshes, pos = {}, {}
+
+    def walk(i, M):
+        n = js['nodes'][i]
+        M2 = M @ node_matrix(n)
+        nm = n.get('name', 'node%d' % i)
+        pos[nm] = np.array([M2[0, 3], -M2[2, 3], M2[1, 3]])
+        for prim in js['meshes'][n['mesh']]['primitives'] if 'mesh' in n else []:
+            P = accessor(js, binc, prim['attributes']['POSITION']).astype(np.float64) @ M2[:3, :3].T + M2[:3, 3]
+            T = accessor(js, binc, prim['indices']).reshape(-1, 3).astype(np.int64) if 'indices' in prim else np.arange(len(P)).reshape(-1, 3)
+            V, F, Mt = meshes.get(nm, (np.zeros((0, 3)), np.zeros((0, 3), np.int64), np.zeros(0, object)))
+            mt = js['materials'][prim['material']]['name'] if 'material' in prim else ''
+            meshes[nm] = (np.vstack([V, np.c_[P[:, 0], -P[:, 2], P[:, 1]]]), np.vstack([F, T + len(V)]), np.r_[Mt, np.full(len(T), mt, object)])
+        for c in n.get('children', []):
+            walk(c, M2)
+    for r in js['scenes'][js.get('scene', 0)]['nodes']:
+        walk(r, np.eye(4))
+    return meshes, pos
+
+
+def m_clearance(args):
+    """tyre clearance: the smallest gap between each tyre (the ring of revolution of its Tyre_* mesh: outer envelope per axial position, inner radius = the bead; turned
+    about the hub's vertical axis) and the Body node (paint, wells, liners, region parts), static ride height, front wheels over the whole steering range of
+    src/game/params.js (maxLock, Ackermann inner wheel).  Left out: the flat underbody floor (shell2.add_floor, z 0.188), a closing plane that runs through all four
+    wheels hidden under the car, and the interior (Int* materials: the dash and door cards reach into the wheel volumes, black on black inside the wells)."""
+    import numpy as np
+    if not args:
+        print('usage: check.py clearance <car_hi.raw.glb> [--step deg] [--bump m]   (gap > 0 = clear; --bump raises the wheels by that much)')
+        return 2
+    step = float(args[args.index('--step') + 1]) if '--step' in args else 2.5
+    bump = float(args[args.index('--bump') + 1]) if '--bump' in args else 0.0
+    par = open(os.path.join(ROOT, 'src', 'game', 'params.js')).read()
+    lock, ht, wb = (float(re.search(k + r':\s*([\d.]+)', par).group(1)) for k in ('maxLock', 'halfTrack', 'wheelbase'))
+    t = math.tan(lock)
+    inner, outer = math.degrees(math.atan(wb * t / (wb - ht * t))), math.degrees(math.atan(wb * t / (wb + ht * t)))
+    meshes, pos = _glb_tris(args[0])
+    BV, BF, BM = meshes['Body']
+    interior = np.array([m.startswith('Int') for m in BM], bool)
+    tab = Table('clearance', 'tyre to body gap > 0 at rest and over the steering range (outer %.1f / inner %.1f deg: maxLock %.2f rad, Ackermann, half track %.3f)' % (outer, inner, lock, ht),
+                ['min gap mm', 'at steer', 'where (x, |y|, z)'])
+    for w in ('FL', 'FR', 'RL', 'RR'):
+        hub = pos['Wheel_' + w] + np.array([0.0, 0.0, bump])
+        side = 1.0 if hub[1] > 0 else -1.0
+        TV = meshes['Tyre_' + w][0] + np.array([0.0, 0.0, bump])
+        a, r = (TV[:, 1] - hub[1]) * side, np.hypot(TV[:, 0] - hub[0], TV[:, 2] - hub[2])
+        bins = np.round(a / 0.002).astype(int)
+        prof = np.array([(b * 0.002, r[bins == b].max()) for b in np.unique(bins)])
+        r_in = r.min()
+        poly = np.vstack([[prof[0, 0], r_in], prof, [prof[-1, 0], r_in]])          # the tyre's section (axial, radial), outboard +
+        # body triangles near the wheel, sampled every <= 5 mm
+        C = BV[BF].mean(1)
+        flat = np.abs(BV[BF][:, :, 2] - 0.188).max(1) < 1e-3                        # the underbody floor
+        sel = (np.abs(C[:, 0] - hub[0]) < 0.75) & (C[:, 2] < hub[2] + 0.75) & (np.abs(C[:, 1]) > abs(hub[1]) - 0.45) & (C[:, 1] * side > 0) & ~flat & ~interior
+        TR = BV[BF[sel]]
+        n = np.clip(np.ceil(np.linalg.norm(TR - np.roll(TR, 1, 1), axis=2).max(1) / 0.005).astype(int), 1, 40)
+        S = [BV[np.unique(BF[sel])]]
+        for k in np.unique(n):
+            g = np.array([(i / k, j / k) for i in range(k + 1) for j in range(k + 1 - i)])
+            T_ = TR[n == k]
+            S.append((T_[:, None, 0] * (1 - g[:, :1] - g[:, 1:]) + T_[:, None, 1] * g[:, :1] + T_[:, None, 2] * g[:, 1:]).reshape(-1, 3))
+        S = np.vstack(S) - hub
+        rng = (-outer, inner) if (side < 0) else (-inner, outer)     # + = the wheel's front to the car's left: the left wheel is the inner one in a left turn
+        angs = sorted(set([0.0] + [float(v) for v in np.arange(math.ceil(rng[0] / step) * step, rng[1], step)] + list(rng))) if w[0] == 'F' else [0.0]
+        best = None
+        for d in angs:
+            c, s = math.cos(math.radians(d)), math.sin(math.radians(d))
+            lx, ly = c * S[:, 0] + s * S[:, 1], -s * S[:, 0] + c * S[:, 1]           # into the turned wheel's frame
+            pa, pr = ly * side, np.hypot(lx, S[:, 2])
+            near = (pr < poly[:, 1].max() + 0.06) & (pr > r_in - 0.06) & (pa > poly[0, 0] - 0.06) & (pa < poly[-1, 0] + 0.06)
+            if not near.any():
+                continue
+            Q = np.c_[pa[near], pr[near]]
+            A, B = poly[:-1], poly[1:]
+            dmin = np.full(len(Q), np.inf)
+            for a0, b0 in zip(A, B):
+                e = b0 - a0
+                u = np.clip(((Q - a0) @ e) / max(e @ e, 1e-12), 0.0, 1.0)
+                dmin = np.minimum(dmin, np.linalg.norm(Q - (a0 + u[:, None] * e), axis=1))
+            inside = (Q[:, 0] > poly[0, 0]) & (Q[:, 0] < poly[-1, 0]) & (Q[:, 1] > r_in) & (Q[:, 1] < np.interp(Q[:, 0], prof[:, 0], prof[:, 1]))
+            sd = np.where(inside, -dmin, dmin)
+            i = int(np.argmin(sd))
+            if best is None or sd[i] < best[0]:
+                best = (sd[i], d, S[near][i] + hub)
+            print('  %s steer %+6.1f deg: min gap %+7.1f mm at (%.3f, %.3f, %.3f)' % (w, d, 1000 * sd[i], *(S[near][i] + hub)))
+        gap, d, p = best
+        tab.add('clearance:' + w, '%s (tyre r %.3f, hub z %.3f, |y| %.3f)' % (w, prof[:, 1].max(), hub[2], abs(hub[1])), ['%+.1f' % (1000 * gap), '%+.1f' % d, '%.3f %.3f %.3f' % (p[0], abs(p[1]), p[2])], bool(gap > 0))
+    tab.show()
+    return tab.code()
+
+
 METRICS = {'nose': m_nose, 'rear': m_rear, 'roofline': m_roofline, 'masks': m_masks, 'plan': m_plan, 'crease': m_crease, 'fold': m_fold, 'dihedral': m_dihedral, 'fender': m_fender,
-           'cam': m_cam, 'lock': m_lock, 'budget': m_budget, 'equiv': m_equiv, 'panels': m_panels, 'smooth': m_smooth}
+           'cam': m_cam, 'lock': m_lock, 'budget': m_budget, 'equiv': m_equiv, 'panels': m_panels, 'smooth': m_smooth, 'clearance': m_clearance}
 
 
 def main(argv):

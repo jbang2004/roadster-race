@@ -48,15 +48,20 @@ export function loadCarAssets(app) {
 const WHEELS = ['FL', 'FR', 'RL', 'RR'];
 
 // Contact shadow: a soft dark footprint on the road (no shadow maps in this renderer), denser under the tyres so the car
-// sits on the ground. Car frame: −Z forward, hubs at x ±0.885, z −1.487 / 1.61. Rendered in the main world pass only.
+// sits on the ground. Car frame: −Z forward; the tyres under the hubs of car_meta.json (2026-10-25: x ±0.979, z −1.487 / 1.61; the old
+// assets ±0.885). Rendered in the main world pass only.
 let SHADOW = null;
 function contactShadow() {
   if (!SHADOW) {
     const geo = new THREE.PlaneGeometry(2.6, 5.4); geo.rotateX(-Math.PI / 2);
+    const H = ASSETS.meta?.hubs;      // car frame of the build (x rear, y right, z up) -> this frame (x right, z rear)
+    const hub = WHEELS.map((w, i) => H?.[w] ? new THREE.Vector2(H[w][1], H[w][0]) : new THREE.Vector2(i % 2 ? 0.979 : -0.979, i < 2 ? -1.487 : 1.61));
     const mat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
+      uniforms: { uHub: { value: hub } },
       vertexShader: /* glsl */`varying vec2 vP; void main() { vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: /* glsl */`
+        uniform vec2 uHub[4];
         varying vec2 vP;
         float rbox(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
         void main() {
@@ -65,8 +70,7 @@ function contactShadow() {
           float core = 1.0 - smoothstep(-0.40, 0.05, rbox(p, vec2(0.78, 2.00), 0.4));
           float tyres = 0.0;
           for (int i = 0; i < 4; i++) {
-            vec2 c = vec2(i == 0 || i == 2 ? -0.885 : 0.885, i < 2 ? -1.487 : 1.61);
-            vec2 d = (vP - c) / vec2(0.19, 0.40);
+            vec2 d = (vP - uHub[i]) / vec2(0.19, 0.40);
             tyres = max(tyres, exp(-dot(d, d) * 1.4));
           }
           gl_FragColor = vec4(0.0, 0.0, 0.0, clamp(body * 0.42 + core * 0.33 + tyres * 0.4, 0.0, 0.9));
@@ -154,6 +158,7 @@ export function createCarVisual(app, { livery = 0, isPlayer = false, envMap = nu
         disc.name = 'Blur_' + w;
         disc.position.z = wr.left ? 0.1205 : -0.1205;
         if (!wr.left) disc.rotation.y = Math.PI;
+        disc.scale.setScalar(ASSETS.meta?.rimScale?.[w[0]] ?? 1);   // the rim's radial scale per axle (2026-10-25: front 0.986, rear 1.027)
         disc.renderOrder = 2; disc.frustumCulled = false;
         hub.add(disc);                              // child of the hub: it does not spin, the shader rotates the pattern
         wr.blur = bm; rec.blurs.push(bm);

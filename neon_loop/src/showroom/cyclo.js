@@ -206,7 +206,7 @@ export function createCycloMaterial() {
     tRefl: { value: null }, uReflVP: { value: new THREE.Matrix4() }, uReflPx: { value: new THREE.Vector2(1 / 512, 1 / 512) }, uReflK: { value: 400 },
     tSdf: { value: null }, uSdfMin: z3(), uSdfMax: z3(), uSdfInv: z3(), uSdfOn: { value: 0 },
     tSky: { value: null }, uSkyRot: { value: 0 }, uSkyOn: { value: 0 }, uSkyGain: { value: new THREE.Vector3(1, 1, 1) }, uSkyMips: { value: 6 },
-    uTyre: { value: [new THREE.Vector2(-0.885, -1.487), new THREE.Vector2(0.885, -1.487), new THREE.Vector2(-0.885, 1.61), new THREE.Vector2(0.885, 1.61)] }, uTyreAO: { value: 0.6 },
+    uTyre: { value: [new THREE.Vector2(-0.979, -1.487), new THREE.Vector2(0.979, -1.487), new THREE.Vector2(-0.979, 1.61), new THREE.Vector2(0.979, 1.61)] }, uTyreAO: { value: 0.6 },   // (studio.js sets them from the model's Wheel_* nodes)
     uReflQ: { value: 1 }, uFrame: { value: 0 }, uEnvPass: { value: 0 }, uEnvFloorK: { value: 1 }, uWet: { value: 0 }, uFogDist: { value: 0 }, uHazeLod: { value: 1.5 }, uHazeEl: { value: 0.004 }, uHazeK: { value: 1 },
   };
   const m = new THREE.ShaderMaterial({

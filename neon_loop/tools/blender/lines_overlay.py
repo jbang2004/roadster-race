@@ -32,8 +32,8 @@ sc = bpy.context.scene
 from bpy_extras.object_utils import world_to_camera_view
 
 if '--hubs' in argv:
-    for tag, (wx, sy) in {'FL': (-1.487, -0.885), 'FR': (-1.487, 0.885), 'RL': (1.61, -0.885), 'RR': (1.61, 0.885)}.items():
-        LINES['hub_' + tag] = {'pts': [[wx + 0.39 * math.cos(a), sy, 0.39 + 0.39 * math.sin(a)] for a in np.linspace(0, 2 * math.pi, 49)], 'col': [1, 1, 0]}
+    for tag, (wx, sy, rt) in {'FL': (-1.487, -0.979, 0.353), 'FR': (-1.487, 0.979, 0.353), 'RL': (1.61, -0.979, 0.39), 'RR': (1.61, 0.979, 0.39)}.items():   # (build_game_car.py
+        LINES['hub_' + tag] = {'pts': [[wx + rt * math.cos(a), sy, rt + rt * math.sin(a)] for a in np.linspace(0, 2 * math.pi, 49)], 'col': [1, 1, 0]}   # WHEEL_Y, TYRE_R = hub z)
 
 
 def draw(img, pts, col, th=1):

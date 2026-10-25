@@ -83,10 +83,14 @@ export class Vehicle {
     // wheels
     this.wheels = GEOM.map((g, k) => {
       const front = g.front, ks = front ? RIDE.kF : RIDE.kR, xs = front ? RIDE.xsF : RIDE.xsR;
+      // R: this axle's tyre radius (hub height, contact point).  The wheel's state (omega, torques, inertia, slip) is that of a wheel of the reference radius
+      // CAR.wheelR rolling at the same road speed: the drive and brake numbers are tuned at the road, and the smaller front tyre stands for a front axle geared to
+      // match.  The real front wheel turns CAR.wheelR / R times faster: spinK, applied to the visual spin / spinRate only.
+      const R = front ? CAR.wheelRF : CAR.wheelR;
       return {
-        k, front, left: g.left, x: g.x, z: g.z, tyre: new Tyre(front ? TYRE.front : TYRE.rear),
+        k, front, left: g.left, x: g.x, z: g.z, tyre: new Tyre(front ? TYRE.front : TYRE.rear), R, spinK: CAR.wheelR / R,
         kSpring: ks, xStatic: xs, cDamp: front ? RIDE.cF : RIDE.cR,
-        hy: CAR.wheelR + SUSP.free - xs,      // hardpoint height in the car frame
+        hy: R + SUSP.free - xs,               // hardpoint height in the car frame
         ell: SUSP.free - xs, comp: xs, compPrev: xs, travel: 0,
         omega: 0, spin: 0, spinRate: 0, steer: 0,
         alphaF: 0, alpha: 0, kappa: 0, slipS: 0, skid: 0, Fz: 0, N: 0, FzGeo: 0,
@@ -263,7 +267,7 @@ export class Vehicle {
       w.nx = nx; w.ny = ny; w.nz = nz; w.un = un;
       w.hx = hx; w.hy_w = hy; w.hz = hz;
       if (un > 0.35) {
-        const ell = (dn - CAR.wheelR) / un;
+        const ell = (dn - w.R) / un;
         w.ell = clamp(ell, SUSP.free - SUSP.travelMax - 0.08, SUSP.free);
         const x = SUSP.free - ell;
         w.comp = x > 0 ? x : 0;
@@ -359,7 +363,7 @@ export class Vehicle {
       // wheel centre and contact patch
       const ell = w.ell;
       const wcx = w.hx - ux * ell, wcy = w.hy_w - uy * ell, wcz = w.hz - uz * ell;
-      const cx = wcx - w.nx * CAR.wheelR, cy = wcy - w.ny * CAR.wheelR, cz = wcz - w.nz * CAR.wheelR;
+      const cx = wcx - w.nx * w.R, cy = wcy - w.ny * w.R, cz = wcz - w.nz * w.R;
       w.cx = cx; w.cy = cy; w.cz = cz;
       // wheel heading (steered chassis forward) projected on the road plane
       const cs = Math.cos(w.steer), sn = Math.sin(w.steer);
@@ -401,8 +405,8 @@ export class Vehicle {
       const dwb = h * w.Tbrake / I;
       if (dwb > 0) { if (Math.abs(om) <= dwb) om = 0; else om -= Math.sign(om) * dwb; }
       const fxUsed = clamp(fxT + dFdw * (om - w.omega), -1.3 * tyre.mux * Fzg, 1.3 * tyre.mux * Fzg);
-      w.spinRate = om; w.omega = om;
-      w.spin += om * h;
+      w.spinRate = om * w.spinK; w.omega = om;
+      w.spin += om * w.spinK * h;
       w.kappa = (om * R_ - vlong) / den;
       w.alpha = w.alphaF;
       w.slipS = s0;
@@ -500,7 +504,7 @@ export class Vehicle {
     let om = w.omega + h * (w.Tdrive) / I;
     const dwb = h * w.Tbrake / I;
     if (dwb > 0) { if (Math.abs(om) <= dwb) om = 0; else om -= Math.sign(om) * dwb; }
-    w.omega = om; w.spinRate = om; w.spin += om * h; w.brakeP = Math.abs(w.Tbrake * om);
+    w.omega = om; w.spinRate = om * w.spinK; w.spin += om * w.spinK * h; w.brakeP = Math.abs(w.Tbrake * om);
   }
 
   _powertrain(h, vf) {

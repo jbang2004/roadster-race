@@ -3,7 +3,7 @@ Shared helpers and constants for the build (P0 split).  Imported by build_game_c
 shell2.py (`import common as V1`).  Pure python + bpy/bmesh; no state of its own.
 
   interpolation   pchip, pchip_s, smooth, smoother, sstep
-  wheels / arches HUBS, HUB_Z, R_ARCH, Y_TUB  (wheel centres x -1.487 / 1.61, z 0.39, arch radius 0.415, wheel-well wall y 0.70)
+  arches          HUBS, HUB_Z, R_ARCH, Y_TUB  (arch centres x -1.487 / 1.61, z 0.39, arch radius 0.415, wheel-well wall y 0.70; the wheels: build_game_car.py)
   intake         INTAKE, cut_intake(ob)   (the --front lower intake pocket; shell2.cut_intake delegates to it)
   small meshes    Mesh, grid, prism        (bmesh helpers used by the front and side parts)
 """
@@ -56,11 +56,12 @@ def sstep(a, b, x):
 W_DARK = (0.030, 0.030, 0.034, 0.15)
 
 
-# ----------------------------------------------------------------------------- wheels / arches (fixed values: the game's physics depends on them)
-HUBS = ((-1.487, -1), (-1.487, 1), (1.61, -1), (1.61, 1))      # (x, side)
-HUB_Z = 0.39
-R_ARCH = 0.415                                                  # arch radius (tyre 0.39): the arch top is at z 0.805
-Y_TUB = 0.70                                                    # inner wall of the wheel well (the tyre's inner face is at 0.743)
+# ----------------------------------------------------------------------------- arches (their centres are the old wheel hubs; the wheels themselves are per axle in build_game_car.py:
+# 2026-10-25 the calibrated front hub sits 3.7 cm lower and both wheels 9.4 cm further out, the arches stay where the photos put them)
+HUBS = ((-1.487, -1), (-1.487, 1), (1.61, -1), (1.61, 1))      # (x, side) of the arch centres = the wheel hubs' x
+HUB_Z = 0.39                                                    # arch centre height (front hub now 0.353, rear 0.39)
+R_ARCH = 0.415                                                  # arch radius (rear tyre 0.39): the arch top is at z 0.805
+Y_TUB = 0.70                                                    # inner wall of the wheel well (the tyre's inner face is at 0.86; 0.743 with the old track)
 
 
 # ----------------------------------------------------------------------------- lower intake (R2): a pocket cut into the black front face

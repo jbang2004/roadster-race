@@ -85,10 +85,22 @@ for _m in list(bpy.data.materials):
     _m.name = 'src_' + _m.name
 for _me in list(bpy.data.meshes):
     _me.name = 'src_' + _me.name
+# wheels per axle (front, rear).  2026-10-25 (WHEELS, CALIB.md): the joint photo calibration puts the rims' bright disc (the aero panels' outer edge, the panel plane Y_P
+# outboard of the hub) at |y| 1.093 / 1.091, radius 0.292 / 0.304, and the axles at z 0.353 / 0.392 with the tyres on the floor (p018 tyre bottoms): the real wheels
+# stand ~9.4 cm further out per side, flush with the fenders, and the front wheel is smaller and lower than the rear.  The arches do not move: common.HUBS / HUB_Z
+# are the arch centres (the old hubs).  QF_WH_POS=0: the old track (hub |y| 0.885);  QF_WH_SIZE=0: the old wheel (tyre 0.39 at z 0.39, panel edge FACE_R 0.296) on both axles.
+QF_WH_POS = os.environ.get('QF_WH_POS', '1') == '1'
+QF_WH_SIZE = os.environ.get('QF_WH_SIZE', '1') == '1'
 WHEEL_X = (-1.487, 1.61)
-WHEEL_Y = 0.885
-WHEEL_Z = 0.39
-TYRE_R = 0.39
+WHEEL_Y = 0.979 if QF_WH_POS else 0.885                     # hub = tyre mid-plane; panel plane 0.979 + Y_P = 1.092 (calibrated 1.093 / 1.091, sd 11 / 8 mm)
+TYRE_R = (0.353, 0.39) if QF_WH_SIZE else (0.39, 0.39)        # tyre radius = hub height (the calibrated axles 0.353 / 0.392)
+WHEEL_Z = TYRE_R
+RIM_S = (0.292 / 0.296, 0.304 / 0.296) if QF_WH_SIZE else (1.0, 1.0)     # radial scale of the rim: its bright edge (FACE_R 0.296) -> the calibrated disc radius
+
+
+def axle(wx):
+    """0 = front, 1 = rear (by the hub's x)"""
+    return 0 if wx < 0.0 else 1
 
 
 def depsgraph():
@@ -575,7 +587,7 @@ for _m in ('Paint', 'Glass', 'Trim'):
 
 # the region context (regions/ctx.py): the tools and the surfaces are filled in below, once the functions exist
 CTX = ctxmod.Ctx(argv=argv, oldbody=False, front_r2=FRONT_R2, body=body_hi, HUBS=common.HUBS, HUB_Z=common.HUB_Z, R_ARCH=common.R_ARCH, R_TYRE=TYRE_R,
-                 WHEEL_Y=WHEEL_Y)       # (oldbody stays on the ctx as False: the region modules still read ctx.oldbody)
+                 WHEEL_Y=WHEEL_Y, WHEEL_Z=WHEEL_Z)       # (oldbody stays on the ctx as False: the region modules still read ctx.oldbody)
 # REAR cuts the black / paint outline of the tail (lobe bell + cheek line, see bound_z) into the dense mesh, THEN the arches; FRONT (intake pocket, --front)
 # and SIDE follow the arch cut; the floor closes the shell
 ctxmod.call(REG, CTX, 'rear', 'shell_post')
@@ -802,7 +814,7 @@ def caliper_bm(left):
 
 def build_wheel_hi(tag, wx, sgn):
     left = sgn < 0
-    hub = empty(f'Wheel_{tag}', (wx, sgn * WHEEL_Y, WHEEL_Z))
+    hub = empty(f'Wheel_{tag}', (wx, sgn * WHEEL_Y, WHEEL_Z[axle(wx)]))
     spin = empty(f'Spin_{tag}', (0, 0, 0), hub)
     t = part_obj(proto['Tyre'], f'Tyre_{tag}', 'Tyre', left, smooth=True, sharp=70)
     t.parent = spin
@@ -875,30 +887,43 @@ WHEELS = (('FL', WHEEL_X[0], -1), ('FR', WHEEL_X[0], 1), ('RL', WHEEL_X[1], -1),
 
 def place_mesh_at_hub(ob, wx, sgn):
     """wheel local mesh -> world (hub position)."""
-    ob.data.transform(Matrix.Translation((wx, sgn * WHEEL_Y, WHEEL_Z)))
+    ob.data.transform(Matrix.Translation((wx, sgn * WHEEL_Y, WHEEL_Z[axle(wx)])))
 
 
 # ------------------------------------------------- wheels after the reference close-ups (one mesh, corner colours)
 # (W_DARK: common.W_DARK)
 # vertex colour = rgb + material code in alpha (materials.js 'rim': < 0.075 rubber, 0.15 gloss black, 0.25 graphite satin, 0.42 body colour,
 # 0.55 bright satin, 0.8 chrome, 1.0 livery accent).  The rgb of the body-colour and accent codes only matters in the Blender renders (the game replaces it).
-W_GLS = (0.004, 0.004, 0.005, 0.15)     # gloss black: the spoke channels
+W_GLS = (0.004, 0.004, 0.005, 0.15)     # gloss black: the spoke channels and blades
 W_BEV = (0.20, 0.205, 0.22, 0.25)       # graphite satin: the bevels along the panel edges (the main line of the wheel in the photo), the lip
-W_HUB = (0.06, 0.06, 0.066, 0.25)       # hub star and cap: graphite satin (p003: the star reads ~60-70 / 255)
-W_BADGE = (0.15, 0.15, 0.16, 0.25)
 W_AERO = (0.95, 0.96, 0.98, 0.42)       # aero panels in body colour, as on the press car (white on white)
 W_ACC = (0.86, 0.50, 0.26, 1.0)
 W_RUB = (0.0045, 0.0045, 0.005, 0.0)    # FRONT r3: rubber black like the hi tyre's 0x0e0e0f (was 0.018 = 4x brighter, and grey in every render)
 W_SS = (0.74, 0.75, 0.77, 0.8)          # 2026-10-24 (user, p003 / p018 / p001): polished stainless: the thin bright ring on the crown of the rim lip
-# wheel face after the p003 / p018 close-ups: six flat aero panels in ONE plane (Y_P) between six parallel-sided gloss-black spoke channels; the bevels along
-# the panel edges run straight into a graphite six-armed star hub (flat, at the foot of the bevels, Y_B) carrying the small round T cap
+# wheel face after the p003 / p018 close-ups: six flat aero panels in ONE plane (Y_P) between six spoke channels; the bevels along the panel edges (their top a thin
+# stainless line) run into a six-armed star hub (flat, at the foot of the bevels, Y_B) carrying the small round T cap.
+# 2026-10-25 (WHEELS: p003, p018, p016 and p017 rectified onto the calibrated rim plane through the calibrated cameras, 1 mm / px, the six spokes' profiles averaged):
+# each spoke is a raised gloss-black BLADE, 72 mm wide all along (BL_T; the photo's black core 50-55 mm with a graphite band and a bright machined edge line along each side,
+# BL_BANDS), the star's arm carried on at Y_B to the lip.  Between the blade and the panel a dark slot (3 mm at the lip, ~1.5 cm towards the hub) whose panel-side wall
+# carries the copper (the lit strips in p003, p017).  The panel edges are 47 mm from the spoke axis at r 0.26 (the old 39.5 mm) and lean out to 56 mm at r 0.14 (CH_E), so the
+# panels end at r ~0.12 against the star (p003: the star's dark disc reaches r ~0.12); their edge is a small graphite chamfer, no bright line (that is on the blade).
+# The cap is small (r 0.028 with its ring, p003; was 0.050) with the T embossed.
+# QF_WH_FACE=0: the old face (parallel-sided 5.7 cm gloss channels between the panels' stainless-edged bevels, no blade, a copper wedge near the hub, a large cap).
+QF_WH_FACE = os.environ.get('QF_WH_FACE', '1') == '1'
+W_HUB = (0.06, 0.06, 0.066, 0.25)       # hub star and cap: graphite satin (p003: the star reads ~60-70 / 255)
+W_BADGE = (0.15, 0.15, 0.16, 0.25)
 N_SPOKE = 6
 HUB_R, FACE_R = 0.0815, 0.296           # (hub body radius of the old design) panel outer edge = foot of the lip
 Y_P = 0.113                             # the panel plane
-CH_A, CH_B, CH_D = 0.0285, 0.011, 0.007  # channel half width (wall to wall 5.7 cm), bevel width and drop: the panel edge lines sit at CH_A + CH_B = 3.95 cm (7.9 cm over the spoke, p003 / p018)
-Y_B = Y_P - CH_D                        # foot of the bevel = top of the star hub
-BEV_SS = 0.2                            # share of the bevel (from the panel edge down) that is the stainless edge line (p003: ~2.5 mm)
+CH_E = ((0.14, 0.056), (0.26, 0.047)) if QF_WH_FACE else ((0.14, 0.0395), (0.26, 0.0395))   # panel edge line: (s along the spoke, t across) at two points (old: 3.95 cm, parallel)
+CH_B, CH_D = (0.005, 0.004) if QF_WH_FACE else (0.011, 0.007)      # bevel width and drop (old 0.011 / 0.007); the bevel's foot is the slot's panel-side wall
+BL_T = ((0.14, 0.036), (0.26, 0.036)) if QF_WH_FACE else None      # the blade's half width at two points along the spoke (None: no blade, the old open channel)
+BL_BANDS = ((0.025, W_GLS), (0.031, W_BEV), (0.036, W_SS))          # the blade's top from its axis out: gloss-black core, graphite band, the bright edge line (to BL_T)
+Y_B = Y_P - CH_D                        # foot of the bevel = top of the star hub (and of the blades)
+BEV_SS = 0.0 if QF_WH_FACE else 0.2     # share of the bevel (from the panel edge down) that is the stainless edge line (2026-10-24, p003: ~2.5 mm; 2026-10-25: on the blade)
 S_ARM = 0.105                           # the star's arms end here along each spoke
+CU_H = (0.022, 0.010)                   # (QF_WH_FACE) copper band on the slot's panel-side wall: its height under Y_B at the star's arm end and at the lip
+CAP_R = (0.024, 0.028, 0.036) if QF_WH_FACE else (0.034, 0.039, 0.050)    # cap face, cap ring, foot of the cap's cone on the star
 Y_FLOOR = (0.064, 0.090, 0.100)         # channel floor per level
 
 
@@ -998,6 +1023,31 @@ def _sl(R, t):
     return math.sqrt(max(R * R - t * t, 0.0))
 
 
+def _lin(pts, s):
+    """t at s on the straight line through the two (s, t) points"""
+    (s0, t0), (s1, t1) = pts
+    return t0 + (t1 - t0) * (s - s0) / (s1 - s0)
+
+
+def _edge_t(s):
+    """offset of a panel edge from its spoke's axis at s along the spoke"""
+    return _lin(CH_E, s)
+
+
+def _foot_t(s):
+    """offset of the bevel's foot (the slot's panel-side wall) at s"""
+    return _edge_t(s) - CH_B
+
+
+def _meet(f, R=None):
+    """s where the straight line t = f(s) meets the circle R (R None: the bisector between two spokes, t = s tan 30)"""
+    e0, e1 = f(0.0), f(1.0) - f(0.0)
+    if R is None:
+        return e0 / (math.tan(math.pi / N_SPOKE) - e1)
+    a, b, c = 1.0 + e1 * e1, 2.0 * e0 * e1, e0 * e0 - R * R
+    return (-b + math.sqrt(b * b - 4.0 * a * c)) / (2.0 * a)
+
+
 def _spoke_th(k):
     return math.pi / 2 + k * 2 * math.pi / N_SPOKE          # spoke 0 points up (+z), as on the press car
 
@@ -1010,52 +1060,71 @@ def _v3(cb, th, s, t, y):
 def _panel(cb, k, level):
     """aero panel k (between spoke k and k + 1): ONE flat plane (Y_P), a fan from the apex where its two straight edges meet at the hub to the arc at the lip.
     Along both edges: the graphite bevel (from the panel plane down to the star's top, straight on to the rim) and the wall of the channel beside it, from the
-    star's arm end to the lip (gloss black, with a copper wedge near the hub)."""
+    star's arm end to the lip (gloss black, with copper: a band under the bevel (QF_WH_FACE), or the old wedge near the hub)."""
     n6 = math.pi / N_SPOKE
     th0 = _spoke_th(k)
     th1 = th0 + 2 * n6
-    c, a = CH_A + CH_B, CH_A
     yf = Y_FLOOR[level]
     nar = (8, 3, 3)[level]
-    ap = _v3(cb, th0, c / math.tan(n6), c, Y_P)             # the edge lines (t = +c of spoke k, t = -c of spoke k + 1) meet here
-    aa = math.asin(c / FACE_R)
+    s_ap = _meet(_edge_t)
+    ap = _v3(cb, th0, s_ap, _edge_t(s_ap), Y_P)              # the edge lines (t = +edge of spoke k, t = -edge of spoke k + 1) meet here
+    s_e = _meet(_edge_t, FACE_R)
+    aa = math.atan2(_edge_t(s_e), s_e)
     arc = []
     for i in range(nar + 1):
         ang = th0 + aa + (th1 - th0 - 2 * aa) * i / nar
         arc.append(cb.v((FACE_R * math.cos(ang), Y_P, FACE_R * math.sin(ang))))
     for i in range(nar):
         cb.facen([ap, arc[i], arc[i + 1]], W_AERO, (0, 1, 0))
-    s1 = _sl(FACE_R, a)
-    val = _v3(cb, th0, a / math.tan(n6), a, Y_B)            # where the two bevels meet at the foot (the star's valley)
+    s1 = _meet(_foot_t, FACE_R)
+    s_v = _meet(_foot_t)
+    val = _v3(cb, th0, s_v, _foot_t(s_v), Y_B)              # where the two bevels meet at the foot (the star's valley)
     for th, sg, edge_end in ((th0, 1, arc[0]), (th1, -1, arc[-1])):
         into = (sg * math.sin(th), 0.0, -sg * math.cos(th))          # from the wall into its channel
         up_in = (into[0] * 0.5, 0.85, into[2] * 0.5)
-        ba = _v3(cb, th, S_ARM, sg * a, Y_B)                         # foot of the bevel at the arm end, and at the lip
-        be = _v3(cb, th, s1, sg * a, Y_B)
+        ba = _v3(cb, th, S_ARM, sg * _foot_t(S_ARM), Y_B)            # foot of the bevel at the arm end, and at the lip
+        be = _v3(cb, th, s1, sg * _foot_t(s1), Y_B)
         # bevel: a triangle along the star arm and a quad out to the lip (one plane, no T-junction).  2026-10-24 (polish, p003): the quad's top fifth (~2.5 mm, along the panel's
         # edge) is the polished stainless W_SS -- the photo's thin bright line between each white panel and the dark spoke (the rim's crown ring is the same metal); the triangle
         # is split at the same point (mt), so the shared edge has no T-junction
-        mt, me_ = cb.v(tuple(ap.co.lerp(ba.co, BEV_SS))), cb.v(tuple(edge_end.co.lerp(be.co, BEV_SS)))
-        cb.facen([ap, mt, val], W_BEV, up_in)
-        cb.facen([mt, ba, val], W_BEV, up_in)
-        cb.facen([ap, edge_end, me_, mt], W_SS, up_in)
-        cb.facen([mt, me_, be, ba], W_BEV, up_in)
-        wf = [_v3(cb, th, S_ARM, sg * a, yf), _v3(cb, th, s1, sg * a, yf)]
+        if BL_T is not None:                                                  # (blade: the star is the deep floor, the wall runs from the valley)
+            ba = val
+            cb.facen([ap, edge_end, be, val], W_BEV, up_in)
+        elif BEV_SS > 0.0:
+            mt, me_ = cb.v(tuple(ap.co.lerp(ba.co, BEV_SS))), cb.v(tuple(edge_end.co.lerp(be.co, BEV_SS)))
+            cb.facen([ap, mt, val], W_BEV, up_in)
+            cb.facen([mt, ba, val], W_BEV, up_in)
+            cb.facen([ap, edge_end, me_, mt], W_SS, up_in)
+            cb.facen([mt, me_, be, ba], W_BEV, up_in)
+        else:
+            cb.facen([ap, ba, val], W_BEV, up_in)
+            cb.facen([ap, edge_end, be, ba], W_BEV, up_in)
+        s0 = s_v if BL_T is not None else S_ARM
+        wf = [_v3(cb, th, s0, sg * _foot_t(s0), yf), _v3(cb, th, s1, sg * _foot_t(s1), yf)]
         if level >= 1:
             cb.facen([ba, be, wf[1], wf[0]], W_GLS, into)
+        elif QF_WH_FACE:                                                      # copper band right under the bevel's foot, the length of the slot
+            c0, c1 = _v3(cb, th, s0, sg * _foot_t(s0), Y_B - CU_H[0]), _v3(cb, th, s1, sg * _foot_t(s1), Y_B - CU_H[1])
+            cb.facen([ba, be, c1, c0], W_ACC, into)
+            cb.facen([c0, c1, wf[1], wf[0]], W_GLS, into)
+        else:
+            tip, hi0 = _v3(cb, th, 0.265, sg * _foot_t(0.265), yf), _v3(cb, th, S_ARM, sg * _foot_t(S_ARM), yf + 0.032)
+            cb.facen([wf[0], tip, hi0], W_ACC, into)                          # copper wedge on the wall, widest at the hub
+            cb.facen([hi0, tip, wf[1], be, ba], W_GLS, into)                  # rest of the wall
+        if level >= 1:
             continue
-        tip, hi0 = _v3(cb, th, 0.265, sg * a, yf), _v3(cb, th, S_ARM, sg * a, yf + 0.032)
-        cb.facen([wf[0], tip, hi0], W_ACC, into)                              # copper wedge on the wall, widest at the hub
-        cb.facen([hi0, tip, wf[1], be, ba], W_GLS, into)                      # rest of the wall
-        top_end = _v3(cb, th, s1, sg * a, Y_P)
+        top_end = _v3(cb, th, s1, sg * _foot_t(s1), Y_P)
         cb.facen([edge_end, top_end, be], W_BEV, (-edge_end.co.x, 0.0, -edge_end.co.z))   # closes the bevel against the lip
 
 
 def _channel(cb, k, level):
-    """spoke channel k: gloss-black floor, the end wall against the lip, and the end of the star's arm at its hub end."""
+    """spoke channel k: gloss-black floor, the end wall against the lip, the end of the star's arm at its hub end; or (BL_T) the blade instead of the arm: a bar at
+    Y_B from the hub to the lip, its top in bands (BL_BANDS) mitred against its neighbours' on the bisectors (the six blades make one star round the cap, the
+    bright edge lines meeting in a valley at r 0.072), its sides down to the floor (gloss black)."""
     th = _spoke_th(k)
-    a, yf = CH_A, Y_FLOOR[level]
-    asn = math.asin(a / FACE_R)
+    yf = Y_FLOOR[level]
+    s1 = _meet(_foot_t, FACE_R)
+    asn = math.atan2(_foot_t(s1), s1)
     nar = (3, 2, 2)[level]
     arc_f, arc_t = [], []
     for i in range(nar + 1):
@@ -1063,28 +1132,52 @@ def _channel(cb, k, level):
         x, z = FACE_R * math.cos(ang), FACE_R * math.sin(ang)
         arc_f.append(cb.v((x, yf, z)))
         arc_t.append(cb.v((x, Y_P, z)))
+    a = _foot_t(S_ARM)
     cb.facen([_v3(cb, th, S_ARM, -a, yf), _v3(cb, th, S_ARM, a, yf)] + arc_f, W_GLS, (0, 1, 0))
     for i in range(nar):
         cb.facen([arc_f[i], arc_f[i + 1], arc_t[i + 1], arc_t[i]], W_GLS, (-arc_f[i].co.x, 0.0, -arc_f[i].co.z))
-    cb.facen([_v3(cb, th, S_ARM, -a, Y_B), _v3(cb, th, S_ARM, a, Y_B), _v3(cb, th, S_ARM, a, yf), _v3(cb, th, S_ARM, -a, yf)], W_HUB,
-             (math.cos(th), 0.0, math.sin(th)))                     # end of the star arm
+    if BL_T is None:
+        cb.facen([_v3(cb, th, S_ARM, -a, Y_B), _v3(cb, th, S_ARM, a, Y_B), _v3(cb, th, S_ARM, a, yf), _v3(cb, th, S_ARM, -a, yf)], W_HUB,
+                 (math.cos(th), 0.0, math.sin(th)))                 # end of the star arm
+        return
+    tn = math.tan(math.pi / N_SPOKE)
+    ts = [-t for t, _ in reversed(BL_BANDS)] + [t for t, _ in BL_BANDS]
+    cols = [c for _, c in reversed(BL_BANDS)][:-1] + [BL_BANDS[0][1]] + [c for _, c in BL_BANDS][1:]
+    a_in = [_v3(cb, th, abs(t) / tn, t, Y_B) for t in ts]             # the band lines' inner ends: on the bisectors (mitres with the neighbouring blades)
+    a_out = [_v3(cb, th, math.sqrt(max(FACE_R ** 2 - t * t, 0.0)), t, Y_B) for t in ts]
+    for i in range(len(ts) - 1):                                      # the top in bands across: bright edge, graphite, gloss core, graphite, bright edge
+        cb.facen([a_in[i], a_in[i + 1], a_out[i + 1], a_out[i]], cols[i], (0, 1, 0))
+    bot = [_v3(cb, th, abs(t) / tn, t, yf) for t in (ts[0], ts[-1])] + [cb.v((a_out[-1].co.x, yf, a_out[-1].co.z)), cb.v((a_out[0].co.x, yf, a_out[0].co.z))]
+    cb.facen([a_in[-1], a_out[-1], bot[2], bot[1]], W_GLS, (-math.sin(th), 0.0, math.cos(th)))     # the blade's two sides, facing into the slots
+    cb.facen([a_out[0], a_in[0], bot[0], bot[3]], W_GLS, (math.sin(th), 0.0, -math.cos(th)))
+    cb.facen([a_out[0], a_out[-1], bot[2], bot[3]], W_GLS, (math.cos(th), 0.0, math.sin(th)))      # its end under the lip
 
 
-def _star(cb):
-    """the graphite six-armed star hub: flat top at the foot of the bevels, an arm along every channel, valleys where the panels' tips come in."""
+def _star(cb, level=0):
+    """the six-armed star hub: flat top at the foot of the bevels, an arm along every channel, valleys where the panels' tips come in.  With blades (BL_T) the same
+    outline is the deep floor (gloss black, at the channels' floor) between the panels' tips and the blades, and the blades meet in a hexagon under the cap."""
     n6 = math.pi / N_SPOKE
-    ctr = cb.v((0.0, Y_B, 0.0))
+    y, col = (Y_B, W_HUB) if BL_T is None else (Y_FLOOR[level], W_GLS)
+    ctr = cb.v((0.0, y, 0.0))
+    s_v = _meet(_foot_t)
+    r_v = math.hypot(s_v, _foot_t(s_v))
+    a = _foot_t(S_ARM)
     pts = []
     for k in range(N_SPOKE):
         th = _spoke_th(k)
-        pts += [_v3(cb, th, S_ARM, -CH_A, Y_B), _v3(cb, th, S_ARM, CH_A, Y_B), _v3(cb, th + n6, 2 * CH_A, 0.0, Y_B)]
+        pts += [_v3(cb, th, S_ARM, t, y) for t in (-a, a)] + [_v3(cb, th + n6, r_v, 0.0, y)]
     for i in range(len(pts)):
-        cb.facen([ctr, pts[i], pts[(i + 1) % len(pts)]], W_HUB, (0, 1, 0))
+        cb.facen([ctr, pts[i], pts[(i + 1) % len(pts)]], col, (0, 1, 0))
+    if BL_T is not None:                                              # the blades' common centre (their core bands' inner ends)
+        hx = [_v3(cb, _spoke_th(k) + n6, BL_BANDS[0][0] / math.sin(n6), 0.0, Y_B) for k in range(N_SPOKE)]
+        c2 = cb.v((0.0, Y_B, 0.0))
+        for i in range(N_SPOKE):
+            cb.facen([c2, hx[i - 1], hx[i]], W_GLS, (0, 1, 0))
 
 
-def _badge_t(cb, y0, y1, col):
-    """the raised Tesla T on the cap: a prism over its outline (x, z; counter-clockwise)."""
-    o = [(-0.0035, -0.0150), (0.0035, -0.0150), (0.0035, 0.0045), (0.0135, 0.0045), (0.0135, 0.0105), (-0.0135, 0.0105), (-0.0135, 0.0045), (-0.0035, 0.0045)]
+def _badge_t(cb, y0, y1, col, k=1.0):
+    """the raised Tesla T on the cap: a prism over its outline (x, z; counter-clockwise), scaled by k with the cap."""
+    o = [(k * x, k * z) for x, z in ((-0.0035, -0.0150), (0.0035, -0.0150), (0.0035, 0.0045), (0.0135, 0.0045), (0.0135, 0.0105), (-0.0135, 0.0105), (-0.0135, 0.0045), (-0.0035, 0.0045))]
     top = [cb.v((x, y1, z)) for x, z in o]
     bot = [cb.v((x, y0, z)) for x, z in o]
     cb.facen(top, col, (0, 1, 0))
@@ -1114,8 +1207,23 @@ def _catmull(pts, per):
     return out
 
 
-def _tyre_prof(nprof):
-    """closed (r, y) contour of the tyre with exactly `nprof` points (nprof 8 / 22 are the lod2 / lod1 profiles, anything larger = hi, smoothed)"""
+TYRE_LIP = 0.315                        # the lip's outer edge: the tyre is hidden under the lip inside this radius
+
+
+def _tyre_r(r, ax):
+    """radius on axle ax's tyre of the point at r on the TYRE_HALF contour (r 0.300 .. 0.39): inside the lip the tyre follows the rim (RIM_S), the visible sidewall
+    stretches from the scaled lip to TYRE_R (2026-10-25: the front sidewall 7.5 -> 4.2 cm, the rear 7.5 -> 6.7 cm)"""
+    s, R = RIM_S[ax], TYRE_R[ax]
+    return r * s if r <= TYRE_LIP else TYRE_LIP * s + (r - TYRE_LIP) * (R - TYRE_LIP * s) / (0.39 - TYRE_LIP)
+
+
+def _tyre_r_inv(r, ax):
+    s, R = RIM_S[ax], TYRE_R[ax]
+    return r / s if r <= TYRE_LIP * s else TYRE_LIP + (r - TYRE_LIP * s) * (0.39 - TYRE_LIP) / (R - TYRE_LIP * s)
+
+
+def _tyre_prof(nprof, ax=1):
+    """closed (r, y) contour of axle ax's tyre with exactly `nprof` points (nprof 8 / 22 are the lod2 / lod1 profiles, anything larger = hi, smoothed)"""
     H = TYRE_HALF
     if nprof == 22:                                           # lod1: 11 points per side, the tread centre point dropped for a second tread point (y 0.025)
         half = H[:-1] + [(0.3900, 0.025)]
@@ -1123,8 +1231,9 @@ def _tyre_prof(nprof):
         half = [H[0], H[4], H[7], (0.3900, 0.040)]
     else:
         half = _catmull(H[:-1], max(1, (nprof // 2) // (len(H) - 2))) + [(0.3900, 0.0)]
-        out = half + [(r, -y) for r, y in reversed(half[:-1])]
-        return out
+        half = [(_tyre_r(r, ax), y) for r, y in half]
+        return half + [(r, -y) for r, y in reversed(half[:-1])]
+    half = [(_tyre_r(r, ax), y) for r, y in half]
     return half + [(r, -y) for r, y in reversed(half)]
 
 
@@ -1134,50 +1243,62 @@ LIP_PROF1 = [(FACE_R, Y_P), (0.2995, 0.1190), (0.3075, 0.1210), (0.3140, 0.1075)
 LIP_SS = (2, 2)                         # the lip's profile from this point on (hi, lod1) is the stainless ring W_SS (its crown and outer round, ~1.2 cm seen from the side); the inner slope stays dark
 
 
-def rim_mesh(level):
-    """level 0: hi (tyre is the separate source mesh); 1: lod1 incl. tyre; 2: lod2 incl. tyre (six flat sectors + six recessed black quads)."""
+def rim_mesh(level, ax=1):
+    """axle ax's wheel.  level 0: hi (the tyre is a separate mesh); 1: lod1 incl. tyre; 2: lod2 incl. tyre (six flat sectors + six recessed black quads).
+    The rim is built at FACE_R and scaled radially by RIM_S[ax]; the tyre comes from the axle's own contour."""
     cb = CB()
     st = (72, 28, 14)[level]
     tyre_tris = 0
     if level > 0:
-        cb.lathe(_tyre_prof(22 if level == 1 else 8), 56 if level == 1 else 20, W_RUB, closed=True)
+        cb.lathe(_tyre_prof(22 if level == 1 else 8, ax), 56 if level == 1 else 20, W_RUB, closed=True)
         bmesh.ops.recalc_face_normals(cb.bm, faces=list(cb.bm.faces))
         tyre_tris = sum(len(f.verts) - 2 for f in cb.bm.faces)
+    n_tyre = len(cb.bm.verts)
+
+    def scaled(name, recalc):
+        cb.bm.verts.ensure_lookup_table()
+        for v in cb.bm.verts[n_tyre:]:
+            v.co.x *= RIM_S[ax]
+            v.co.z *= RIM_S[ax]
+        return cb.mesh(name, recalc=recalc)
     if level == 2:
         n6 = math.pi / N_SPOKE
+        s_ap, s_e = _meet(_edge_t), _meet(_edge_t, FACE_R)
+        aa = math.atan2(_edge_t(s_e), s_e)
         for k in range(N_SPOKE):
             th0 = _spoke_th(k)
             th1 = th0 + 2 * n6
-            c = CH_A + CH_B
-            aa = math.asin(c / FACE_R)
-            ap = _v3(cb, th0, c / math.tan(n6), c, Y_P)
+            ap = _v3(cb, th0, s_ap, _edge_t(s_ap), Y_P)
             arc = [cb.v((FACE_R * math.cos(a_), Y_P, FACE_R * math.sin(a_))) for a_ in (th0 + aa, (th0 + th1) / 2, th1 - aa)]
             for i in range(2):
                 cb.facen([ap, arc[i], arc[i + 1]], W_AERO, (0, 1, 0))
-            s0, s1, yf = 0.060, _sl(FACE_R, CH_A), Y_FLOOR[2]
-            cb.facen([_v3(cb, th0, s0, -CH_A, yf), _v3(cb, th0, s0, CH_A, yf), _v3(cb, th0, s1, CH_A, yf), _v3(cb, th0, s1, -CH_A, yf)], W_GLS, (0, 1, 0))
+            s0, yf = 0.060, Y_FLOOR[2]                    # the black spoke: under the whole opening between the panels' edges (2026-10-25; was the channel only, CH_A)
+            t0, t1 = (_edge_t(s0), _edge_t(s_e)) if QF_WH_FACE else (_foot_t(s0), _foot_t(s_e))
+            s1 = _sl(FACE_R, t1)
+            cb.facen([_v3(cb, th0, s0, -t0, yf), _v3(cb, th0, s0, t0, yf), _v3(cb, th0, s1, t1, yf), _v3(cb, th0, s1, -t1, yf)], W_GLS, (0, 1, 0))
         print('WHEEL lod2 per wheel: tyre %d + rim %d tris' % (tyre_tris, sum(len(f.verts) - 2 for f in cb.bm.faces) - tyre_tris))
-        return cb.mesh('Rim_l2', recalc=False)
+        return scaled('Rim_l2_%d' % ax, False)
     if level == 0:
         cb.lathe([(0.300, 0.104), (0.300, -0.128), (0.316, -0.134)], st, W_DARK)                    # barrel
     lp, ks = (LIP_PROF, LIP_SS[0]) if level == 0 else (LIP_PROF1, LIP_SS[1])
     cb.lathe(lp, st, [W_HUB if i < ks else W_SS for i in range(len(lp) - 1)])                        # lip (p018 / p003: the outer rim ring reads dark like the hub, not graphite like the bevels), its crown a thin polished stainless ring (2026-10-24)
     hs = 48 if level == 0 else 14
+    c0, c1, c2 = CAP_R
     if level == 0:
-        cb.lathe([(0.0, 0.1155), (0.034, 0.1155)], hs, W_HUB)                                       # cap
-        cb.lathe([(0.034, 0.1155), (0.0365, 0.1168), (0.039, 0.1155)], hs, W_BEV)                   # cap ring
-        cb.lathe([(0.039, 0.1155), (0.044, 0.1108), (0.050, Y_B)], hs, W_HUB)                       # down to the star
+        cb.lathe([(0.0, 0.1155), (c0, 0.1155)], hs, W_HUB)                                          # cap
+        cb.lathe([(c0, 0.1155), ((c0 + c1) / 2, 0.1168), (c1, 0.1155)], hs, W_BEV)                  # cap ring
+        cb.lathe([(c1, 0.1155), (c1 + 0.45 * (c2 - c1), 0.1108), (c2, Y_B)], hs, W_HUB)             # down to the star
     else:
-        cb.lathe([(0.0, 0.1155), (0.040, 0.1155), (0.050, Y_B)], hs, W_HUB)
+        cb.lathe([(0.0, 0.1155), (c2 - 0.010, 0.1155), (c2, Y_B)], hs, W_HUB)
     bmesh.ops.recalc_face_normals(cb.bm, faces=[f for f in cb.bm.faces if f.is_valid])           # (the tyre / lathe faces; the flat sheets below are wound by hand)
     if level == 0:
-        _badge_t(cb, 0.1150, 0.1172, W_BADGE)
-    _star(cb)
+        _badge_t(cb, 0.1150, 0.1172, W_BADGE, c0 / 0.034)
+    _star(cb, level)
     for k in range(N_SPOKE):
         _panel(cb, k, level)
         _channel(cb, k, level)
     print('WHEEL lod%d per wheel: tyre %d + rim %d tris' % (level, tyre_tris, sum(len(f.verts) - 2 for f in cb.bm.faces) - tyre_tris))
-    return cb.mesh(f'Rim_l{level}', recalc=False)
+    return scaled('Rim_l%d_%d' % (level, ax), False)
 
 
 def brake_meshes():
@@ -1220,15 +1341,17 @@ def rim_obj(me, name, left, mat_name='Rim', sharp=34):
     return ob
 
 
-# 2026-10-24 (p003 / p018): the press car's tyres carry white sidewall print ("TROFEO RS" large, "P ZERO"); the game's tyre shader only has a faint satin band.  Raised
-# letters (0.5 mm) wrapped on the outboard sidewall, in the rim mesh (it spins with the wheel) with the rubber code 0 = matte, the rgb white (materials.js 'rim': no clear coat on rubber).
+# 2026-10-24 (p003 / p018): the press car's tyres carry sidewall print ("TROFEO RS" large, "P ZERO"); the game's tyre shader only has a faint satin band.  Raised
+# letters (0.5 mm) wrapped on the outboard sidewall, in the rim mesh (it spins with the wheel) with the rubber code 0 = matte (materials.js 'rim': no clear coat on rubber).
+# 2026-10-25 (WHEELS): the print is raised rubber, not white paint: low-contrast grey in p018 (the letters 50-100 / 255 on the tyre's 5-10) and p003; W_PRINT 0.90 -> 0.05.
 TYRE_TEXT = (('TROFEO RS', -math.pi / 2, 0.021), ('P ZERO', math.pi / 2, 0.018))      # (label, centre angle in the wheel plane, cap height: p018 (near-orthographic) 5-6 px = 2.1 cm)
-TYRE_TEXT_R0 = 0.340                    # baseline radius: the print is centred on the visible sidewall (0.313 lip .. 0.39)
-W_PRINT = (0.90, 0.90, 0.91, 0.0)
+TYRE_TEXT_R0 = 0.340                    # baseline radius: the print is centred on the visible sidewall (0.313 lip .. 0.39; per axle: the same offset from the middle of its sidewall)
+W_PRINT = (0.05, 0.05, 0.052, 0.0)     # (was 0.90 white.  p018: the letters ~0.5 of the panels' brightness, the rubber ~0.06; 0.10 still read white in the p003 preview, 0.025 vanished)
 
 
-def _tyre_side_y(r):
-    """|y| of the outboard sidewall at radius r (TYRE_HALF, linear between its points)"""
+def _tyre_side_y(r, ax=1):
+    """|y| of axle ax's outboard sidewall at radius r (TYRE_HALF, linear between its points)"""
+    r = _tyre_r_inv(r, ax)
     H = TYRE_HALF[:-1]
     for (r0, y0), (r1, y1) in zip(H, H[1:]):
         if r0 <= r <= r1:
@@ -1236,9 +1359,10 @@ def _tyre_side_y(r):
     return H[-1][1] if r > H[-1][0] else H[0][1]
 
 
-def tyre_text_mesh(rev):
-    """the sidewall print in the right wheel's frame (axle +y = outboard); rev: written backwards, for the left wheels (mirror_mesh turns it round)"""
+def tyre_text_mesh(rev, ax=1):
+    """the sidewall print of axle ax in the right wheel's frame (axle +y = outboard); rev: written backwards, for the left wheels (mirror_mesh turns it round)"""
     cb = CB()
+    r0 = TYRE_TEXT_R0 + 0.5 * (_tyre_r(TYRE_LIP, ax) + TYRE_R[ax]) - 0.5 * (TYRE_LIP + 0.39)     # the band keeps its place in the middle of the visible sidewall
     for label, thc, cap in TYRE_TEXT:
         cu = bpy.data.curves.new('tyre_text', 'FONT')
         cu.body = label
@@ -1257,9 +1381,9 @@ def tyre_text_mesh(rev):
         vm = {}
         for v in bm.verts:
             x, y, z = v.co
-            r = TYRE_TEXT_R0 + y
+            r = r0 + y
             th = thc + (-x if rev else x) / r                  # clockwise seen from outside, letter tops outward
-            vm[v] = cb.v((r * math.cos(th), _tyre_side_y(r) + 0.0006 + z, r * math.sin(th)))
+            vm[v] = cb.v((r * math.cos(th), _tyre_side_y(r, ax) + 0.0006 + z, r * math.sin(th)))
         for f in bm.faces:                                     # (the map keeps the text's own winding for the right wheel and mirrors it when rev: reverse those faces;
             vs = [vm[v] for v in f.verts]                      # recalc_face_normals flipped some letter caps of these open pieces inward, they shaded black)
             cb.face(vs[::-1] if rev else vs, W_PRINT)
@@ -1267,28 +1391,29 @@ def tyre_text_mesh(rev):
         bpy.data.objects.remove(tob, do_unlink=True)
         bpy.data.meshes.remove(me)
         bpy.data.curves.remove(cu)
-    return cb.mesh('TyreText_%s' % ('L' if rev else 'R'), recalc=False)
+    return cb.mesh('TyreText_%s%d' % ('L' if rev else 'R', ax), recalc=False)
 
 
 def build_wheel_hi2(tag, wx, sgn):
-    left = sgn < 0
-    if 0 not in RIM_ME:
-        RIM_ME[0] = rim_mesh(0)
+    left, ax = sgn < 0, axle(wx)
+    if (0, ax) not in RIM_ME:
+        RIM_ME[(0, ax)] = rim_mesh(0, ax)
+    if 'brake' not in RIM_ME:
         RIM_ME['brake'] = brake_meshes()
-    if 'tyre' not in RIM_ME:                                  # FRONT r3: the hi tyre is the same (r, y) contour as the lod ones, lathed finely (the source wedge_car tyre was the fat 0.142 superellipse)
+    if ('tyre', ax) not in RIM_ME:                            # FRONT r3: the hi tyre is the same (r, y) contour as the lod ones, lathed finely (the source wedge_car tyre was the fat 0.142 superellipse)
         _tc = CB()
-        _tc.lathe(_tyre_prof(60), 96, W_RUB, closed=True)
-        RIM_ME['tyre'] = _tc.mesh('Tyre_hi', keep_color=False)
-        print('WHEEL hi per wheel: tyre %d tris' % sum(len(p.vertices) - 2 for p in RIM_ME['tyre'].polygons))
-    hub = empty(f'Wheel_{tag}', (wx, sgn * WHEEL_Y, WHEEL_Z))
+        _tc.lathe(_tyre_prof(60, ax), 96, W_RUB, closed=True)
+        RIM_ME[('tyre', ax)] = _tc.mesh('Tyre_hi_%d' % ax, keep_color=False)
+        print('WHEEL hi per wheel: tyre %d tris' % sum(len(p.vertices) - 2 for p in RIM_ME[('tyre', ax)].polygons))
+    hub = empty(f'Wheel_{tag}', (wx, sgn * WHEEL_Y, WHEEL_Z[ax]))
     spin = empty(f'Spin_{tag}', (0, 0, 0), hub)
-    t = rim_obj(RIM_ME['tyre'], f'Tyre_{tag}', left, 'Tyre', sharp=70)
+    t = rim_obj(RIM_ME[('tyre', ax)], f'Tyre_{tag}', left, 'Tyre', sharp=70)
     t.parent = spin
-    rim = rim_obj(RIM_ME[0], f'Rim_{tag}', left)
-    if ('text', left) not in RIM_ME:
-        RIM_ME[('text', left)] = tyre_text_mesh(left)
-        print('WHEEL hi per wheel: sidewall print %d tris' % sum(len(p.vertices) - 2 for p in RIM_ME[('text', left)].polygons))
-    rim = join([rim, rim_obj(RIM_ME[('text', left)], f'RimText_{tag}', left)], f'Rim_{tag}')
+    rim = rim_obj(RIM_ME[(0, ax)], f'Rim_{tag}', left)
+    if ('text', left, ax) not in RIM_ME:
+        RIM_ME[('text', left, ax)] = tyre_text_mesh(left, ax)
+        print('WHEEL hi per wheel: sidewall print %d tris' % sum(len(p.vertices) - 2 for p in RIM_ME[('text', left, ax)].polygons))
+    rim = join([rim, rim_obj(RIM_ME[('text', left, ax)], f'RimText_{tag}', left)], f'Rim_{tag}')
     ca = rim.data.color_attributes.get('Color')
     if ca is not None:
         rim.data.color_attributes.active_color = ca
@@ -1303,10 +1428,11 @@ def build_wheel_hi2(tag, wx, sgn):
     return hub
 
 
-def wheel_lod_obj(tag, sgn, level):
-    if level not in RIM_ME:
-        RIM_ME[level] = rim_mesh(level)
-    return rim_obj(RIM_ME[level], f'Wheel_{tag}_mesh', sgn < 0, sharp=40 if level == 1 else 50)
+def wheel_lod_obj(tag, wx, sgn, level):
+    ax = axle(wx)
+    if (level, ax) not in RIM_ME:
+        RIM_ME[(level, ax)] = rim_mesh(level, ax)
+    return rim_obj(RIM_ME[(level, ax)], f'Wheel_{tag}_mesh', sgn < 0, sharp=40 if level == 1 else 50)
 
 
 # ------------------------------------------------------------ tools offered to the regions through ctx
@@ -1569,9 +1695,9 @@ def build_lod1():
     wheels = []
     root = empty('Car')
     for t, wx, s in WHEELS:
-        hub = empty(f'Wheel_{t}', (wx, s * WHEEL_Y, WHEEL_Z), root)
+        hub = empty(f'Wheel_{t}', (wx, s * WHEEL_Y, WHEEL_Z[axle(wx)]), root)
         spin = empty(f'Spin_{t}', (0, 0, 0), hub)
-        w = wheel_lod_obj(t, s, 1)
+        w = wheel_lod_obj(t, wx, s, 1)
         w.parent = spin
         wheels.append(hub)
     for o in [stat, decal] + [n for r in ctxmod.REGIONS for n in R[r]['nodes'].values()]:
@@ -1605,7 +1731,7 @@ def build_lod2():
     stat = finish_static([b] + tmp + keep + R['front']['parts'] + R['side']['parts'] + cabo + R['rear']['parts'], 'Body')
     ws = []
     for t, wx, s in WHEELS:
-        w = wheel_lod_obj(t, s, 2)
+        w = wheel_lod_obj(t, wx, s, 2)
         place_mesh_at_hub(w, wx, s)
         ws.append(w)
     wheels = join(ws, 'Wheels')
@@ -1632,9 +1758,9 @@ if ONLY in ('all', 'lod2'):
 if ONLY == 'all':
     meta = dict(
         glbFrame='-X forward, +Z left, +Y up, metres',
-        hubs={'FL': [WHEEL_X[0], -WHEEL_Y, WHEEL_Z], 'FR': [WHEEL_X[0], WHEEL_Y, WHEEL_Z], 'RL': [WHEEL_X[1], -WHEEL_Y, WHEEL_Z],
-              'RR': [WHEEL_X[1], WHEEL_Y, WHEEL_Z]},
-        tyreRadius=TYRE_R,
+        hubs={t: [wx, s * WHEEL_Y, WHEEL_Z[axle(wx)]] for t, wx, s in WHEELS},          # car frame (x rear, y right, z up), per wheel
+        tyreRadius=dict(F=TYRE_R[0], R=TYRE_R[1]),                                   # per axle (2026-10-25; was one number, 0.39)
+        rimScale=dict(F=RIM_S[0], R=RIM_S[1]),                                       # the rim's radial scale per axle (the game's spin-blur disc follows it)
         atlas=[2048, 1024],
         decals={k: dict(uv=list(v['uv']), x=list(v.get('x', [])), y=list(v.get('y', [])), z=list(v.get('z', [])), side=v.get('side', 0))
                 for k, v in DECALS.items()},

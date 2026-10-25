@@ -10,8 +10,11 @@ export const CAR = {
   mass: 1700,                 // kg incl. driver
   wheelbase: 3.097,
   zFront: -1.487, zRear: 1.61,
-  halfTrack: 0.885,
-  wheelR: 0.39,
+  // 2026-10-25 (the calibrated press photos, tools/blender/CALIB.md): the wheels stand 9.4 cm further out (half track 0.885 -> 0.979) and the
+  // front wheel is smaller than the rear (tyre radius 0.353 / 0.39 = hub height); the visual car (car_meta.json hubs / tyreRadius) has the same numbers
+  halfTrack: 0.979,
+  wheelR: 0.39,               // rear tyre radius, and the reference radius of the wheel dynamics (drive, brakes, inertia are tuned at it; vehicle.js)
+  wheelRF: 0.353,             // front tyre radius (geometry and spin only)
   frontWeight: 0.45,          // static front weight fraction
   cgY: 0.45,                  // centre of gravity height above ground at rest
   // principal moments about the CG in the car frame (x = pitch axis, y = yaw axis, z = roll axis), kg m²
