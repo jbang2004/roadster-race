@@ -51,7 +51,12 @@ def sstep(a, b, x):
 # CENTRE of the edge further forward.  N_OLD is the R1c / R1e corner: every legacy curve below (L, U, l3, sill knots) is still defined from it and is then modified near the nose (build_all).
 N_OLD = (-2.39, 0.670, 0.545)
 NOSE_XN = float(os.environ.get('NOSE_XN', '-2.46'))
-NOSE_ZN = float(os.environ.get('NOSE_ZN', '0.541'))      # R1e3: the corner's height is the light bar's (p016 bar fit, R1e2: 0.566); it is no longer on the old hood plane when N moves forward.
+# QF_NOSE_LOW (2026-10-25, FRONT audit with the calibrated cameras): the nose corner N (= light-bar end FB) is 3.1 cm lower: 0.541 -> 0.510.  The corner triangulated from p016 (both corners, sigma 1.5 px),
+#   p013, p018 and p001 is (-2.472, 0.702, 0.509), formal sd (3, 3, 2.4) mm, every view within 4 px; the side views alone (p018 + p001 + p013, no p016) give z 0.518.  CALIB phase 3 kept 0.541 because p018's
+#   top outline matches there: it does, but p018's corner itself (where that outline meets the crease) is 4-5 px lower and 9 px further forward than the model's.  p016: no body-colour band between
+#   the hood and the bar (the hood meets the bar directly at every column), so the whole front edge is lower, not just the bar.  QF_NOSE_LOW=0: the 2026-10-24 ruling N-1 (0.541).
+QF_NOSE_LOW = os.environ.get('QF_NOSE_LOW', '1') == '1'
+NOSE_ZN = float(os.environ.get('NOSE_ZN', '0.510' if QF_NOSE_LOW else '0.541'))      # R1e3: the corner's height is the light bar's (p016 bar fit, R1e2: 0.566); it is no longer on the old hood plane when N moves forward.
 #   2026-10-24 (user: the real car's front is more nose-down): 0.566 -> 0.541.  p018's silhouette (the primary height reference) has the crest 7 px = 2.5 cm lower than the model's at x -2.40, 2.2 / 1.8 / 1.1 /
 #   0.4 cm at -2.31 / -2.22 / -2.13 / -2.04, 0 by -1.95 and 0.4 - 0.7 cm HIGHER over -1.9 .. -1.5; the crest as rebuilt on the lower N (zfix, tilt, flap plane) is 2.1 / 1.6 / 1.2 / 0.7 / 0.3 cm lower there and
 #   0.4 - 0.5 cm higher at -1.9 .. -1.7 (within 0.6 cm everywhere).  p016's gloss band under the bar is ~15 % shorter than the model's, which the lower bar also gives (its lower edge stays at z 0.428)
