@@ -17,6 +17,8 @@ import shell2 as S2
 
 panels, R = S2.build_panels()
 V, F, M, PID, names = S2.assemble(panels)
+if S2.QF_P3_TAILX:          # the rear-end extension is applied to the built car at export (build_game_car.p3_post): the preview takes it too
+    V = [tuple(float(c) for c in p[:3]) if p[0] < 1.15 else tuple(float(a + b) for a, b in zip(p[:3], S2.p3_dxyz(*p[:3]))) for p in V]
 me = bpy.data.meshes.new('Shell')
 me.from_pydata([tuple(map(float, p)) for p in V], [], [list(f) for f in F])
 me.update()

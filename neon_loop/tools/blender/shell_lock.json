@@ -52,7 +52,7 @@
    "faces": 792
   },
   "rear_shoulder": {
-   "sha": "0c017e4e43de13ec",
+   "sha": "78a7746594d29161",
    "verts": 3110,
    "faces": 3016
   },
@@ -62,17 +62,17 @@
    "faces": 9125
   },
   "ridge_inner": {
-   "sha": "282ab090b95e0c54",
+   "sha": "08d3cef2fd7bcc1b",
    "verts": 1082,
    "faces": 952
   },
   "deck": {
-   "sha": "6deb58de7de29c38",
+   "sha": "46a8eb61eba68516",
    "verts": 586,
    "faces": 556
   },
   "tail_upper": {
-   "sha": "0da092bf34d0ba45",
+   "sha": "89314a0f6b3c7718",
    "verts": 780,
    "faces": 708
   },
