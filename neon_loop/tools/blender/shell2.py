@@ -1605,7 +1605,7 @@ def checksum(pm):
 #   w     a smoothstep over |y| 0.30 .. 0.50 (no edge in the field).
 # A smooth field of position only: shared vertices of neighbouring panels move alike (no cracks), creases stay creases.  The wheel openings are cut afterwards (unchanged in side view).
 # (A was trimmed after the first build: p013 put that build 1 cm wide at x 1.6 .. 2.0.)  The FRONT widening is its own switch, QF_P3_FRONT below.
-QF_P3_HIP = os.environ.get('QF_P3_HIP', '0') == '1'
+QF_P3_HIP = os.environ.get('QF_P3_HIP', '1') == '1'
 QF_P3_HIP_A = tuple(tuple(float(u) for u in kv.split(':')) for kv in os.environ.get(
     'QF_P3_HIP_A', '1.00:0,1.20:1.6,1.40:3.9,1.60:4.4,1.80:4.3,2.00:3.9,2.20:2.6,2.38:0.9,2.46:0').split(','))
 QF_P3_HIP_Z0 = float(os.environ.get('QF_P3_HIP_Z0', '0.40'))                 # bottom of the field (z, m)
@@ -1616,7 +1616,7 @@ QF_P3_HIP_Z0 = float(os.environ.get('QF_P3_HIP_Z0', '0.40'))                 # b
 #         in the section, |LU| the rung L -> U (the fender top over the wheel moves with L); k(x) is how far the crest U follows L: 1 ahead of QF_P3_FRONT_UK[0] (at the nose L and U meet),
 #         0 behind QF_P3_FRONT_UK[1] (U_front is pinned there, sigma 1 mm), so the fender top's tilt grows steadily instead of twisting where the rung is short; inboard of U the
 #         remaining k fades out over QF_P3_FRONT_DU (m).
-QF_P3_FRONT = os.environ.get('QF_P3_FRONT', '0') == '1'
+QF_P3_FRONT = os.environ.get('QF_P3_FRONT', '1') == '1'
 QF_P3_FRONT_A = tuple(tuple(float(u) for u in kv.split(':')) for kv in os.environ.get(
     'QF_P3_FRONT_A', '-2.46:4.0,-1.85:4.8,-1.30:4.3,-0.80:2.7,-0.30:1.6,0.15:0.5,0.50:0').split(','))
 QF_P3_FRONT_RISE = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_RISE', '-2.46,-2.22').split(','))
@@ -1941,6 +1941,21 @@ if D.QF_C11_ON and D.QF_C11_AZD != 0.0:    # c11: the wider c9c fade band pulls 
 _AZ_F = _pchip([k[0] for k in QF_AZ_K], [k[1] for k in QF_AZ_K])
 
 
+# P3 (reconstruction phase 3, 2026-10-25): the REAR arch outline.  The arch lip fitted from p018 + p001 (calib/lines fit.json arch_R, sigma 1-4 mm) lies OUTSIDE the R_ARCH circle round the rear hub:
+# +12..14 mm from 85 to 150 deg, +5..7 mm just behind the top (63-78 deg), opening to +27 mm at 40 deg (its lowest fitted point).  QF_P3_ARR_K = (angle, mm outside the circle), monotone cubic like
+# QF_AZ_K, held at the end values beyond the fitted angles; the well wall follows the cut (it is extruded from the cut ring).
+QF_P3_ARR = os.environ.get('QF_P3_ARR', '0') == '1'
+QF_P3_ARR_K = ((-90.0, 27.0), (40.0, 27.0), (48.0, 20.0), (56.0, 12.0), (63.0, 7.0), (71.0, 5.0), (78.0, 7.0), (85.0, 10.0), (91.0, 13.0), (98.0, 14.0), (105.0, 13.0), (120.0, 12.0),
+               (136.0, 13.0), (148.0, 10.0), (270.0, 10.0))
+_ARR_F = _pchip([k[0] for k in QF_P3_ARR_K], [k[1] for k in QF_P3_ARR_K])
+
+
+def p3_arr(phi_deg):
+    """how far (m) the rear arch outline lies outside the R_ARCH circle at the angle phi (deg, as qf_az_depth)"""
+    p = phi_deg + 360.0 if phi_deg < -90.0 else phi_deg
+    return 1e-3 * _ARR_F(p) if QF_P3_ARR else 0.0
+
+
 def qf_az_depth(phi_deg):
     """depth (m) of the front arch outline below the circle at the angle phi (deg, atan2(z - hub, x - hub), the bottom part of the front edge counted as +180 .. +270)"""
     p = phi_deg + 360.0 if phi_deg < -90.0 else phi_deg
@@ -2043,7 +2058,7 @@ def cut_arches(ob, lmax=0.028):
     for xh, sg in HUBS:
         rim = QF_AR_ON and xh < 0.0 and QF_AR_D > 0.0           # q5: the front arches get the rolled edge (see _arch_rim)
         az = QF_AZ_ON and xh < 0.0                              # q5: ... and the photo outline (QF_AZ_K)
-        Rw = (lambda phi: R_ARCH - qf_az_depth(math.degrees(phi))) if az else (lambda phi: R_ARCH)         # the well wall's outline (phi in rad)
+        Rw = (lambda phi: R_ARCH - qf_az_depth(math.degrees(phi))) if az else (lambda phi: R_ARCH + p3_arr(math.degrees(phi))) if xh > 0.0 else (lambda phi: R_ARCH)  # the well wall's outline (rad)
         Rc = (lambda phi: Rw(phi) + QF_AR_D) if rim else Rw                                                  # where the paint is cut
         gp = lambda x, z, xh, Rc=Rc: math.hypot(x - xh, z - HUB_Z) - Rc(math.atan2(z - HUB_Z, x - xh))
 

@@ -860,3 +860,10 @@ R1b 的 Catmull-Clark 笼子在镜面检查里一直有褶皱（A 柱根、鼻�
   - 斑马纹无漩涡和扭转。
 - 修了 `p3_apply` 的闭包晚绑定：两个开关同开时，l3 的修正被 U 的数据覆盖。
 - 默认构建不变，lock 17 PASS。资产未重导，等用户确认是否采用。
+- 采用（用户："好的，采用这四项，然后继续做细节项"）：
+  - 四个开关改成默认开。
+  - 重锁 front_face、hood、corner_tri、shoulder、wall、facet、wall_black、door_glass、rail_band、rear_shoulder、glass、ridge_inner、deck、tail_upper、tail_lower（fender_top、pillar 没变）。front_face、hood 只在鼻角附近动了毫米级；wall 顶点 4635 → 5499（l3 降低后面更高，行数多了）。lock 17 PASS。
+  - 导出：hi 298,434 三角 / 49 调用（+2.2k，wall），lod1 57,866 / 19，lod2 8,304 / 8；budget 5 PASS；open edges 720（不变）；npm test 通过。
+  - car_meta.json 只有尾翼端板铰链轴变了约 0.7°（取自后肩面的边，后胯加宽）。
+  - `calib/linecheck.py` 改成总是经过 `shell2.p3_dy`（跟随开关）。
+- 细节项（进行中）：新增两个默认关闭的开关，预览中：`QF_P3_LF`（L 前段按照片降低，design2）、`QF_P3_ARR`（后轮拱按照片的半径表，shell2）。

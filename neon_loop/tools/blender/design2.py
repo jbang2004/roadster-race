@@ -3757,13 +3757,19 @@ build_all()
 # (calib/lines.py, calib/lines/fit.json; CALIB.md).  Each switch corrects one curve between two stations and fades the correction in / out (smoothstep) where the photos do not see it.
 # QF_P3_L3: the paint | black boundary l3 between the wheel openings follows the measured concave arc (height only; its plan stays): measured 7-10 cm below the old straight line at x 0 .. 0.9
 #   (jackknife sigma 0.8-1.5 cm, five photos).  The correction fades in over QF_P3_L3X[0..1] and out over [2..3], both inside the wheel openings.
-QF_P3_L3 = os.environ.get('QF_P3_L3', '0') == '1'
+QF_P3_L3 = os.environ.get('QF_P3_L3', '1') == '1'
 QF_P3_L3X = tuple(float(v) for v in os.environ.get('QF_P3_L3X', '-1.15,-1.03,1.12,1.24').split(','))
 # QF_P3_U: the side window's lower edge U (A-pillar root -> window tip) in plan: measured 2.5-3.3 cm further out along the door (sigma 0.3-0.9 cm; the top view p013 and the three 3/4 views agree);
 #   height unchanged.  The correction fades in from the A-pillar root and is gone by X_FOLD0 (QF_P3_UX): the rear shoulder aft of X_FOLD0 is built from U(X_FOLD0) and the tip T (the
 #   PANE plane), so moving one without the other turns that face (a fade to 1.18 left a whorl behind the tip).  U over x 0.87 .. 1.2 stays 3.4-4.7 cm inside the photos.
-QF_P3_U = os.environ.get('QF_P3_U', '0') == '1'
+QF_P3_U = os.environ.get('QF_P3_U', '1') == '1'
 QF_P3_UX = tuple(float(v) for v in os.environ.get('QF_P3_UX', '-1.37,-1.12,0.60,0.874').split(','))
+# QF_P3_LF: the shoulder crease L ahead of the front wheel is lower in the photos: 1.7 (x -2.4), 2.6 (-2.2), 3.2 (-2.0), 3.7 cm (-1.9) (L_front, sigma 0.8-1.5 cm; p018, p001, p016, p013).  The
+#   New L from the nose corner N (which stays) to QF_P3_LF_X1: one C2 spline through the measured heights QF_P3_LF_K (x:z) that rejoins the old L at X1 (value and slope; L_side agrees with
+#   the photos from x -1.2 on); over the front wheel opening it carries the measured slope across.  (The fitted line itself starts 1 cm above N and dips behind it: an end effect, not followed.)
+QF_P3_LF = os.environ.get('QF_P3_LF', '0') == '1'
+QF_P3_LF_K = [tuple(float(u) for u in kv.split(':')) for kv in os.environ.get('QF_P3_LF_K', '-2.30:0.549,-2.10:0.581,-1.90:0.610').split(',')]
+QF_P3_LF_X1 = float(os.environ.get('QF_P3_LF_X1', '-1.20'))
 
 
 def _p3_line(name):
@@ -3773,12 +3779,18 @@ def _p3_line(name):
     return np.array(F[name]['pts'], float)
 
 
-def _p3_toward(name, line, win, k):
-    """CURVES[name] moved toward the fitted photo line in coordinate k (1: y, 2: z), faded in / out over win = (a, b, c, d)"""
+def _p3_toward(name, line, win, k, hold=False):
+    """CURVES[name] moved toward the fitted photo line in coordinate k (1: y, 2: z), faded in / out over win = (a, b, c, d).  hold: interpolate the correction itself, so that beyond the
+    fitted range it keeps its end value (instead of steering towards the line's end point)"""
     P, old = _p3_line(line), CURVES[name]
     a, b, c, d = win
     zero = lambda x: 0.0 * np.asarray(x, float)
-    dv = lambda x: sstep(a, b, x) * (1.0 - sstep(c, d, x)) * (np.interp(x, P[:, 0], P[:, k]) - np.asarray((old.fy, old.fz)[k - 1](x), float))
+    of = (old.fy, old.fz)[k - 1]
+    if hold:
+        cor = P[:, k] - np.asarray(of(P[:, 0]), float)
+        dv = lambda x: sstep(a, b, x) * (1.0 - sstep(c, d, x)) * np.interp(x, P[:, 0], cor)
+    else:
+        dv = lambda x: sstep(a, b, x) * (1.0 - sstep(c, d, x)) * (np.interp(x, P[:, 0], P[:, k]) - np.asarray(of(x), float))
     CURVES[name] = PlanMod(old, old.x0, dv if k == 1 else zero, dv if k == 2 else zero, name)
 
 
@@ -3787,6 +3799,18 @@ def p3_apply():
         _p3_toward('l3', 'l3', QF_P3_L3X, 2)
     if QF_P3_U:
         _p3_toward('U', 'U_win', QF_P3_UX, 1)
+    if QF_P3_LF:
+        old = CURVES['L']
+        xe, e = QF_P3_LF_X1, 1e-4
+        k = [(old.x0, float(old.fz(old.x0)))] + QF_P3_LF_K + [(xe, float(old.fz(xe)))]
+        sp = Spline1D([q[0] for q in k], [q[1] for q in k], 'clamped', (k[1][1] - k[0][1]) / (k[1][0] - k[0][0]),
+                      (float(old.fz(xe + e)) - float(old.fz(xe - e))) / (2 * e))
+
+        def dz(x):
+            x = np.asarray(x, float)
+            xc = np.clip(x, old.x0, xe)
+            return np.where(x < xe, sp(xc) - np.asarray(old.fz(xc), float), 0.0)
+        CURVES['L'] = PlanMod(old, old.x0, lambda x: 0.0 * np.asarray(x, float), dz, 'L')
 
 
 p3_apply()

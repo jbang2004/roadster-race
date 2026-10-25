@@ -1,7 +1,7 @@
 """
 The current model's feature curves (design2.CURVES, with the QF_* environment of this run) against the lines traced in the photos (calib/lines/traced.json):
 rms / max image distance (px) of the traced points to the projected model curve, per line and photo.  numpy only.
-With QF_P3_HIP=1 / QF_P3_FRONT=1 the curves also take the shell's position fields (shell2.p3_dy), as the built body does.
+The curves also take the shell's position fields (shell2.p3_dy: QF_P3_HIP / QF_P3_FRONT), as the built body does.
 
   [QF_...=...] python3 tools/blender/calib/linecheck.py [LINE ...]
 """
@@ -14,12 +14,9 @@ from linecfg import CFG
 from cam import Cam
 
 T = json.load(open(os.path.join(HERE, 'lines', 'traced.json')))
-MORPH = os.environ.get('QF_P3_HIP', '0') == '1' or os.environ.get('QF_P3_FRONT', '0') == '1'
 
 
 def morph(P):
-    if not MORPH:
-        return P
     import shell2
     P = np.array(P, float)
     for k in range(len(P)):
