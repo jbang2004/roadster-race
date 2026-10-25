@@ -672,7 +672,12 @@ _q17_ = os.environ.get('QF_Q17', '1')
 # 2026-10-24 (user: "车尾在斜前视角看去也翘起得比实车更多更尖，不够浑厚专业"): the level edge 1.015 -> 0.995 with the corner (QF_Q17_ZC), R-1 leaves its line at 2.22 (was 2.10) and the deck
 # drop is end-loaded (QF_Q17_N 9, 12 with the platform roll QF_Q17_ROLL): the deck and R-1 stay up to ~2.3 and roll down to the edge.  p018: the corner read 0.987 (the 1.015 corner stood 2 - 3 cm over the photo, with L rising
 # 3.9 cm into it: the upturned, pointed tail of p016); r81 keeps its level edge (the light band follows it down 2 cm; regions/rear.py DZ_TAIL)
-QF_Q17 = (0.995, 2.345, 2.22) if _q17_ == '1' else (tuple(float(v) for v in _q17_.split(',')) if ',' in _q17_ else None)      # the level tail top edge (user 2026-10-23, "取中 ≈1.015": the tail seen from behind is flat in r81, the model showed a trapezoid of paint over the light box): (height of the tail's top edge, x where R-1 meets the deck = p013's ear triangle closing 4.6 cm before the tail edge, x where R-1 leaves its line and the platform's angle leaves the reading); QF_Q17=0: off (the tail before 2026-10-23)
+# 2026-10-25 (user: "车尾上方的面还有一处梯形的拱起，应该是两只耳朵延伸到尾端时仍未结束所以突兀结束了……原车是非常自然，不会拱起的"): the wing's top no longer holds the body's
+#   height and rolls off in the last 10 cm (QF_Q17_N 12 + QF_Q17_ROLL 2.05, 12, 1: from above a trapezoid plateau with a bright rolled edge, the ear crests R-1 held to 2.22 and fell
+#   8 cm in 12 cm).  Deck, R-1 and platform now all leave at the seam (QF_Q17[2] 2.05, QF_Q17_XT 2.05, QF_Q17_N 3 = 2t^3 - t^4: G2 with the body at the seam) and descend
+#   gradually to the level edge; the ears fade into the deck before the edge (011 / 002: no step, no plateau).  Deck centre -9.9 -> -16.5 (2.2) -> -24.7 deg at the edge.  The cost:
+#   p018's tail outline at x ~2.3 lies ~2 cm under the photo's straight line again (6 - 7 px; 2 px with the end roll).
+QF_Q17 = (0.995, 2.345, 2.05) if _q17_ == '1' else (tuple(float(v) for v in _q17_.split(',')) if ',' in _q17_ else None)      # the level tail top edge (user 2026-10-23, "取中 ≈1.015": the tail seen from behind is flat in r81, the model showed a trapezoid of paint over the light box): (height of the tail's top edge, x where R-1 meets the deck = p013's ear triangle closing 4.6 cm before the tail edge, x where R-1 leaves its line and the platform's angle leaves the reading); QF_Q17=0: off (the tail before 2026-10-23)
 _tw_ = os.environ.get('QF_Q17_TW', '1')
 QF_Q17_TW = (0.05, 1e-6) if _tw_ == '1' else (tuple(float(v) for v in _tw_.split(',')) if ',' in _tw_ else None)      # q17 tail twist (review 2026-10-23, item 2): (the beam face's width at the level edge, third-difference weight of the platform angle's fit); 0: the platform meets the ruling L -> R-1 at the edge and the face lies down onto it
 QF_Q17_L = tuple(float(v) for v in os.environ.get('QF_Q17_L', '1.9709,2.3685,0.25,0,2.20').split(','))      # q17, L to the raised corner: (x of the facet apex S = shell2 L sample I_FS, x of the tail corner = L's last sample, length of L's bend into the facet's straight edge before S, the platform's pivot: the width from L over which it rises into the corner with L, inboard of it it falls to the tail edge (0: where a ruling L -> R-1 at the edge has it); x from which the beam face lies down onto the platform, flat at the edge)
@@ -680,14 +685,14 @@ QF_Q17_ZC = float(os.environ.get('QF_Q17_ZC', '0.995'))      # q17, the tail cor
 #   1.015: L rose 3.9 cm from its level over the last 0.6 m into a pointed corner (p018's tail end lies up to 7.6 px under it, more towards the near corner: the corner reads 0.987).
 #   Now the corner and the level edge are both 0.995 (a lower corner alone left a 2.5 cm paint strip over the light band in the middle, the r81 trapezoid of 2026-10-23); L rises
 #   1.9 cm from S instead of 3.9.  (A separate value keeps the option of a corner under the edge: the platform's end chord then rises from the corner to E.)
-QF_Q17_N = float(os.environ.get('QF_Q17_N', '12'))      # q17 deck drop w(t) = (n+1)/2 t^n - (n-1)/2 t^(n+1) (seam -> edge): n = 3 is the original 2t^3 - t^4; larger n holds the deck up longer and rolls it
+QF_Q17_N = float(os.environ.get('QF_Q17_N', '3'))      # q17 deck drop w(t) = (n+1)/2 t^n - (n-1)/2 t^(n+1) (seam -> edge): n = 3 is the original 2t^3 - t^4; larger n holds the deck up longer and rolls it
 #   down at the end (convex throughout, no curvature at the edge)
-QF_Q17_XT = float(os.environ.get('QF_Q17_XT', '2.00'))      # q17, where the platform leaves the reading and starts its twist to the level edge (_q17_twist).  It was QF_Q17[2] (capped by
+QF_Q17_XT = float(os.environ.get('QF_Q17_XT', '2.05'))      # q17, where the platform leaves the reading and starts its twist to the level edge (_q17_twist).  It was QF_Q17[2] (capped by
 #   QF_Q16_XC 2.2).  With R-1 leaving its line at 2.22 and the edge at 0.995 the platform kept the reading's angle to 2.2 and had 17 cm to lie flat: its lengthwise profiles went flatter,
 #   then steeper (y 0.65: -4.8 -> -3.7 -> -11.9 deg; 1 - 2 inflections at y 0.55 - 0.92, the S of review item 2).  From 2.00 they steepen steadily (y 0.65: -4.9 -6.3 -7.3 -7.7 -8.1 deg,
 #   y 0.65 - 0.85 without inflection; 2.05 / 2.10 keep one); the cost: the arc leaves the reading by up to 3.9 cm out / 2 cm down at x 2.2 - 2.25 (2.2: 1.7 cm at 2.3; tolerance 6 cm, and
 #   at 0.5 m radius the arc is no line).  R-1 holds its line to QF_Q17[2] all the same.
-_roll_ = os.environ.get('QF_Q17_ROLL', '2.05,12,1')
+_roll_ = os.environ.get('QF_Q17_ROLL', '0')
 QF_Q17_ROLL = tuple(float(v) for v in _roll_.split(',')) if ',' in _roll_ else None      # q17 platform roll (2026-10-24, user: "尾翼的上方也是车身上方的延伸，而且平缓过渡"): (x where the roll starts,
 #   its exponent n, the share k of the reading's rate of turn the platform keeps aft of QF_Q16_XC).  The platform keeps the body's angle across the seam (the reading's to QF_Q16_XC, then
 #   its own trend) times (1 - W(t)), W = the deck's end-loaded roll (n+1)/2 t^n - (n-1)/2 t^(n+1) from [0] to the edge: the wing's top is the body's top carried on and rolled down
