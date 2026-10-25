@@ -7,9 +7,11 @@
 // same from the side as end-on) with a little of the integral (a column seen down its axis is denser). 4 hulls, 1 draw call.
 import * as THREE from 'three';
 
-// nozzle exits in the car frame (−Z forward, +X right, +Y up): see tools/blender/regions/rear.py JET_Y / JET_Z (0.512: r81 / 012 ring centres 0.578, the tail layout lowered 6.6 cm with the level tail edge at 0.995) / JET_X (2.318 = the lip face; exit plane 2 cm behind it)
-export const JET_EXITS = [-0.405, -0.135, 0.135, 0.405].map(x => new THREE.Vector3(x, 0.512, 2.338));      // JET_X 2.318 (round 2: the rings are recessed under the crossbeam) + 2 cm
-const Z0 = 2.346, LEN = 1.9, HULL_R = 0.34, SIDES = 14;
+// nozzle exits in the car frame (−Z forward, +X right, +Y up): see tools/blender/regions/rear.py JET_Y / JET_Z / JET_X (REAR_LOW, 2026-10-25: the rings sit flush in the nozzle beam's
+// rear face at the calibrated ring centres NO / NI (CALIB.md): |x| 0.394 / 0.131, y 0.555, lip face z 2.5415 in the finished car = JET_X 2.4915 + the 5 cm rear-end extension
+// QF_P3_TAILX; the plume starts 3.5 mm behind the lip).  Before: |x| 0.405 / 0.135, y 0.512, z 2.338 (JET_X 2.318 + 2 cm, the rings recessed under a crossbeam).
+export const JET_EXITS = [-0.394, -0.131, 0.131, 0.394].map(x => new THREE.Vector3(x, 0.555, 2.545));
+const Z0 = 2.553, LEN = 1.9, HULL_R = 0.34, SIDES = 14;      // (Z0 was 2.346)
 
 let GEO = null;
 function hullGeometry() {

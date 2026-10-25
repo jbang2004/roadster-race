@@ -66,7 +66,13 @@ REAR_T17 = os.environ.get('REAR_T17', '1') == '1'      # the 2026-10-23 tail (wi
 import design2 as _D2
 DZ_TAIL = ((_D2.QF_Q17_ZC - 0.005) - 1.056) if (REAR_T17 and _D2.QF_Q17) else 0.0      # the box's top 5 mm under the level edge: -0.046 at 1.015, -0.066 at 0.995 (2026-10-24)
 #   (from the corner's height QF_Q17_ZC, the same as the edge's QF_Q17[0] when the edge is level; with the edge raised between the ears only the box stays under the corner)
-LIP_BOT = 0.893 + DZ_TAIL        # underside of the lip roll
+# 2026-10-25 (REAR_LOW, the lower rear on the calibrated landmarks of CALIB.md: plate corners PT / PB, nozzle ring centres NO / NI, lamp bar end TB, tail_bar / tail_bot lines; read in
+# r81 / thrust / p004 / p011 / p012 / p018): lamp band, lip, plate, camera bar, the plate's raised panel (build_lobe), the nozzle beam (build_beam_face / build_beam_body), the tray and the diffuser's height.  The photo
+# positions are in the frame of the FINISHED car, after the rear-end extension (shell2 QF_P3_TAILX, build_game_car.p3_post: everything aft of x ~2.25 moves +TAILX_S); the build
+# frame here is the one before it.  REAR_LOW=0 = the layout before (old values next to the new ones).
+REAR_LOW = os.environ.get('REAR_LOW', '1') == '1'
+TAILX_S = 0.05                   # the rear-end extension's aft shift (shell2 QF_P3_TX_S): build x = photo x - TAILX_S (unconditional: the parts keep their place on the tail either way)
+LIP_BOT = 0.855 if REAR_LOW else 0.893 + DZ_TAIL        # underside of the lip roll (r81 col 1085: pink lip rows 737 - 746 = z 0.855 - 0.880 under the black panel; was 0.827)
 
 
 CREASE = [(1.90, 0.580), (1.96, 0.636), (2.00, 0.664), (2.06, 0.708), (2.14, 0.772), (2.20, 0.800), (2.26, 0.840), (2.34, 0.862)]
@@ -202,18 +208,48 @@ def deck_z(surf, x, y):
 
 
 # ------------------------------------------------------------- constants
-BAND = (0.930 + DZ_TAIL, 1.040)  # gloss-black light band (z): r81 (zoomed, gamma-lifted) black band z 0.93 .. 1.05 under the white top edge; the face ends at the deck, z 1.042
+BAND = (0.880 if REAR_LOW else 0.930 + DZ_TAIL, 1.040)  # gloss-black light band (z): r81 (zoomed, gamma-lifted) black band z 0.93 .. 1.05 under the white top edge; the face ends at the deck, z 1.042
+                                 # (REAR_LOW: r81 col 1085 black panel rows 707 - 736 = z 0.880 .. 0.997 (tail_top 0.997); was 0.864)
+BAR_Z = 0.9455 if REAR_LOW else None     # centre of the red bar: the joint fit of the bar traced in r81 / high / p002 / p012 / thrust / p004 (z 0.9455 at the centre, 0.942 at the end;
+                                         # CALIB tail_bar 0.947 - 0.951, TB 0.941).  None = the middle of the band (0.926 before)
 BAND_Y = 0.930                   # half width (column parameter) of band / bar: r81 red bar ends +-236 px = +-0.95 m.  The rays swing round at the corner, so a column at 0.930 lands at |y| 0.949 on the
                                  # tail's corner (0.945): round 3b: the band / bar stop there, so the corner facet seen from the side (p018) is plain paint (it was 0.940 -> 0.965: a black cap on the facet)
-BAR_H, BAR_Y = 0.018 if REAR_T17 else 0.015, 0.918            # red bar (2026-10-23: 1.5 -> 1.8 cm, r81 rows 719 - 723.5) (round 7, DR-2: the same width along the whole band, straight to the ends, 1.2 cm short of the band's end, centred in the band: r81): thickness, half width
-LIP_Z = (LIP_BOT, 0.930 + DZ_TAIL)   # the convex lip roll under the band (r81: pink roll z 0.90 .. 0.926, thin white line at 0.893)
-PLATE = dict(uv=(1024, 512, 1024, 216), y=(-0.17, 0.17), z=(0.668 + DZ_TAIL, 0.838 + DZ_TAIL))
-DIFF_W = 0.700                   # half width of the diffuser module (r81 / 012: |y| 0.70 ... 0.72)
+BAR_H, BAR_Y = 0.018 if REAR_T17 else 0.015, 0.928 if REAR_LOW else 0.918    # red bar (2026-10-23: 1.5 -> 1.8 cm, r81 rows 719 - 723.5) (round 7, DR-2: the same width along the whole band, straight to the ends, 1.2 cm short of the band's end, centred in the band: r81): thickness, half width
+                                 # (REAR_LOW: half width 0.918 -> 0.928: the bar's end lands at |y| ~0.935, TB 0.941; it ended at 0.925)
+LIP_Z = (LIP_BOT, 0.880 if REAR_LOW else 0.930 + DZ_TAIL)   # the convex lip roll under the band (r81: pink roll z 0.90 .. 0.926, thin white line at 0.893) (REAR_LOW: 0.855 .. 0.880, r81 col 1085)
+# REAR_LOW: the plate = the CALIB.md plate-frame corners PT (2.441, 0.169, 0.809) / PB (2.486, 0.168, 0.649) (photo frame): 0.338 x 0.166 m, leaning 15.7 deg with its bottom AFT (it stood 10 - 15 cm
+# further forward and 5 cm lower, leaning the other way, on the undercut tail face).  It sits on its own raised panel (build_lobe), which runs from under the lip down onto the beam's top.
+PLATE_T, PLATE_B = (2.441 - TAILX_S, 0.809), (2.486 - TAILX_S, 0.649)     # (x, z) of the frame's top and bottom edges (build frame)
+PLATE_TAN = (PLATE_B[0] - PLATE_T[0]) / (PLATE_T[1] - PLATE_B[1])         # dx / dz of the plate's face (0.281: bottom aft)
+PLATE = dict(uv=(1024, 512, 1024, 216), y=(-0.169, 0.169), z=(PLATE_B[1], PLATE_T[1])) if REAR_LOW else dict(uv=(1024, 512, 1024, 216), y=(-0.17, 0.17), z=(0.668 + DZ_TAIL, 0.838 + DZ_TAIL))
+LOBE_Y = (0.47, 0.67)            # the plate's panel: flat face to |y| 0.47, blended into the shell's tail face by 0.67 (r81: the lit face round the plate spans |y| ~0.47; p011: lit to ~0.5, then it turns
+                                 # forward in a scoop beside the corner blade)
+LOBE_GAP = 0.010                 # the plate (frame + backing) stands this far proud of its panel
+CAM_Z = 0.842 if REAR_LOW else 0.866 + DZ_TAIL      # the camera bar under the lip (thrust: strip z 0.847 - 0.85 right under the lip, reverse lamps |y| ~0.12, camera in the middle hanging to 0.824)
+DIFF_W = 0.680 if REAR_LOW else 0.700     # half width of the diffuser module (r81 / 012: |y| 0.70 ... 0.72) (REAR_LOW: r81 790 / 1126 px on the beam's plane = 0.676 / 0.65 .. 0.68, the endplates under the beam's ends)
 JET_X, JET_Z = 2.318, 0.578 + DZ_TAIL      # (src/car/jets.js JET_EXITS follows) nozzle lip face (x) and nozzle centre height (r81: ring centres at y 822.5 px = z 0.579; 012 agrees).  Round 2: recessed 3.4 cm deeper (the crossbeam's rear edge at 2.408
                                  # overhangs the rings by 9 cm, so the housing hides them in p017 as in the photo)
 JET_Y = (-0.405, -0.135, 0.135, 0.405)
 PORT_Y = (-0.525, -0.27, 0.0, 0.27, 0.525)   # the dark round recessed holes between / outside the nozzles (SPEC DR-7: the mounts)
 PORT_R = (0.034, 0.048, 0.048, 0.048, 0.034)      # (the outer two are smaller: the housing's chamfer is close)
+# REAR_LOW: the nozzles sit FLUSH in the rear face of a flat black beam (r81: four thin silver rings on it; thrust / p004 / p011: the beam's top-rear edge right under the plate).  CALIB.md ring
+# centres NO (2.536, 0.394, 0.555), NI (2.543, 0.131, 0.555) (photo frame; the old rings were 22 cm further forward and 4 cm lower, deep in a channel); ring outer radius 0.046 (r81 rings.json 11.7 px)
+BEAM_X = 2.540 - TAILX_S         # the beam's flat rear face (build frame)
+BEAM_Z = (0.495, 0.641)          # its underside / top (r81 rows 837 / 800 on that plane; thrust: the underside line; the plate's bottom PB 0.649 rests just above the top)
+BEAM_YT, BEAM_W, BEAM_ZC = 0.533, DIFF_W + 0.002, 0.564      # r81 (826 / 1095 px, 790 / 1126 px): the top runs flat to |y| 0.533, a chamfer falls to (0.68, 0.564), then the ends are vertical
+                                                              # (2 mm outboard of the endplates, whose tops hide in the beam's ends)
+BEAM_SW = (0.40, 0.08)           # plan: flat to |y| 0.40, then a parabola curls 8 cm forward to the ends (p011: far end ~(2.48, 0.65); p018: the near end's silhouette u <= ~1566, i.e. ~2.44:
+                                 # the two disagree by ~5 cm, this is the middle; a quarter ellipse kept the face aft too long for p018)
+BEAM_X0 = 2.12                   # its front (inside the body)
+BEAM_BEV = 0.006                 # 45 deg bevel round the rear face (the bright edge line along its top in thrust / p004 / p011)
+NOZ_R = 0.046                    # ring (lip) outer radius
+MOD_DZ = 0.0675 if REAR_LOW else 0.0    # the diffuser under the beam is lifted by this: its ceiling (SHELF_Z[0] 0.4275) becomes the beam's underside 0.495 and its bottom (0.124) the r81
+                                        # tray's 0.19 (rows 915 / 886: tray 0.19 .. 0.30 under the bays).  (module_xyz; the diffuser's own numbers below stay in the old frame)
+if REAR_LOW:
+    JET_X, JET_Z = BEAM_X + 0.0015, 0.555            # lip face 1.5 mm proud of the beam's face; NO / NI z 0.555
+    JET_Y = (-0.394, -0.131, 0.131, 0.394)           # NO / NI (|y| 0.394 / 0.131, sigma 2.4 / 0.9 mm)
+    PORT_Y = (-0.525, -0.2625, 0.0, 0.2625, 0.525)   # the dark holes between and outside the rings (thrust / p011 / p004), on the same 0.131 lattice
+    PORT_R = (0.036, 0.040, 0.040, 0.040, 0.036)
 CELL = 0.062                     # half height of the nozzle housing's channel
 TOP_Z = (JET_Z + CELL, 0.660 + DZ_TAIL)    # crossbeam plate (its underside closes the nozzle channel); its top is the housing's top edge (z 0.66 in r81)
 SHELF_Z = (0.4935 + DZ_TAIL, JET_Z - CELL)     # shelf under the channel = ceiling of the tunnels (housing bottom z 0.50)
@@ -231,8 +267,10 @@ SWEEP = (0.045, 0.075)           # round 6: the ends fall forward in plan like a
 DIFF_PLAN = 0.045                # the module's ends fall forward in plan (rounded module, endplate trailing edge ~ at the lip)
 WALL_X = 2.25                    # dark back wall of the tunnels (round 3: 10 cm behind the shelf's rear edge, a compact box: it was 20 cm)
 BAY_Z0 = 0.215 + DZ_TAIL         # the bays' floor = the tray that closes the box underneath (r81 / thrust: the photo's box ends at z ~0.20)
-STRAKE_Y = (-0.315, 0.0, 0.315)
-BAY_E = (-DIFF_W + 0.016, -0.315, 0.0, 0.315, DIFF_W - 0.016)   # bay edges
+STRAKE_Y = (-0.335, 0.0, 0.335) if REAR_LOW else (-0.315, 0.0, 0.315)       # (REAR_LOW: r81 strakes at 872 / 961 / 1042 px = y -0.355 / 0 / +0.317 on the bays: +-0.335)
+BAY_E = (-DIFF_W + 0.016, STRAKE_Y[0], 0.0, STRAKE_Y[2], DIFF_W - 0.016)   # bay edges
+TRAY_X = (2.400 - TAILX_S, 2.380 - TAILX_S)      # REAR_LOW: the tray under the bays (r81: its rear face z 0.19 .. 0.30 under the bays; thrust: its top-rear edge ~ x 2.40), rear face top / bottom x (build frame)
+DUCT_Z = 0.400 if REAR_LOW else 0.350 + DZ_TAIL + MOD_DZ     # the bays' round ducts (r81: their centres ~ z 0.40); final frame
 # --- the active wing (DR-1).  Stowed = the shell's own deck faces; the Wing node is a COPY of them (+ tips, endplates, struts in WingPlates) that coincides with the deck in
 # its as-built (stowed) pose and is hidden by the game while stowed; WingWell (GlossBlack, same footprint, 1.5 mm above the deck) shows as soon as the wing leaves.
 # Deployed pose = as built + meta.wing.deploy (lift dy, pitch rotZ about WING_P, trailing edge up).  Numbers: official-02 (matched `high`): wing tips |y| 1.04..1.09, struts |y| 0.49,
@@ -253,6 +291,7 @@ N_GOLD = (0.93, 0.74, 0.47, 0.16)       # Nozzle vertex colours: rgb = metal bas
 N_LIP = (0.80, 0.79, 0.77, 0.14)        # 2026-10-24 (polish): the lip is polished SILVER (thrust: a thin bright rim round a bronze / gold bore; r81: thin silver rings); gold only inside
 N_BELL = (0.42, 0.27, 0.14, 0.38)        # 2026-10-24 (polish): darker, rougher bronze (was 0.62 / 0.42 / 0.22, 0.30): seen square on from behind (r81) the bore read as a bright gold ring; in the photo it is dark there and bronze only at a slant (thrust)
 N_DEEP = (0.30, 0.18, 0.09, 0.45)
+N_BELL_LOW, N_DEEP_LOW = (0.30, 0.19, 0.10, 0.42), (0.16, 0.10, 0.05, 0.50)     # REAR_LOW: the flush rings' bore, darker (it read as a gold disc inside the ring in r81 / p017 / p011; thrust shows bronze at a slant)
 N_THROAT = (0.03, 0.025, 0.02, 0.85)
 N_PORT = (0.04, 0.04, 0.045, 0.45)
 N_SHROUD = (0.008, 0.008, 0.009, 0.85)       # the barrel round each nozzle: near-black satin (> 0.7 = non-metal in the game shader); round 3: it read as a pale grey ring
@@ -273,10 +312,15 @@ def consts(ctx):
     return c
 
 
+def plate_lean(ctx):
+    """lean of the plate's face (deg, positive = top aft): REAR_LOW -15.7 (bottom aft, PT / PB), else the undercut tail face's FAS_LEAN"""
+    return -math.degrees(math.atan(PLATE_TAN)) if REAR_LOW else consts(ctx).FAS_LEAN
+
+
 def fascia(ctx, z, y=0.0, off=0.0):
-    """point on the tail face at height z (centre line), pushed `off` along its normal (back and slightly down)."""
-    x = tail_x(ctx.surf, y, z)
-    a = math.radians(consts(ctx).FAS_LEAN)
+    """point on the tail face at height z (centre line), pushed `off` along its normal (back and slightly down).  REAR_LOW: on the plate's panel (build_lobe), whose normal looks back and up."""
+    x = plate_x(z) - LOBE_GAP if REAR_LOW else tail_x(ctx.surf, y, z)
+    a = math.radians(plate_lean(ctx))
     return Vector((x + off * math.cos(a), y, z - off * math.sin(a)))
 
 
@@ -375,7 +419,7 @@ def build_tail_skin(ctx, level):
     keep = lambda p: p.x > 1.95
     gb = 'GlossBlack' if level < 2 else 'Trim'
     bt = band_top(ctx)
-    bar_z = 0.5 * (BAND[0] + bt)                      # round 7: the red bar sits in the middle of the band (r81), constant width to the ends (the old taper is gone)
+    bar_z = 0.5 * (BAND[0] + bt) if BAR_Z is None else BAR_Z       # round 7: the red bar sits in the middle of the band (r81), constant width to the ends (the old taper is gone) (REAR_LOW: BAR_Z)
     bar_t = lambda a: 1.0
     # TailLower: only a thin strip along the lobe outline (the faces below it are black in the body mesh itself): it hides the
     # stair-step of the face assignment and gives the outline its crisp, smooth edge
@@ -505,7 +549,7 @@ def module_xyz(x, y, z):
     if x > 2.10:
         u = min(a / DIFF_W, 1.15)
         x -= (SWEEP[0] + SWEEP[1] * smooth(0.50, 0.22, z)) * u * u * smooth(2.10, 2.30, x)
-    return x - tuck_x(z), y, z
+    return x - tuck_x(z), y, z + MOD_DZ          # (REAR_LOW: (4) the whole diffuser lifted by MOD_DZ under the beam)
 
 
 def warp_verts(cb, n0):
@@ -519,19 +563,20 @@ def build_diffuser(cb, level):
     rounded: its ends fall forward in plan (DIFF_PLAN) and its lower corners lift (official-02 / r81: a rounded shape, the
     endplate's trailing edge only a little behind the lip)."""
     yo, t = DIFF_W, 0.011
-    # crossbeam plate: thin wedge with a rounded rear edge, ends chamfered down and kicked in
-    base = [(2.16, TOP_Z[1]), (2.374, TOP_Z[1] + 0.002), (2.388, TOP_Z[1] - 0.006), (2.388, TOP_Z[0] + 0.006), (2.368, TOP_Z[0]),
-            (2.16, TOP_Z[0])]
-    stations = [(0.0, 0.0), (CH_Y0, 0.0), (CH_Y0 + 0.07, -0.045), (CH_Y0 + 0.14, -0.10), (yo, -CH_CHAMF)]      # the housing's end corners fall away (r81: chamfered hexagon-like shell)
-    secs = []
-    for sgn, st in ((-1, stations[::-1]), (1, stations[1:])):
-        for ay, dz in st:
-            kick = -dz * 0.45
-            secs.append([(x - (kick if x > 2.3 else 0.0), sgn * ay, z + dz) for x, z in base])
-    cb.prism(secs, [W_DARK] * (len(base) - 1), cap=W_DARK)
-    # shelf: a thin carbon lip under the channel = ceiling of the tunnels
-    prof_prism(cb, [(2.17, SHELF_Z[1]), (2.368, SHELF_Z[1]), (2.382, SHELF_Z[1] - 0.008), (2.382, SHELF_Z[0] + 0.008), (2.368, SHELF_Z[0]),
-                    (2.17, SHELF_Z[0])], -yo + t, yo - t)
+    if not REAR_LOW:      # (REAR_LOW: the crossbeam and the shelf are the nozzle beam, build_beam_body)
+        # crossbeam plate: thin wedge with a rounded rear edge, ends chamfered down and kicked in
+        base = [(2.16, TOP_Z[1]), (2.374, TOP_Z[1] + 0.002), (2.388, TOP_Z[1] - 0.006), (2.388, TOP_Z[0] + 0.006), (2.368, TOP_Z[0]),
+                (2.16, TOP_Z[0])]
+        stations = [(0.0, 0.0), (CH_Y0, 0.0), (CH_Y0 + 0.07, -0.045), (CH_Y0 + 0.14, -0.10), (yo, -CH_CHAMF)]      # the housing's end corners fall away (r81: chamfered hexagon-like shell)
+        secs = []
+        for sgn, st in ((-1, stations[::-1]), (1, stations[1:])):
+            for ay, dz in st:
+                kick = -dz * 0.45
+                secs.append([(x - (kick if x > 2.3 else 0.0), sgn * ay, z + dz) for x, z in base])
+        cb.prism(secs, [W_DARK] * (len(base) - 1), cap=W_DARK)
+        # shelf: a thin carbon lip under the channel = ceiling of the tunnels
+        prof_prism(cb, [(2.17, SHELF_Z[1]), (2.368, SHELF_Z[1]), (2.382, SHELF_Z[1] - 0.008), (2.382, SHELF_Z[0] + 0.008), (2.368, SHELF_Z[0]),
+                        (2.17, SHELF_Z[0])], -yo + t, yo - t)
     # round 3: a COMPACT BOX.  The tray closes it underneath (bottom edge z 0.19, r81 / thrust); the old ramp floor that stuck out below the walls (a pale plate) is gone, what is left
     # of it hides behind the tray; the strakes are thin ribs in front of the walls (they were big fins hanging 20 cm into the bays).
     # round 5: the conspicuous bottom cross-plate (the rear tray, 10 cm behind the walls) is gone: the floor slab ends flush at the wall, so the module's lower edge is just the wall's rounded foot
@@ -542,12 +587,27 @@ def build_diffuser(cb, level):
     elif level == 2:
         fl, ys = [(x, z + DZ_TAIL) for x, z in ((1.95, 0.176), (WALL_X, 0.200), (WALL_X, 0.214), (1.95, 0.188), (1.95, 0.176))], [-(yo - t), yo - t]
     cb.prism([[(x, y, z) for x, z in fl] for y in ys], [W_DARK] * (len(fl) - 1), cap=W_DARK)
+    if REAR_LOW and level == 2:
+        build_tray(cb, level, W_DARK)
     if level == 0:       # the strakes' bodies are in the Thrusters node (black metal: no floor reflection on their sides); here only their thin bright rear (leading) edges: a 1 cm lip in GlossBlack
         for y in STRAKE_Y:
             prof_prism(cb, [(x, z) for x, z in strake_edge(0.0)] + [(x - 0.007, z) for x, z in strake_edge(0.0)][::-1], y - 0.0040, y + 0.0040)
     warp_verts(cb, 0)
     if level == 2:      # (lod2 has no Thrusters node: the plates are part of the static module)
         build_endplates(cb, level, W_DARK)
+
+
+def build_tray(cb, level, col):
+    """REAR_LOW: the tray, a deep lip across the module's bottom: rear face z 0.19 .. 0.30 (r81 rows 915 / 886) with a bevelled top-rear edge (thrust), its ends swept forward with the module.
+    Old frame (module_xyz lifts it by MOD_DZ; x pre-compensated for the tuck so the rear face lands on TRAY_X); to be warped.  Levels 0 / 1 in the Thrusters node (satin black metal, as the
+    endplates: gloss black mirrored the floor as a white blade in p018), level 2 with the static diffuser."""
+    yo, t = DIFF_W, 0.011
+    zb, zt = BATH_Z0, 0.30 - MOD_DZ
+    xb, xt = TRAY_X[1] + tuck_x(zb), TRAY_X[0] + tuck_x(zt)
+    tr = [(WALL_X - 0.02, zb), (xb, zb), (xt, zt - 0.008), (xt - 0.008, zt), (WALL_X - 0.02, zt), (WALL_X - 0.02, zb)]
+    yt = ([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.58, 0.62, 0.65, yo - t], [0.0, 0.2, 0.4, 0.56, 0.63, yo - t], [0.0, yo - t])[level]      # (the plan sweep and the bathtub bend it)
+    yt = [-v for v in yt[:0:-1]] + yt
+    cb.prism([[(x, y, z) for x, z in tr] for y in yt], [col] * (len(tr) - 1), cap=col)
 
 
 def build_endplates(cb, level, col):
@@ -560,6 +620,10 @@ def build_endplates(cb, level, col):
     arc = [(xc + R_ * math.cos(math.radians(a)), zc + R_ * math.sin(math.radians(a))) for a in range(0, -91, -da)]
     ep = [(x, z + DZ_TAIL) for x, z in ((1.98, 0.700), (2.10, 0.694), (2.20, 0.680), (2.28, 0.662), (2.335, 0.640), (2.355, 0.612), (2.362, 0.570), (2.362, 0.500))] + arc + \
          [(x, z + DZ_TAIL) for x, z in ((2.170, 0.294), (2.110, 0.304), (2.050, 0.322), (1.998, 0.346), (1.98, 0.360))]
+    if REAR_LOW:        # lifted with the diffuser (MOD_DZ); the top stops inside the beam's end (it rose above it: r81 shows the beam's chamfered ends with the plates under them)
+        zc = zc + MOD_DZ
+        arc = [(xc + R_ * math.cos(math.radians(a)), zc + R_ * math.sin(math.radians(a))) for a in range(0, -91, -da)]
+        ep = [(1.98, BEAM_Z[0] + 0.05), (2.362, BEAM_Z[0] + 0.05)] + arc + [(x, z + DZ_TAIL + MOD_DZ) for x, z in ((2.170, 0.294), (2.110, 0.304), (2.050, 0.322), (1.998, 0.346), (1.98, 0.360))]
     if level == 2:
         ep = ep[::2]
     for s in (-1, 1):
@@ -601,19 +665,20 @@ def holed_tile(cb, x, poly, hole, col, n=24, depth=0.0, bore=None, floor=None, c
             if t > 0 and -1e-9 <= u <= 1 + 1e-9 and (best is None or t < best):
                 best = t
         return (yc + best * d[0], zc + best * d[1])
-    inner = [cb.v((x, yc + r * math.cos(a), zc + r * math.sin(a))) for a in ang]
-    outer = [cb.v((x,) + hit(a)) for a in ang]
+    X = x if callable(x) else (lambda _y, x=x: x)          # (REAR_LOW: x may be a function of y: the beam's face curls forward at its ends)
+    inner = [cb.v((X(yc + r * math.cos(a)), yc + r * math.cos(a), zc + r * math.sin(a))) for a in ang]
+    outer = [cb.v((X(hit(a)[0]),) + hit(a)) for a in ang]
     for i in range(len(ang)):
         j = (i + 1) % len(ang)
         if inner[i] is not inner[j]:
             cb.face([inner[i], outer[i], outer[j], inner[j]], col)
     if depth > 0:
         rt = cone if cone is not None else r
-        deep = [cb.v((x - depth, yc + rt * math.cos(a), zc + rt * math.sin(a))) for a in ang]
+        deep = [cb.v((X(yc) - depth, yc + rt * math.cos(a), zc + rt * math.sin(a))) for a in ang]
         for i in range(len(ang)):
             j = (i + 1) % len(ang)
             cb.face([inner[j], inner[i], deep[i], deep[j]], bore or col)
-        c0 = cb.v((x - depth, yc, zc))
+        c0 = cb.v((X(yc) - depth, yc, zc))
         for i in range(len(ang)):
             j = (i + 1) % len(ang)
             cb.face([c0, deep[j], deep[i]], floor or bore or col)
@@ -650,8 +715,15 @@ def build_jets(cb, level):
     for yc in JET_Y:
         prof = [(0.0500, -0.004), (0.0505, 0.006), (0.0490, 0.0155), (0.0470, 0.0185), (0.0452, 0.0165), (0.0440, 0.009),
                 (0.0405, -0.016), (0.032, -0.036), (0.024, -0.048), (0.0, -0.048)]          # round 3: a THIN champagne lip (rim ~5 mm wide, flush with the barrel), not a fat pale ring
-        cb.lathe(prof, st, [N_LIP] * 5 + [N_BELL, N_DEEP, N_DEEP, N_THROAT], axis_x=True, at=(JET_X, yc, JET_Z))      # (the whole lip silver, inner edge included; the bore bronze)
-        cb.lathe([(0.0505, -0.0035), (0.0505, -(JET_X - CH_X)), (0.0, -(JET_X - CH_X))], st,
+        bl = JET_X - CH_X
+        if REAR_LOW:        # flush in the beam's face: a thin silver lip (r 0.046 -> 0.0415, r81: thin silver rings) 1.5 mm proud, the bronze bell inside; the barrel closes the hole behind the face
+            prof = [(NOZ_R, -0.005), (NOZ_R + 0.0001, -0.0006), (NOZ_R - 0.0009, 0.0), (0.0432, 0.0001), (0.0418, -0.0008), (0.0413, -0.004),
+                    (0.0405, -0.022), (0.0385, -0.045), (0.0360, -0.066), (0.0, -0.066)]       # (a near-cylindrical bore: square on (r81, p017) it is a dark hole inside the thin ring, the bronze
+            bl = 0.070                                                                         #  wall shows only at a slant (thrust); a cone read as a gold disc)
+        bell = [N_BELL_LOW, N_DEEP_LOW, N_DEEP_LOW] if REAR_LOW else [N_BELL, N_DEEP, N_DEEP]
+        cb.lathe(prof, st, [N_LIP] * 5 + bell + [N_THROAT], axis_x=True, at=(JET_X, yc, JET_Z))      # (the whole lip silver, inner edge included; the bore bronze)
+        r_ = NOZ_R if REAR_LOW else 0.0505
+        cb.lathe([(r_, -0.0035 if not REAR_LOW else -0.005), (r_, -bl), (0.0, -bl)], st,
                  [N_SHROUD, N_PORT], axis_x=True, at=(JET_X, yc, JET_Z))
 
 
@@ -663,6 +735,15 @@ def build_tunnels(cb, level):
     n = (28, 10, 8)[level]
     nz = (4, 1, 1)[level]           # round 6: the tiles' edges carry extra nodes (hi) so that the module warp's twist is spread over small quads: the walls stay clean
     zs = [z0 + (z1 - z0) * i / nz for i in range(nz + 1)]
+    if REAR_LOW:        # one tile per bay (between the strakes / walls), its duct under its nozzle; the outer tiles' feet carry extra nodes for the bathtub warp
+        w = DIFF_W - 0.016
+        E = [-w, STRAKE_Y[0], 0.0, STRAKE_Y[2], w]
+        for ya, yb in zip(E, E[1:]):
+            yc = next(j for j in JET_Y if ya < j < yb)
+            bot = sorted({ya, yb} | {s * v for s in (-1, 1) for v in ((0.57, 0.60, 0.62, 0.64, 0.66) if level == 0 else (0.60, 0.65)) if ya < s * v < yb})
+            poly = [(v, z0) for v in bot] + [(yb, z) for z in zs[1:-1]] + [(yb, z1), (ya, z1)] + [(ya, z) for z in zs[-2:0:-1]]
+            holed_tile(cb, x, poly, (yc, DUCT_Z - MOD_DZ, 0.030), N_WALL, n=n, depth=0.075, bore=N_VOID, floor=N_VOID, cone=0.014)
+        return
     for yc in JET_Y:
         h = 0.135
         poly = [(yc - h, z0), (yc, z0), (yc + h, z0)] + [(yc + h, z) for z in zs[1:-1]] + [(yc + h, z1), (yc, z1), (yc - h, z1)] + [(yc - h, z) for z in zs[-2:0:-1]]
@@ -673,6 +754,166 @@ def build_tunnels(cb, level):
         for y0, y1 in zip(ya, ya[1:]):
             for za, zb_ in zip(zs, zs[1:]):
                 cb.face([cb.v((x, sg * y0, za)), cb.v((x, sg * y1, za)), cb.v((x, sg * y1, zb_)), cb.v((x, sg * y0, zb_))][::sg], N_WALL)
+
+
+# ----------------------------------------------------------------------------- REAR_LOW: the nozzle beam, the plate's panel, the plate, the rear reflectors
+def beam_exact_x(a):
+    """x of the beam's rear face at |y| = a: flat, then a parabola falling BEAM_SW[1] forward to the end (C1 at the start; the end meets the flat side at ~60 deg)"""
+    a0, d = BEAM_SW
+    t = min(max((a - a0) / (BEAM_W - a0), 0.0), 1.0)
+    return BEAM_X - d * t * t
+
+
+def beam_top(a):
+    """z of the beam's top edge at |y| = a (flat to BEAM_YT, then the chamfer to (BEAM_W, BEAM_ZC))"""
+    return BEAM_Z[1] - (BEAM_Z[1] - BEAM_ZC) * min(max((a - BEAM_YT) / (BEAM_W - BEAM_YT), 0.0), 1.0)
+
+
+def beam_stations(level):
+    """|y| stations of the beam (cell edges of the 0.131 m ring / port lattice, the chamfer corner, the ellipse) -> (ys, xs): the face is piecewise ruled between them, so the tiles,
+    bevels and top share their vertices (no cracks on the curled ends)"""
+    ne = (8, 4, 2)[min(level, 2)]
+    s = {0.0, BEAM_YT, BEAM_W, BEAM_SW[0]} | {(k + 0.5) * 0.13125 for k in range(5)}
+    s |= {BEAM_SW[0] + (BEAM_W - BEAM_SW[0]) * math.sin(0.5 * math.pi * i / ne) for i in range(1, ne)}
+    ys = []
+    for v in sorted(s):
+        if not ys or v - ys[-1] > 0.004:
+            ys.append(v)
+    ys[-1] = BEAM_W
+    return ys, [beam_exact_x(v) for v in ys]
+
+
+def beam_fx(a, ST):
+    """x of the (piecewise ruled) face at |y| = a on the stations ST = (ys, xs)"""
+    ys, xs = ST
+    a = min(abs(a), BEAM_W)
+    for i in range(len(ys) - 1):
+        if a <= ys[i + 1]:
+            t = (a - ys[i]) / (ys[i + 1] - ys[i])
+            return xs[i] + (xs[i + 1] - xs[i]) * t
+    return xs[-1]
+
+
+def build_beam_face(cb, level):
+    """the beam's rear face (Thrusters node, black metal N_WALL, the darkest: r81 shows it as dark as the bays): one tile per 0.131 m cell, a flush hole for each ring (the nozzle fills it) and a 3.5 cm deep black hole for each
+    mount between / outside them; the curled end cells are plain strips.  Inset by BEAM_BEV inside the bevel."""
+    ST = beam_stations(level)
+    ys, B = ST[0], BEAM_BEV
+    X = lambda yy: beam_fx(yy, ST)
+    zb, zt = BEAM_Z[0] + B, lambda a: beam_top(abs(a)) - B
+    n = (28, 10, 8)[level]
+    h = 0.13125
+    for k in range(-5, 6):
+        yl, yr = max((k - 0.5) * h, -BEAM_W), min((k + 0.5) * h, BEAM_W)
+        inn = sorted({s * v for s in (-1, 1) for v in ys if yl < s * v < yr})
+        if abs(k) in (1, 3):
+            hole, dep = (k / abs(k) * JET_Y[2 if abs(k) == 1 else 3], JET_Z, NOZ_R), 0.0
+        elif abs(k) in (0, 2, 4):
+            i = PORT_Y.index(next(p for p in PORT_Y if abs(p - k * h) < 0.01))
+            hole, dep = (PORT_Y[i], JET_Z, PORT_R[i]), 0.035
+        else:
+            hole = None
+        if hole is not None:
+            poly = [(yl, zb)] + [(v, zb) for v in inn] + [(yr, zb), (yr, zt(yr))] + [(v, zt(v)) for v in inn[::-1]] + [(yl, zt(yl))]
+            holed_tile(cb, X, poly, hole, N_WALL, n=n, depth=dep, bore=N_PLANE, floor=N_WALL)      # (metal bores: N_VOID's dielectric sheen made grey discs on the darker face)
+        else:       # the curled end: ruled strips between the stations
+            e = [yl] + inn + [yr]
+            for a, b in zip(e, e[1:]):
+                cb.face([cb.v((X(a), a, zb)), cb.v((X(b), b, zb)), cb.v((X(b), b, zt(b))), cb.v((X(a), a, zt(a)))], N_WALL)
+
+
+def build_beam_body(cb, level, col=W_DARK):
+    """the beam's body: top, chamfers, underside, the 45 deg bevel round the face, the flat ends; open at the front (inside the body).  Levels 0 / 1: in the Thrusters node, satin black metal
+    (col N_PLANE: its gloss-black ends mirrored the studio floor as white blocks in p018); level 2: with the static diffuser, and with its face (plain, no holes: no Thrusters node there)"""
+    ys, xs = beam_stations(level)
+    B, z0 = BEAM_BEV, BEAM_Z[0]
+    zt = [beam_top(v) for v in ys]
+    for s in (-1, 1):
+        for i in range(len(ys) - 1):
+            P = [(xs[k], s * ys[k], zt[k]) for k in (i, i + 1)]
+            Q = [(xs[k], s * ys[k], z0) for k in (i, i + 1)]
+            quads = [[(BEAM_X0, p[1], p[2]) for p in P] + [(p[0] - B, p[1], p[2]) for p in P[::-1]],                        # top / chamfer
+                     [(p[0] - B, p[1], p[2]) for p in P] + [(p[0], p[1], p[2] - B) for p in P[::-1]],                       # top bevel
+                     [(q[0], q[1], q[2] + B) for q in Q] + [(q[0] - B, q[1], q[2]) for q in Q[::-1]],                       # bottom bevel
+                     [(q[0] - B, q[1], q[2]) for q in Q] + [(BEAM_X0, q[1], q[2]) for q in Q[::-1]]]                         # underside
+            if level == 2:
+                quads.append([(p[0], p[1], p[2] - B) for p in P] + [(q[0], q[1], q[2] + B) for q in Q[::-1]])             # (lod2: the face)
+            for qd in quads:
+                cb.face([cb.v(p) for p in qd], col)
+        xe, ze = xs[-1], zt[-1]
+        cb.face([cb.v(p) for p in ((BEAM_X0, s * BEAM_W, z0), (xe - B, s * BEAM_W, z0), (xe, s * BEAM_W, z0 + B), (xe, s * BEAM_W, ze - B), (xe - B, s * BEAM_W, ze),
+                                    (BEAM_X0, s * BEAM_W, ze))], col)
+
+
+def plate_x(z):
+    """x of the plate's face at height z (build frame)"""
+    return PLATE_T[0] + (PLATE_T[1] - z) * PLATE_TAN
+
+
+def build_lobe(ctx, level, cb=None, col=W_DARK):
+    """the plate's raised panel (black): from under the lip roll down into the beam's top, its face parallel to the plate and LOBE_GAP behind it; from |y| LOBE_Y[0] it blends (C2) into
+    the shell's own tail face, which it meets 4 mm under the surface at LOBE_Y[1].  r81 / p012: the plate sits on a face that comes down to the beam; thrust / p004 / p011: that face stands
+    aft of the undercut tail and turns forward in a smooth scoop beside the plate.  (The shell's tail face there is 7 - 15 cm further forward than the plate.)
+    Into `cb` (the Thrusters node, levels 0 / 1: satin black metal, the blend's curvature mirrored the studio as a white crescent in gloss black) or, without it, its own object (lod2, Trim)."""
+    nu, nv = ((60, 16), (16, 6), (8, 3))[level]
+    Y1 = LOBE_Y[1]
+    ztop = LIP_Z[0] + 0.008                  # (under the lip roll: its front edge is hidden there)
+    own = cb is None
+    cb = ctx.CB() if own else cb
+    G = []
+    for i in range(nu + 1):
+        y = Y1 * math.sin(math.pi * (i / nu - 0.5))          # denser towards the blends
+        a = abs(y)
+        zb = min(beam_top(min(a, BEAM_W)), BEAM_Z[1]) - 0.012                # (into the beam's top / chamfer)
+        S = smoother(LOBE_Y[0], Y1, a)
+        row = []
+        for j in range(nv + 1):
+            z = ztop + (zb - ztop) * j / nv
+            xl = plate_x(z) - LOBE_GAP
+            xs = tail_x(ctx.surf, y, z)
+            xs = xl if xs is None else xs
+            row.append(cb.v((xs - 0.004 * S + (xl - xs) * (1.0 - S), y, z)))
+        G.append(row)
+    for i in range(nu):
+        for j in range(nv):
+            cb.face([G[i][j], G[i][j + 1], G[i + 1][j + 1], G[i + 1][j]], col)
+    return ctx.cb_obj(cb, 'R_Lobe', 'GlossBlack' if level < 2 else 'Trim', sharp=50) if own else None
+
+
+def plate_decal(ctx, level):
+    """Decal_plate on the plate plane (the plate stands on build_lobe, which is not part of ctx.surf: a flat grid instead of the projected patch), same UV convention as build_game_car.patch"""
+    nu, nv = (12, 4) if level == 0 else (6, 3)
+    c = math.atan(PLATE_TAN)
+    up, nrm = Vector((-math.sin(c), 0.0, math.cos(c))), Vector((math.cos(c), 0.0, math.sin(c)))
+    zm = 0.5 * (PLATE_T[1] + PLATE_B[1])
+    C = Vector((plate_x(zm), 0.0, zm)) + nrm * 0.0025
+    L = 0.5 * math.hypot(PLATE_B[0] - PLATE_T[0], PLATE_T[1] - PLATE_B[1])
+    bm = bmesh.new()
+    lay = bm.loops.layers.uv.verify()
+    V = [[bm.verts.new(C + Vector((0.0, PLATE['y'][0] + (PLATE['y'][1] - PLATE['y'][0]) * i / (nu - 1), 0.0)) + up * (-L + 2 * L * j / (nv - 1))) for j in range(nv)] for i in range(nu)]
+    x0, y0, w, h = PLATE['uv']
+    for i in range(nu - 1):
+        for j in range(nv - 1):
+            f = bm.faces.new([V[i][j], V[i + 1][j], V[i + 1][j + 1], V[i][j + 1]])
+            f.normal_update()
+            if f.normal.dot(nrm) < 0:
+                f.normal_flip()
+            for l in f.loops:
+                ii, jj = next((a, b) for a in (i, i + 1) for b in (j, j + 1) if V[a][b] is l.vert)
+                l[lay].uv = ((x0 + w * ii / (nu - 1)) / 2048.0, 1.0 - (y0 + h * (1.0 - jj / (nv - 1))) / 1024.0)
+    return ctx.mk(bm, 'Decal_plate', 'Decal', True)
+
+
+REFL_Z, REFL_Y = (0.645, 0.657), (0.775, 0.935)      # REAR_LOW: the red rear reflectors low on the tail face's outer parts (r81 rows 789 - 792: z 0.67, |y| 0.77 - 1.0; p012 rows 636 - 640: z 0.635)
+
+
+def rear_reflectors(ctx):
+    """two thin red strips (Reflector, hi only) on the lower tail face, cast from behind 8 mm off the shell (over the plane_cover skin, 6 mm)"""
+    out = []
+    for s in (-1, 1):
+        out.append(ctx.patch('R_RearReflector_%s' % ('L' if s < 0 else 'R'), 'Reflector', (REFL_Y, REFL_Z), None, None, 0.008, 12, 2, unit_uv=True,
+                             ray_fn=lambda a, bb, s=s: (Vector((3.5, s * a, bb)), Vector((-1.0, 0.0, 0.0)))))
+    return out
 
 
 def glass_cover(ctx, cb, level):
@@ -1096,15 +1337,31 @@ def build(ctx, level):
     cm = 'GlossBlack' if level < 2 else 'Trim'          # round 5: the diffuser is black (Carbon read mid-grey in the studio light)
     cb = ctx.CB()
     build_diffuser(cb, level)
+    if REAR_LOW and level == 2:                 # (levels 0 / 1: in the Thrusters node)
+        build_beam_body(cb, level)              # (after the diffuser's warp: the beam is built in its final place)
     stat.append(ctx.cb_obj(cb, 'Diffuser', cm, sharp=30))
+    if REAR_LOW and level == 2:
+        stat.append(build_lobe(ctx, level))
     # (round 7: the dark blade fins at the rear corners, outboard of the diffuser (CornerFin_*), are gone: their flat GlossBlack side mirrored the studio's white panel as the white diagonal sliver and the white
     #  patch in p018, and as black metal they still made facets; p017 / p018 show a smooth black corner there)
     B = ctx.Builder()
+    lean = plate_lean(ctx)
     # plate backing and the reversing camera pod (parallel to the leaning tail face)
-    pc = fascia(ctx, sum(PLATE['z']) / 2, off=0.006)
-    B.rbox('Trim' if level < 2 else 'Paint', tuple(pc), (0.012, 0.356, 0.182), rot=(0, K.FAS_LEAN, 0), bev=0.003 if level < 2 else 0, seg=1)
-    if level < 2:        # camera pod above the plate with a small plate lamp each side (thrusters photo)
-        zc = 0.866 + DZ_TAIL
+    if REAR_LOW:        # the backing fills the gap between the panel and the plate (LOBE_GAP), a few mm larger than the plate all round (its dark edge)
+        pc = fascia(ctx, sum(PLATE['z']) / 2, off=0.5 * LOBE_GAP)
+        B.rbox('Trim' if level < 2 else 'Paint', tuple(pc), (LOBE_GAP, 0.350, 0.178), rot=(0, lean, 0), bev=0.002 if level < 2 else 0, seg=1)
+    else:
+        pc = fascia(ctx, sum(PLATE['z']) / 2, off=0.006)
+        B.rbox('Trim' if level < 2 else 'Paint', tuple(pc), (0.012, 0.356, 0.182), rot=(0, K.FAS_LEAN, 0), bev=0.003 if level < 2 else 0, seg=1)
+    if level < 2 and REAR_LOW:      # DR-4 (thrust / p004 / r81): a dark strip right under the lip with a reverse lamp at each end and the camera hanging from its middle
+        B.rbox('Trim', tuple(fascia(ctx, CAM_Z + 0.002, off=0.005)), (0.010, 0.340, 0.016), rot=(0, lean, 0), bev=0.003, seg=1)
+        B.rbox('Trim', tuple(fascia(ctx, CAM_Z - 0.008, off=0.012)), (0.024, 0.052, 0.030), rot=(0, lean, 0), bev=0.006 if level == 0 else 0.0, seg=2 if level == 0 else 1)
+        if level == 0:
+            B.cylinder('GlossBlack', tuple(fascia(ctx, CAM_Z - 0.011, off=0.0245)), (0, 90 + lean, 0), 0.0085, 0.004, seg=16)
+            for sy in (-1, 1):
+                B.rbox('ReverseLamp', tuple(fascia(ctx, CAM_Z + 0.002, y=sy * 0.120, off=0.0105)), (0.003, 0.056, 0.008), rot=(0, lean, 0), bev=0.0, seg=1)
+    elif level < 2:        # camera pod above the plate with a small plate lamp each side (thrusters photo)
+        zc = CAM_Z
         B.rbox('Trim', tuple(fascia(ctx, zc, off=0.014)), (0.030, 0.092, 0.036), rot=(0, K.FAS_LEAN, 0), bev=0.007 if level == 0 else 0.0, seg=2 if level == 0 else 1)
         if level == 0:
             B.cylinder('GlossBlack', tuple(fascia(ctx, zc - 0.004, y=0.018, off=0.0305)), (0, 90 + K.FAS_LEAN, 0), 0.0105, 0.006, seg=16)
@@ -1113,15 +1370,21 @@ def build(ctx, level):
             if level == 0:      # DR-4: the two reverse lamps (white lens in a dark housing) flank the camera
                 B.rbox('ReverseLamp', tuple(fascia(ctx, zc + 0.002, y=sy * 0.118, off=0.0185)), (0.004, 0.070, 0.0095), rot=(0, K.FAS_LEAN, 0), bev=0.0, seg=1)
     stat += B.objects('Rear', sharp=40)
+    if level == 0 and REAR_LOW:
+        stat += rear_reflectors(ctx)
     if level < 2:
         return stat
     ring = ctx.CB()
     for yc in JET_Y:
-        ring.lathe([(0.04, -0.004), (0.054, 0.014), (0.045, 0.016), (0.0, 0.0)], 10, N_GOLD, axis_x=True, at=(JET_X, yc, JET_Z))
+        if REAR_LOW:        # (the flush silver lip and a dark cone; the beam's face is in build_beam_body at this level)
+            ring.lathe([(NOZ_R, -0.004), (NOZ_R, 0.0), (0.0415, 0.0), (0.0, -0.035)], 10, [N_LIP, N_LIP, N_DEEP], axis_x=True, at=(JET_X, yc, JET_Z))
+        else:
+            ring.lathe([(0.04, -0.004), (0.054, 0.014), (0.045, 0.016), (0.0, 0.0)], 10, N_GOLD, axis_x=True, at=(JET_X, yc, JET_Z))
     stat.append(ctx.cb_obj(ring, 'Thrusters', 'IntAccent'))
     Bn = ctx.Builder()
-    Bn.rbox('Trim', (CH_X - 0.005, 0, JET_Z), (0.01, 2 * (DIFF_W - 0.016), 2 * CELL), bev=0, seg=1)      # nozzle channel wall, no holes
-    Bn.rbox('Trim', (WALL_X - 0.005 - 0.5 * TUCK, 0, 0.5 * (BAY_Z0 + SHELF_Z[0])), (0.01, 2 * (DIFF_W - 0.016), SHELF_Z[0] - BAY_Z0), bev=0, seg=1)        # tunnels: plain back wall
+    if not REAR_LOW:
+        Bn.rbox('Trim', (CH_X - 0.005, 0, JET_Z), (0.01, 2 * (DIFF_W - 0.016), 2 * CELL), bev=0, seg=1)      # nozzle channel wall, no holes
+    Bn.rbox('Trim', (WALL_X - 0.005 - 0.5 * TUCK, 0, 0.5 * (BAY_Z0 + SHELF_Z[0]) + MOD_DZ), (0.01, 2 * (DIFF_W - 0.016), SHELF_Z[0] - BAY_Z0), bev=0, seg=1)        # tunnels: plain back wall
     stat += Bn.objects('RearN', sharp=40)
     return stat                     # (lod2 has no Wing node: it is fixed in the stowed state = the shell's deck, nothing extra is drawn)
 
@@ -1161,11 +1424,18 @@ def nodes(ctx, level):
     if level >= 2:
         return {}
     cbj = ctx.CB()
-    outlet_plate(cbj, level)
+    if REAR_LOW:        # the nozzle beam (its flush face and its body) and the plate's panel, in their final place
+        build_beam_face(cbj, level)
+        build_beam_body(cbj, level, N_PLANE)
+        build_lobe(ctx, level, cbj, N_PLANE)
+    else:
+        outlet_plate(cbj, level)
     build_jets(cbj, level)
     n0 = len(cbj.bm.verts)
     build_tunnels(cbj, level)
     build_strakes(cbj, level)
+    if REAR_LOW:
+        build_tray(cbj, level, N_PLANE)
     warp_verts(cbj, n0)                 # the tunnel walls and strakes follow the module's warp (bathtub, plan sweep, tuck: the same function as the diffuser's own parts)
     build_endplates(cbj, level, N_WALL)    # (final frame: not warped)
     plane_cover(ctx, cbj, level)
@@ -1180,6 +1450,8 @@ def nodes(ctx, level):
 def decals(ctx, level):
     if level > 1:
         return []            # (lod2 has no Decals node: the plate is not drawn there)
+    if REAR_LOW:
+        return [plate_decal(ctx, level)]
     n = (12, 4) if level == 0 else (6, 3)
     return [ctx.patch('Decal_plate', 'Decal', (PLATE['y'], PLATE['z']), lambda a, bb: (3.5, a, bb), (-1, 0, 0), (0.020, 0.030, 0.034)[level],
                       n[0], n[1], uv_rect=PLATE['uv'])]

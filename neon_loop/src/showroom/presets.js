@@ -129,7 +129,7 @@ export const HOTSPOTS = [
     tz: '六辐轮毂配宽大的辐间开口，制动盘与卡钳透过辐条清晰可见。', te: 'Six-spoke wheels with wide openings: the brake discs and calipers show through between the spokes.' },
   { id: 'lamp', pos: [0, 0.58, -2.36], nrm: [0, 0, -1], view: 'lamp', zh: '贯穿式灯带', en: 'Full-width light bar',
     tz: '一条贯穿车头的细长灯带取代了传统大灯，日行灯与车头线条融为一体。', te: 'A single slim light bar runs across the nose in place of conventional headlamps, drawn into the line of the front end.' },
-  { id: 'jets', pos: [0, 0.62, 2.42], nrm: [0, 0, 1], view: 'rear', zh: '冷气推进器', en: 'Cold-gas thrusters',
+  { id: 'jets', pos: [0, 0.56, 2.55], nrm: [0, 0, 1], view: 'rear', zh: '冷气推进器', en: 'Cold-gas thrusters',      // (on the nozzle beam's face between the inner rings, 2026-10-25; was [0, 0.62, 2.42])
     tz: '尾部扩散器内嵌一排喷口。演示时可看到压缩气体喷出的气流。', te: 'A row of nozzles sits inside the rear diffuser. In the demo you can watch the compressed-gas plumes.' },
   { id: 'wing', pos: [0, 1.12, 2.15], nrm: [0, 1, 0.2], view: 'rear34', zh: '主动尾翼', en: 'Active wing',
     tz: '尾翼平时收起，与车尾盖板齐平；需要时展开。可在“功能”里演示。', te: 'The wing sits flush with the rear deck when stowed and rises when needed. Try it under Features.' },
