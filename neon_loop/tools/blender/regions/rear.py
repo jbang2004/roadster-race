@@ -64,7 +64,8 @@ NAME = 'rear'
 REAR_T17 = os.environ.get('REAR_T17', '1') == '1'      # the 2026-10-23 tail (with design2 QF_Q17, the level tail edge): the tail layout below, the wing seam and the one-piece wing; 0 = the tail before it
 # (with design2 QF_Q17 the tail's top edge is level (1.015 on 2026-10-23, 0.995 since 2026-10-24) and the box's top 5 mm under it: the r81 layout (box top 1.056) drops by the difference)
 import design2 as _D2
-DZ_TAIL = ((_D2.QF_Q17[0] - 0.005) - 1.056) if (REAR_T17 and _D2.QF_Q17) else 0.0      # the box's top 5 mm under the level edge: -0.046 at 1.015, -0.066 at 0.995 (2026-10-24)
+DZ_TAIL = ((_D2.QF_Q17_ZC - 0.005) - 1.056) if (REAR_T17 and _D2.QF_Q17) else 0.0      # the box's top 5 mm under the level edge: -0.046 at 1.015, -0.066 at 0.995 (2026-10-24)
+#   (from the corner's height QF_Q17_ZC, the same as the edge's QF_Q17[0] when the edge is level; with the edge raised between the ears only the box stays under the corner)
 LIP_BOT = 0.893 + DZ_TAIL        # underside of the lip roll
 
 

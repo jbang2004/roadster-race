@@ -3393,7 +3393,22 @@ def build_all():
             _rg_ = lambda x: float(_r0_.at(x)[2] - _g0_.at(x)[2])
             _wr_ = lambda x: float(_r0_.at(x)[1] - _g0_.at(x)[1])
             _DrE_ = float(_r0_.at(_xe_)[2]) - _ze_
-            _DrpE_ = (_rg_(_xe_) - _rg_(_xe_ - _e_)) / _e_ + float(_Ld_(_xe_) - _Ld_(_xe_ - _e_)) / _e_ - _tn_ * (_wr_(_xe_) - _wr_(_xe_ - _e_)) / _e_
+            _rgp_, _wrp_ = (_rg_(_xe_) - _rg_(_xe_ - _e_)) / _e_, (_wr_(_xe_) - _wr_(_xe_ - _e_)) / _e_
+            if _DrE_ < 5e-4:
+                # the edge at R-1's own end height (QF_Q17[0] = R-1 at E, the corner may stay lower: QF_Q17_ZC): R-1 runs on its line to E and the deck alone closes the step, a quintic
+                # from the window's lowering (value, rate) at the seam to R-1's height at E with the face at its own angle there
+                _LE_, _LpE_ = -_rg_(_xe_), _tn_ * _wrp_ - _rgp_
+
+                def _Ld_(x):
+                    x = np.asarray(x, float)
+                    q = quint1(np.clip(x, X_SEAM, _xe_), X_SEAM, _sb0_, _sb1_, 0.0, _xe_, _LE_, _LpE_, 0.0)
+                    return np.where(x <= X_SEAM, _tn_ * _wf_(np.minimum(x, X_SEAM)), np.where(x <= _xe_, q, _LE_ + _LpE_ * (x - _xe_)))
+                _DrE_ = _DrpE_ = 0.0
+            else:
+                # (QF_EAR_MONO: at least 5/3 of the mean rate, below which the quintic's slope peaks before E and R-1 sags, then flattens, in side view; off keeps the 2026-10-25 export)
+                _DrpE_ = _rgp_ + float(_Ld_(_xe_) - _Ld_(_xe_ - _e_)) / _e_ - _tn_ * _wrp_
+                if os.environ.get('QF_EAR_MONO', '0') == '1':
+                    _DrpE_ = max(_DrpE_, 5.0 / 3.0 * _DrE_ / (_xe_ - X_SEAM))
 
             def _Dr_(x):
                 x = np.asarray(x, float)
