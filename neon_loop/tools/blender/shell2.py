@@ -1727,17 +1727,23 @@ def p3_hip_dy(x, y, z):
 # arch (round the fixed hub) and the hips do not.  A field of x displacement, applied to the whole built car at export (build_game_car.p3_post: every mesh but the wheels; the wing node
 # moves rigidly), so that the regions' parts go with the shell.  s = S ((1 - b) Rs + b Rd):
 #   Rs  the side: a ramp in the slanted coordinate xi = x + K (Zs(z) - QF_P3_TX_Z0) whose level lines are parallel to the facet's front seam (S -> E, dx/dz = -K), from xi1 - W to
-#       xi1 (= the seam): the facet and everything aft of it move rigidly by S (the facet stays planar), the stretch lies in the band between the rear arch and the seam (the arch
-#       circle and the wheel well stay where they are); Zs = z clamped (C2) to QF_P3_TX_ZC so that the band runs straight down behind the arch and stops tilting above the deck.
+#       xi1 (= the seam): the facet and everything aft of it move by S, the stretch lies in the band between the rear arch and the seam (the arch circle and the wheel well stay
+#       where they are); Zs = z clamped (C2) to QF_P3_TX_ZC so that the band runs straight down behind the arch and stops tilting above the deck.
+#       The side does not move straight aft but ALONG the facet's top edge (L aft of S, a straight line in the facet's plane, as built with the hips): p013's plan matches the
+#       unshifted body to x 2.28 and then carries the same straight taper on to ~2.45 before the corner turns in, i.e. the facet and the tail corner slide along that line
+#       (the outline stays on it, the facet stays planar for any slide, its seams move aft ~5 cm as measured).  The lateral / vertical part of the slide fades out towards the
+#       tail's centre (|y| QF_P3_TX_YW) and below the facet (z QF_P3_TX_ZW): the tail face's middle and the lower body move straight aft.
 #   Rd  the deck / glass: a ramp in x over QF_P3_TX_XD (window tip -> the rear window's rear edge): the rear window gets longer, the deck behind it moves by S.
 #   b   0 at and below L, 1 inboard of the roof rail / crest (the lateral position across the rear shoulder from L to the rail), so the rear shoulder blends the two.
 #   ramps: linear in their middle, C2 ends (the integral of a smoothstep window, QF_P3_TX_E of the width at each end).
 QF_P3_TAILX = os.environ.get('QF_P3_TAILX', '0') == '1'
 QF_P3_TX_S = float(os.environ.get('QF_P3_TX_S', '0.05'))
 QF_P3_TX_K, QF_P3_TX_Z0, QF_P3_TX_XI1, QF_P3_TX_W = 0.714, 0.733, 2.149, float(os.environ.get('QF_P3_TX_W', '0.20'))
-QF_P3_TX_ZC = tuple(float(v) for v in os.environ.get('QF_P3_TX_ZC', '0.50,1.10,0.06').split(','))      # z clamp: low, high, rounding
+QF_P3_TX_ZC = tuple(float(v) for v in os.environ.get('QF_P3_TX_ZC', '0.60,1.10,0.06').split(','))      # z clamp: low, high, rounding
 QF_P3_TX_XD = tuple(float(v) for v in os.environ.get('QF_P3_TX_XD', '1.22,2.10').split(','))
 QF_P3_TX_E = float(os.environ.get('QF_P3_TX_E', '0.25'))
+QF_P3_TX_YW = tuple(float(v) for v in os.environ.get('QF_P3_TX_YW', '0.55,0.90').split(','))
+QF_P3_TX_ZW = tuple(float(v) for v in os.environ.get('QF_P3_TX_ZW', '0.45,0.72').split(','))
 
 
 def _p3_ramp(t, e):
@@ -1765,22 +1771,39 @@ def _p3_zclamp(z):
     return lo - 0.5 * r + _p3_ramp((z - (lo - r)) / wd, e) * (1.0 - e) * wd
 
 
-def p3_dx(x, y, z):
-    """x displacement (m) of the rear-end extension at (x, y, z) (0 when QF_P3_TAILX is off)"""
+def _p3_slide():
+    """(dy/dx, dz/dx) of the facet's top edge as built (L aft of the facet's front corner S, with the hip field), +y side"""
+    if 'slide' not in _P3_HIP:
+        T = _p3_hip_tables()
+        P = [(x, T['Ly'](x) + (p3_hip_dy(x, T['Ly'](x), T['L'](x)) if QF_P3_HIP else 0.0), T['L'](x)) for x in (2.00, 2.36)]
+        _P3_HIP['slide'] = ((P[1][1] - P[0][1]) / (P[1][0] - P[0][0]), (P[1][2] - P[0][2]) / (P[1][0] - P[0][0]))
+    return _P3_HIP['slide']
+
+
+def p3_dxyz(x, y, z):
+    """(dx, dy, dz) of the rear-end extension at (x, y, z) ((0, 0, 0) when QF_P3_TAILX is off)"""
     if not QF_P3_TAILX or x < QF_P3_TX_XD[0] - 0.05:
-        return 0.0
+        return 0.0, 0.0, 0.0
     T = _p3_hip_tables()
     xi = x + QF_P3_TX_K * (_p3_zclamp(z) - QF_P3_TX_Z0)
     rs = _p3_ramp((xi - (QF_P3_TX_XI1 - QF_P3_TX_W)) / QF_P3_TX_W, QF_P3_TX_E)
     rd = _p3_ramp((x - QF_P3_TX_XD[0]) / (QF_P3_TX_XD[1] - QF_P3_TX_XD[0]), QF_P3_TX_E)
-    if rs == rd:
-        return QF_P3_TX_S * rs
+    if rs == 0.0 and rd == 0.0:
+        return 0.0, 0.0, 0.0
     xl = min(x, 2.41)
     yl, zl, yr = T['Ly'](xl), T['L'](xl), T['raily'](xl)
     bz = float(D.sstep(zl - 0.01, zl + 0.03, z))
     by = float(D.sstep(0.0, 1.0, (yl - abs(y)) / max(yl - yr, 1e-3))) if bz > 0.0 else 0.0
     b = by * bz
-    return QF_P3_TX_S * ((1.0 - b) * rs + b * rd)
+    my, mz = _p3_slide()
+    w = float(D.sstep(QF_P3_TX_YW[0], QF_P3_TX_YW[1], abs(y))) * float(D.sstep(QF_P3_TX_ZW[0], QF_P3_TX_ZW[1], z))
+    sx = QF_P3_TX_S * ((1.0 - b) * rs + b * rd)
+    ss = QF_P3_TX_S * (1.0 - b) * rs * w                      # the part of the side's move that slides along the facet's top edge
+    return sx, my * ss * (1.0 if y >= 0.0 else -1.0), mz * ss
+
+
+def p3_dx(x, y, z):
+    return p3_dxyz(x, y, z)[0]
 
 
 def p3_dy(x, y, z):

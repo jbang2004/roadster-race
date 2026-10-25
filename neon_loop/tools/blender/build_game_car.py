@@ -1377,9 +1377,9 @@ def p3_post(objs):
             continue
         if o.name == 'Wing':
             w = o.matrix_world.translation
-            d = shell2mod.p3_dx(w.x, w.y, w.z)
+            d = Vector(shell2mod.p3_dxyz(w.x, w.y, w.z))
             pm = o.parent.matrix_world.inverted() if o.parent else None
-            o.location = (pm @ (w + Vector((d, 0.0, 0.0)))) if pm else (w + Vector((d, 0.0, 0.0)))
+            o.location = (pm @ (w + d)) if pm else (w + d)
             continue
         if under(o.parent, 'Wing') or o.type != 'MESH':
             continue
@@ -1391,9 +1391,9 @@ def p3_post(objs):
             w = mw @ v.co
             if w.x < 1.15:
                 continue
-            d = shell2mod.p3_dx(w.x, w.y, w.z)
-            if d:
-                v.co = inv @ Vector((w.x + d, w.y, w.z))
+            d = shell2mod.p3_dxyz(w.x, w.y, w.z)
+            if d[0] or d[1] or d[2]:
+                v.co = inv @ Vector((w.x + d[0], w.y + d[1], w.z + d[2]))
                 n += 1
         o.data.update()
     print('P3 rear extension: %d vertices moved (S = %.3f m)' % (n, shell2mod.QF_P3_TX_S))

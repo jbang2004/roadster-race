@@ -26,7 +26,7 @@ SLOPE_TOL, CURV_TOL = 0.02, 0.05  # deg, 1/m
 PLANES = {'corner_tri': 2.5, 'facet': 4.0}            # designed planes: max distance from the best-fit plane (mm); limits = the pre-P3 shell (1.4, 3.6 mm) plus margin
 import re
 R_ARCH = float(re.search(r'^R_ARCH = ([\d.]+)', open(os.path.join(HERE, 'common.py')).read(), re.M).group(1))     # (common.py itself needs bpy)
-OFF = {k: '0' for k in ('QF_P3_L3', 'QF_P3_U', 'QF_P3_HIP', 'QF_P3_FRONT', 'QF_P3_LF', 'QF_P3_ARR')}
+OFF = {k: '0' for k in ('QF_P3_L3', 'QF_P3_U', 'QF_P3_HIP', 'QF_P3_FRONT', 'QF_P3_LF', 'QF_P3_ARR', 'QF_P3_TAILX')}
 
 
 def lines_at(xs_by_line):
@@ -36,6 +36,13 @@ def lines_at(xs_by_line):
     out = {}
     for name, xs in xs_by_line.items():
         cn, comp = name.split(':')
+        if comp.startswith('d'):                # the rear-end extension (shell2.p3_dxyz) along the line, component dx / dy / dz (0 when QF_P3_TAILX is off)
+            c = C[cn]
+            xs = np.asarray([x for x in xs if c.x0 <= x <= c.x1], float)
+            P = np.asarray(c.at(xs), float) if len(xs) else np.zeros((0, 3))
+            k = 'xyz'.index(comp[1])
+            out[name] = (list(xs), [float(S.p3_dxyz(p[0], p[1] + S.p3_dy(p[0], p[1], p[2]), p[2])[k]) for p in P])
+            continue
         if cn == 'archR':                       # the rear arch outline: x = arc length (m) along the R_ARCH circle, value = radial offset (m)
             out[name] = (list(xs), [float(S.p3_arr(np.degrees(t / R_ARCH))) for t in xs])
             continue
@@ -59,6 +66,7 @@ def planes():
     r = {}
     for k in PLANES:
         V = np.array([v[:3] for v in pm[k].verts], float)
+        V = V + np.array([S.p3_dxyz(*p) for p in V])          # as exported (the rear-end extension is applied to the built car)
         c = V.mean(0)
         n = np.linalg.svd(V - c, full_matrices=False)[2][-1]
         r[k] = float(1000 * np.abs((V - c) @ n).max())
@@ -82,6 +90,24 @@ def joins():
     J['l3:elev'] = list(D.QF_P3_L3X) if D.QF_P3_L3 else []
     J['U:plan'] = list(D.QF_P3_UX) if D.QF_P3_U else []
     J['archR:outline'] = [R_ARCH * np.radians(k[0]) for k in S.QF_P3_ARR_K] if S.QF_P3_ARR else []
+    if S.QF_P3_TAILX:                           # the rear-end extension: every place along L / the crest / the deck centre where one of its ramps or blends passes a boundary
+        e, W = S.QF_P3_TX_E, S.QF_P3_TX_W
+        xd0, xd1 = S.QF_P3_TX_XD
+        T = S._p3_hip_tables()
+        for cn in ('L', 'rail', 'top'):
+            c = S.C[cn]
+            xs = np.linspace(max(c.x0, xd0 - 0.05), c.x1, 3000)
+            P = np.asarray(c.at(xs), float)
+            ts = [((p[0] + S.QF_P3_TX_K * (S._p3_zclamp(p[2]) - S.QF_P3_TX_Z0)) - (S.QF_P3_TX_XI1 - W)) / W for p in P]
+            td = [(p[0] - xd0) / (xd1 - xd0) for p in P]
+            wy = [abs(p[1]) for p in P]
+            cross = []
+            for t, lev in [(ts, v) for v in (0.0, e, 1 - e, 1.0)] + [(td, v) for v in (0.0, e, 1 - e, 1.0)] + [(wy, v) for v in S.QF_P3_TX_YW]:
+                for i in range(len(xs) - 1):
+                    if (t[i] - lev) * (t[i + 1] - lev) < 0.0:
+                        cross.append(round(float(xs[i] + (lev - t[i]) / (t[i + 1] - t[i]) * (xs[i + 1] - xs[i])), 4))
+            for comp in ('dx', 'dy', 'dz'):
+                J['%s:%s' % (cn, comp)] = sorted(set(cross))
     return J
 
 

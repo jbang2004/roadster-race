@@ -22,7 +22,7 @@ def morph(P):
     for k in range(len(P)):
         x, y, z = P[k]
         P[k, 1] += shell2.p3_dy(x, y, z)
-        P[k, 0] += shell2.p3_dx(x, P[k, 1], z)
+        P[k] += shell2.p3_dxyz(x, P[k, 1], z)
     return P
 
 
