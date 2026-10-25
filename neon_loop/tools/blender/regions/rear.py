@@ -446,6 +446,12 @@ def build_tail_lip(ctx, level):
         # (REAR_T17: the visor's front edge is buried 0.5 mm under the deck where it is.  It stood 1.5 mm proud; the old tail sloped down aft enough to hide that, the raised tail corner
         #  makes the deck there flat, and the step read as a bright line across the shoulder in p013)
         zf = (deck_z(surf, xb - 0.06, y) or zt) - 0.0020 if REAR_T17 else zt
+        if REAR_T17:
+            # (2026-10-25, the ear step: the deck now folds up into the ear's inner face along R-5 just ahead of the visor; the sections are ~4 cm apart there and the front edge's
+            #  chord between two of them stood up to 2 mm proud across that valley (dark slivers by the ear tips).  The front edge goes under the lowest deck within a section's spacing)
+            dy_ = Y_END * math.pi / n * abs(math.cos(t * math.pi / 2)) + 0.004
+            zs_ = [deck_z(surf, xb - 0.06, y + k * dy_ / 4.0) for k in range(-4, 5)]
+            zf = min([z for z in zs_ if z is not None] + [zf + 0.0020]) - 0.0020
         sec_v.append([(xb - 0.06, y, zf + 0.0015), (xb + pr, y, max(zt - 0.0175, zv + 0.0005)), (xb + pr, y, max(zt - 0.0225, zv)), (xb - 0.06, y, max(zf - 0.0125, zv))])
         # lip roll (bead): base on the band plane, full section to the band's end (its depth tapers to the end face: same clamp)
         sc = 1.0
