@@ -105,6 +105,9 @@ export function createCarVisual(app, { livery = 0, isPlayer = false, envMap = nu
   // ---- shared uniform objects (all materials of this car point at these)
   const lodU = [0, 1, 2].map(() => ({ uLodT: { value: 1 }, uLodDir: { value: 0 } }));
   const carU = { uBead: { value: 0 }, uHeat: { value: 0 }, uWetK: { value: 0.5 }, uGlassAbs: { value: 0.6 }, uJet: { value: 0 } };
+  // each axle's visible sidewall (lip .. tyre radius) for the tyre shader's rings and print (car_meta.json; old assets: one 0.39 tyre under a 0.313 lip)
+  const TM = ASSETS.meta ?? {}, tyreRL = (a) => ({ value: new THREE.Vector2(TM.tyreLip?.[a] ?? 0.313, typeof TM.tyreRadius === 'object' ? TM.tyreRadius[a] : (TM.tyreRadius ?? 0.39)) });
+  const tyreU = { F: tyreRL('F'), R: tyreRL('R') };
   const P = L.paint;
   const paintU = {
     uFlake: { value: P.flake }, uFlakeColor: { value: new THREE.Color(P.flakeColor) },
@@ -117,7 +120,7 @@ export function createCarVisual(app, { livery = 0, isPlayer = false, envMap = nu
   const lods = [];
   const allMats = [];
   for (let lod = 0; lod < 3; lod++) {
-    const shared = { lod: lodU[lod], car: carU, paint: paintU };
+    const shared = { lod: lodU[lod], car: carU, paint: paintU, tyre: tyreU };
     const set = createMaterialSet(L, lod, shared, { env: envMap, atlas });
     const root = ASSETS.protos[lod].clone(true);
     root.name = 'LOD' + lod;
@@ -140,7 +143,7 @@ export function createCarVisual(app, { livery = 0, isPlayer = false, envMap = nu
     root.traverse(o => {
       if (!o.isMesh) return;
       const nm = o.material.name;
-      const m = set.mats[nm];
+      const m = set.mats[nm === 'Tyre' && /^Tyre_F/.test(o.name) ? 'TyreF' : nm];        // the front tyres have their own sidewall
       if (!m) { console.warn('[car] no material for', nm); return; }
       o.material = m;
       o.frustumCulled = lod === 0 ? true : true;

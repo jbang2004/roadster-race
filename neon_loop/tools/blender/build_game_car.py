@@ -925,6 +925,25 @@ S_ARM = 0.105                           # the star's arms end here along each sp
 CU_H = (0.022, 0.010)                   # (QF_WH_FACE) copper band on the slot's panel-side wall: its height under Y_B at the star's arm end and at the lip
 CAP_R = (0.024, 0.028, 0.036) if QF_WH_FACE else (0.034, 0.039, 0.050)    # cap face, cap ring, foot of the cap's cone on the star
 Y_FLOOR = (0.064, 0.090, 0.100)         # channel floor per level
+# 2026-10-25 polish (WHEELS, the rectified p003 face zoomed on one spoke, p018 / p016 / p017): the spoke is three-dimensional.  Each panel is edged on both sides by
+# a RAISED FRAME, 14 mm wide (bright satin metal: the light line in the photos is its top, 35..40 mm from the spoke axis at r 0.26, with a darker outer chamfer
+# against the panel), the frames of a panel meeting round its tip.  Inside the frames a deep slot (copper wedges on the frame's inner wall, widest at the hub, CU_W)
+# and in its middle the BLADE, 42 mm wide, standing proud of the frames (p017: glossy black fins catching light along their sides), a V section (ridge on the spoke
+# axis, facets falling 6 mm to its edges: one lit, one dark); the twelve facets meet round the cap, dark satin inside R_STAR (p003: the hub's star).  The panels are DISHED: flat to R_DISH (the photos' crease at r 0.245-0.26), then a band rising DISH towards the lip (its edge stays on the
+# calibrated rim plane; p018: the band is darker than the panel on the upper panels and lighter on the lower ones, i.e. it faces the hub).  The whole face inside
+# the lip sinks by DISH and the band ramps it back (rim_mesh: _dish), floors stay.  lod2 is not changed.
+# QF_WH_3D=0: the merged face (flat panels with a 5 mm graphite bevel, a flat 72 mm blade with graphite / bright bands, a hexagon under the cap).
+QF_WH_3D = QF_WH_FACE and os.environ.get('QF_WH_3D', '1') == '1'
+if QF_WH_3D:
+    CH_B = 0.014                        # the frame's width: its inner edge is the slot wall's top (_foot_t)
+W_FRM = (0.45, 0.455, 0.47, 0.55)       # the frames: bright satin metal (code 0.55; p003: the frame tops ~0.6 of the panels' brightness)
+FR_PROF = ((0.0, Y_P), (-0.003, Y_P + 0.004), (-0.014, Y_P + 0.004))     # the frame across, from the panel edge line in: (offset, height): outer chamfer, top
+BL3 = 0.021                             # the V blade: half width; its ridge and edge heights (the ridge stands proud of the frames, its edges at the panel)
+Y_R, V_H = Y_P + 0.007, 0.006
+R_STAR = 0.10                           # inside this the blades are the hub's star: dark satin graphite (W_STAR), gloss black outside (prong tips: p003 0.083-0.10, p018 ~0.10)
+W_STAR = (0.03, 0.03, 0.033, 0.25)      # (p003: the star reads 40-90 where lit, p017 / p018: near black)
+R_DISH, DISH = (0.255, 0.012) if QF_WH_3D else (FACE_R, 0.0)     # (DISH 0.006 gave half the photos' band contrast: p018 F +-8 against +-19..27, bandsign)
+CU_W = (0.003, 0.030, 0.245, 0.016)     # the copper wedge on the slot wall: top and bottom below the frame at the wall's hub end, its tip (s along the spoke, depth)
 
 
 class CB:
@@ -1175,6 +1194,114 @@ def _star(cb, level=0):
             cb.facen([c2, hx[i - 1], hx[i]], W_GLS, (0, 1, 0))
 
 
+def _panel3(cb, k, level):
+    """(QF_WH_3D) aero panel k: a fan from its tip to the crease at R_DISH and the band out to the lip (rim_mesh dishes it), and on both edges the raised frame
+    (FR_PROF strips, mitred with the other edge's on the bisector round the tip) and the slot wall under the frame's inner edge (copper band, gloss black).
+    Every line is cut at R_DISH so the dish bends it there."""
+    n6 = math.pi / N_SPOKE
+    th0 = _spoke_th(k)
+    th1 = th0 + 2 * n6
+    yf = Y_FLOOR[level]
+    nar = (8, 3, 3)[level]
+    lines = [((lambda s, o=o: _edge_t(s) + o), y) for o, y in FR_PROF]
+
+    def st(f):                                                    # stations along a line: its tip on the bisector, the crease, the lip
+        return (_meet(f), _meet(f, R_DISH), _meet(f, FACE_R))
+    f0 = lines[0][0]
+    s0 = st(f0)
+    ap = _v3(cb, th0, s0[0], f0(s0[0]), Y_P)
+    ad, ae = math.atan2(f0(s0[1]), s0[1]), math.atan2(f0(s0[2]), s0[2])
+    arc_d = [cb.v((R_DISH * math.cos(a_), Y_P, R_DISH * math.sin(a_))) for a_ in (th0 + ad + (th1 - th0 - 2 * ad) * i / nar for i in range(nar + 1))]
+    arc_e = [cb.v((FACE_R * math.cos(a_), Y_P, FACE_R * math.sin(a_))) for a_ in (th0 + ae + (th1 - th0 - 2 * ae) * i / nar for i in range(nar + 1))]
+    for i in range(nar):
+        cb.facen([ap, arc_d[i], arc_d[i + 1]], W_AERO, (0, 1, 0))
+        cb.facen([arc_d[i], arc_e[i], arc_e[i + 1], arc_d[i + 1]], W_AERO, (0, 1, 0))
+    for th, sg in ((th0, 1), (th1, -1)):
+        into = (sg * math.sin(th), 0.0, -sg * math.cos(th))      # from the frame into the slot
+        up_in = (into[0] * 0.5, 0.85, into[2] * 0.5)
+        P = [[_v3(cb, th, s, sg * f(s), y) for s in st(f)] for f, y in lines]
+        for j in range(len(lines) - 1):
+            for m in range(2):
+                cb.facen([P[j][m], P[j][m + 1], P[j + 1][m + 1], P[j + 1][m]], W_FRM, up_in)
+        fl, yl = lines[-1]
+        sl = st(fl)
+        cb.facen([p_[2] for p_ in P] + [_v3(cb, th, sl[2], sg * fl(sl[2]), Y_P)], W_FRM, (math.cos(th), 0.0, math.sin(th)))   # the frame's end at the lip
+        F = [_v3(cb, th, s, sg * fl(s), yf) for s in sl]
+        if level >= 1:
+            for m in range(2):
+                cb.facen([P[-1][m], P[-1][m + 1], F[m + 1], F[m]], W_GLS, into)
+            continue
+        h0, h1, s_t, h_t = CU_W                                   # the slot wall under the frame: gloss black with a copper wedge (p003: lit copper triangles, wide at the hub)
+        wa, wb = (_v3(cb, th, sl[0], sg * fl(sl[0]), yl - h) for h in (h0, h1))
+        tip = _v3(cb, th, s_t, sg * fl(s_t), yl - h_t)
+        cb.facen([wa, tip, wb], W_ACC, into)
+        cb.facen([P[-1][0], P[-1][1], tip, wa], W_GLS, into)      # (the wall is cut at R_DISH > the wedge's tip)
+        cb.facen([wb, tip, P[-1][1], F[1], F[0]], W_GLS, into)
+        cb.facen([P[-1][1], P[-1][2], F[2], F[1]], W_GLS, into)
+
+
+def _channel3(cb, k, level):
+    """(QF_WH_3D) spoke k: the slot's floor and its end wall against the lip (as _channel), and the V blade from the hub to the lip: two gloss-black facets from
+    the ridge (on the spoke axis, Y_R) down to the edges (BL3, Y_R - V_H), the edges' inner ends in the valleys between the blades (on the bisectors), the
+    ridge's at the centre; its sides down to the floor."""
+    th = _spoke_th(k)
+    yf = Y_FLOOR[level]
+    s1 = _meet(_foot_t, FACE_R)
+    asn = math.atan2(_foot_t(s1), s1)
+    nar = (3, 2, 2)[level]
+    arc_f, arc_t = [], []
+    for i in range(nar + 1):
+        ang = th + asn - 2 * asn * i / nar
+        x, z = FACE_R * math.cos(ang), FACE_R * math.sin(ang)
+        arc_f.append(cb.v((x, yf, z)))
+        arc_t.append(cb.v((x, Y_P, z)))
+    a = _foot_t(S_ARM)
+    cb.facen([_v3(cb, th, S_ARM, -a, yf), _v3(cb, th, S_ARM, a, yf)] + arc_f, W_GLS, (0, 1, 0))
+    for i in range(nar):
+        cb.facen([arc_f[i], arc_f[i + 1], arc_t[i + 1], arc_t[i]], W_GLS, (-arc_f[i].co.x, 0.0, -arc_f[i].co.z))
+    tn = math.tan(math.pi / N_SPOKE)
+    se = (BL3 / tn,) + tuple(math.sqrt(r_ ** 2 - BL3 ** 2) for r_ in (R_STAR, R_DISH, FACE_R))     # stations: the valley, the star's edge, the crease, the lip
+    R = [cb.v((0.0, Y_R, 0.0))] + [_v3(cb, th, s, 0.0, Y_R) for s in (R_STAR, R_DISH, FACE_R)]
+    cols = (W_STAR, W_GLS, W_GLS)
+    ends = {}
+    for sg in (-1, 1):
+        E = [_v3(cb, th, s, sg * BL3, Y_R - V_H) for s in se]
+        Ef = [_v3(cb, th, s, sg * BL3, yf) for s in se]
+        side = (-sg * math.sin(th), 0.0, sg * math.cos(th))
+        for m in range(3):
+            cb.facen([R[m], E[m], E[m + 1], R[m + 1]], cols[m], (side[0] * 0.25, 1.0, side[2] * 0.25))
+            cb.facen([E[m], E[m + 1], Ef[m + 1], Ef[m]], cols[m], side)
+        ends[sg] = (E[3], Ef[3])
+    cb.facen([ends[-1][0], R[3], ends[1][0], ends[1][1], ends[-1][1]], W_GLS, (math.cos(th), 0.0, math.sin(th)))     # its end under the lip
+
+
+def _star3(cb, level=0):
+    """(QF_WH_3D) the deep floor round the hub between the panels' tips and the blades (the _star outline at the floor)."""
+    n6 = math.pi / N_SPOKE
+    y = Y_FLOOR[level]
+    ctr = cb.v((0.0, y, 0.0))
+    s_v = _meet(_foot_t)
+    r_v = math.hypot(s_v, _foot_t(s_v))
+    a = _foot_t(S_ARM)
+    pts = []
+    for k in range(N_SPOKE):
+        th = _spoke_th(k)
+        pts += [_v3(cb, th, S_ARM, t, y) for t in (-a, a)] + [_v3(cb, th + n6, r_v, 0.0, y)]
+    for i in range(len(pts)):
+        cb.facen([ctr, pts[i], pts[(i + 1) % len(pts)]], W_GLS, (0, 1, 0))
+
+
+def _dish(cb, i0, level):
+    """(QF_WH_3D) the dish: every vertex from index i0 on inside the lip sinks by DISH (r <= R_DISH), ramping back to 0 at FACE_R; scaled by its height above the
+    floor (the floors stay, the walls lean with it)"""
+    yf = Y_FLOOR[level]
+    cb.bm.verts.ensure_lookup_table()
+    for v in cb.bm.verts[i0:]:
+        r = math.hypot(v.co.x, v.co.z)
+        w = 1.0 if r <= R_DISH else max(0.0, (FACE_R - r) / (FACE_R - R_DISH))
+        v.co.y -= DISH * w * min(1.0, max(0.0, (v.co.y - yf) / (Y_P - yf)))
+
+
 def _badge_t(cb, y0, y1, col, k=1.0):
     """the raised Tesla T on the cap: a prism over its outline (x, z; counter-clockwise), scaled by k with the cap."""
     o = [(k * x, k * z) for x, z in ((-0.0035, -0.0150), (0.0035, -0.0150), (0.0035, 0.0045), (0.0135, 0.0045), (0.0135, 0.0105), (-0.0135, 0.0105), (-0.0135, 0.0045), (-0.0035, 0.0045))]
@@ -1207,14 +1334,20 @@ def _catmull(pts, per):
     return out
 
 
-TYRE_LIP = 0.315                        # the lip's outer edge: the tyre is hidden under the lip inside this radius
+# 2026-10-25 polish (WHEELS, the rectified faces' radial profiles over the panels): past the bright disc's edge the photos show 5-6 mm of a mid-bright ring (p003: 0.75
+# of the panel) and then the tyre (p003 dark from 299 mm, p018 front from 299, rear from 308); the model's lip ran 19 mm out (to 0.315) with a chrome crown that lit up
+# as a white ring in p018 / p016 (rear: 0.6 of the panel at 314-317 mm).  QF_WH_LIP: a narrow lip (8 mm, to 0.304) in satin metal (code 0.55; was the chrome W_SS),
+# and the tyre's visible sidewall starts there.  QF_WH_LIP=0: the merged lip.
+QF_WH_LIP = os.environ.get('QF_WH_LIP', '1') == '1'
+TYRE_LIP = 0.304 if QF_WH_LIP else 0.315    # the lip's outer edge: the tyre is hidden under the lip inside this radius
+TYRE_LIP2 = 0.315                       # (lod2 has no lip: its tyre keeps the merged contour)
 
 
-def _tyre_r(r, ax):
+def _tyre_r(r, ax, lip=TYRE_LIP):
     """radius on axle ax's tyre of the point at r on the TYRE_HALF contour (r 0.300 .. 0.39): inside the lip the tyre follows the rim (RIM_S), the visible sidewall
-    stretches from the scaled lip to TYRE_R (2026-10-25: the front sidewall 7.5 -> 4.2 cm, the rear 7.5 -> 6.7 cm)"""
+    stretches from the scaled lip to TYRE_R (2026-10-25: the front sidewall 7.5 -> 4.2 cm, the rear 7.5 -> 6.7 cm; with the narrow lip 5.3 / 7.8 cm)"""
     s, R = RIM_S[ax], TYRE_R[ax]
-    return r * s if r <= TYRE_LIP else TYRE_LIP * s + (r - TYRE_LIP) * (R - TYRE_LIP * s) / (0.39 - TYRE_LIP)
+    return r * s if r <= lip else lip * s + (r - lip) * (R - lip * s) / (0.39 - lip)
 
 
 def _tyre_r_inv(r, ax):
@@ -1233,7 +1366,7 @@ def _tyre_prof(nprof, ax=1):
         half = _catmull(H[:-1], max(1, (nprof // 2) // (len(H) - 2))) + [(0.3900, 0.0)]
         half = [(_tyre_r(r, ax), y) for r, y in half]
         return half + [(r, -y) for r, y in reversed(half[:-1])]
-    half = [(_tyre_r(r, ax), y) for r, y in half]
+    half = [(_tyre_r(r, ax, TYRE_LIP2 if nprof == 8 else TYRE_LIP), y) for r, y in half]
     return half + [(r, -y) for r, y in reversed(half)]
 
 
@@ -1241,6 +1374,12 @@ def _tyre_prof(nprof, ax=1):
 LIP_PROF = [(FACE_R, Y_P), (0.2985, 0.1185), (0.3035, 0.1207), (0.3095, 0.1210), (0.3135, 0.1180), (0.3150, 0.1100), (0.3120, 0.1000)]
 LIP_PROF1 = [(FACE_R, Y_P), (0.2995, 0.1190), (0.3075, 0.1210), (0.3140, 0.1075)]
 LIP_SS = (2, 2)                         # the lip's profile from this point on (hi, lod1) is the stainless ring W_SS (its crown and outer round, ~1.2 cm seen from the side); the inner slope stays dark
+W_LIPC = W_SS
+if QF_WH_LIP:                           # (see TYRE_LIP) 8 mm: a short inner slope, the crown and its round down onto the tyre at 0.304
+    LIP_PROF = [(FACE_R, Y_P), (0.2975, 0.1168), (0.3005, 0.1180), (0.3030, 0.1174), (0.3040, 0.1150), (0.3030, 0.1060)]
+    LIP_PROF1 = [(FACE_R, Y_P), (0.2985, 0.1175), (0.3035, 0.1165), (0.3030, 0.1060)]
+    LIP_SS = (1, 1)
+    W_LIPC = (0.42, 0.425, 0.44, 0.55)  # satin metal (code 0.55), as the frames
 
 
 def rim_mesh(level, ax=1):
@@ -1281,22 +1420,25 @@ def rim_mesh(level, ax=1):
     if level == 0:
         cb.lathe([(0.300, 0.104), (0.300, -0.128), (0.316, -0.134)], st, W_DARK)                    # barrel
     lp, ks = (LIP_PROF, LIP_SS[0]) if level == 0 else (LIP_PROF1, LIP_SS[1])
-    cb.lathe(lp, st, [W_HUB if i < ks else W_SS for i in range(len(lp) - 1)])                        # lip (p018 / p003: the outer rim ring reads dark like the hub, not graphite like the bevels), its crown a thin polished stainless ring (2026-10-24)
+    cb.lathe(lp, st, [W_HUB if i < ks else W_LIPC for i in range(len(lp) - 1)])                        # lip (p018 / p003: the outer rim ring reads dark like the hub, not graphite like the bevels), its crown a thin metal ring (2026-10-24 stainless; QF_WH_LIP satin, 8 mm)
     hs = 48 if level == 0 else 14
     c0, c1, c2 = CAP_R
+    yc, yb = (Y_R + 0.0035, Y_R - V_H) if QF_WH_3D else (0.1155, Y_B)                            # cap face, foot of its cone (QF_WH_3D: on the blades' facets)
     if level == 0:
-        cb.lathe([(0.0, 0.1155), (c0, 0.1155)], hs, W_HUB)                                          # cap
-        cb.lathe([(c0, 0.1155), ((c0 + c1) / 2, 0.1168), (c1, 0.1155)], hs, W_BEV)                  # cap ring
-        cb.lathe([(c1, 0.1155), (c1 + 0.45 * (c2 - c1), 0.1108), (c2, Y_B)], hs, W_HUB)             # down to the star
+        cb.lathe([(0.0, yc), (c0, yc)], hs, W_HUB)                                                  # cap
+        cb.lathe([(c0, yc), ((c0 + c1) / 2, yc + 0.0013), (c1, yc)], hs, W_BEV)                     # cap ring
+        cb.lathe([(c1, yc), (c1 + 0.45 * (c2 - c1), yc - 0.0047), (c2, yb)], hs, W_HUB)             # down to the star
     else:
-        cb.lathe([(0.0, 0.1155), (c2 - 0.010, 0.1155), (c2, Y_B)], hs, W_HUB)
+        cb.lathe([(0.0, yc), (c2 - 0.010, yc), (c2, yb)], hs, W_HUB)
     bmesh.ops.recalc_face_normals(cb.bm, faces=[f for f in cb.bm.faces if f.is_valid])           # (the tyre / lathe faces; the flat sheets below are wound by hand)
     if level == 0:
-        _badge_t(cb, 0.1150, 0.1172, W_BADGE, c0 / 0.034)
-    _star(cb, level)
+        _badge_t(cb, yc - 0.0005, yc + 0.0017, W_BADGE, c0 / 0.034)
+    (_star3 if QF_WH_3D else _star)(cb, level)
     for k in range(N_SPOKE):
-        _panel(cb, k, level)
-        _channel(cb, k, level)
+        (_panel3 if QF_WH_3D else _panel)(cb, k, level)
+        (_channel3 if QF_WH_3D else _channel)(cb, k, level)
+    if QF_WH_3D:
+        _dish(cb, n_tyre, level)
     print('WHEEL lod%d per wheel: tyre %d + rim %d tris' % (level, tyre_tris, sum(len(f.verts) - 2 for f in cb.bm.faces) - tyre_tris))
     return scaled('Rim_l%d_%d' % (level, ax), False)
 
@@ -1769,6 +1911,7 @@ if ONLY == 'all':
         hubs={t: [wx, s * WHEEL_Y, WHEEL_Z[axle(wx)]] for t, wx, s in WHEELS},          # car frame (x rear, y right, z up), per wheel
         tyreRadius=dict(F=TYRE_R[0], R=TYRE_R[1]),                                   # per axle (2026-10-25; was one number, 0.39)
         rimScale=dict(F=RIM_S[0], R=RIM_S[1]),                                       # the rim's radial scale per axle (the game's spin-blur disc follows it)
+        tyreLip=dict(F=TYRE_LIP * RIM_S[0], R=TYRE_LIP * RIM_S[1]),                  # where the visible sidewall starts (the game's tyre-shader rings and print follow it)
         atlas=[2048, 1024],
         decals={k: dict(uv=list(v['uv']), x=list(v.get('x', [])), y=list(v.get('y', [])), z=list(v.get('z', [])), side=v.get('side', 0))
                 for k, v in DECALS.items()},
