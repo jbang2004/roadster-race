@@ -1177,6 +1177,36 @@ def wall_pairs():
     return i - np.round((I_FE - I_FS) * D.sstep(I_WF0, I_FE, i.astype(float))).astype(int)
 
 
+# QF_MID_WALL (2026-10-26, MID-2): the lower flank along the doors is ONE smooth convex curve from L down to l3, not a straight ruling.  The door seams fitted from four / five calibrated
+# views (calib/lines/fit.json DS_front / DS_rear, sd 1.0 / 0.44 cm in y) are y(z) curves that bow out between the two edges: the tangent is ~3 deg off the vertical at L and ~12 deg inboard at l3
+# (a circle of R ~ 2.7 - 5 m); against the straight ruling the seams stood 1.0 cm (front, z 0.46) and 0.76 cm (rear, z 0.6) proud (rear: 1.0 cm once l3 is at the seam's foot).  Each wall row gets the parabola 4 s (1 - s) times the sag
+# QF_MID_SAG(x) (m) outward, perpendicular to its chord: the two edges (the shared L / l3, the 8 mm fillet at L) do not move, the sag is the seams' (10 mm at x -0.85 and at 0.34; with l3 at the rear seam's foot, QF_MID_L3),
+# faded in over QF_MID_WX[0..1] (C2: zero at x -0.90, the door cut) and out over [2..3] (zero at x 0.80: the rear quarter and the hip are the REAR agent's).  QF_MID_WALL=0: the straight rulings.
+QF_MID_WALL = os.environ.get('QF_MID_WALL', '1') == '1'
+QF_MID_SAG = tuple(float(v) for v in os.environ.get('QF_MID_SAG', '0.0100,0.0100').split(','))      # sag (m) of the section at x QF_MID_SX[0] / [1]
+QF_MID_SX = tuple(float(v) for v in os.environ.get('QF_MID_SX', '-0.85,0.34').split(','))
+QF_MID_WX = tuple(float(v) for v in os.environ.get('QF_MID_WX', '-1.20,-0.90,0.34,1.00').split(','))
+
+
+def qf_mid_sag(x):
+    """the sag (m) of the wall's section at x: the seams' values (linear between them), times the C2 window"""
+    x = np.asarray(x, float)
+    s = QF_MID_SAG[0] + (QF_MID_SAG[1] - QF_MID_SAG[0]) * (x - QF_MID_SX[0]) / (QF_MID_SX[1] - QF_MID_SX[0])
+    return s * D.sstep(QF_MID_WX[0], QF_MID_WX[1], x) * (1.0 - D.sstep(QF_MID_WX[2], QF_MID_WX[3], x))
+
+
+def qf_mid_bulge(a, b, s):
+    """offsets (len(s), 3) of the wall row a -> b (fractions s): the parabola 4 s (1 - s) times the sag, outward and perpendicular to the chord"""
+    amp = float(qf_mid_sag(0.5 * (a[0] + b[0])))
+    if not QF_MID_WALL or amp == 0.0:
+        return 0.0
+    c = (b - a) / np.linalg.norm(b - a)
+    n = np.array([0.0, 1.0, 0.0])
+    n = n - (n @ c) * c
+    n = n / np.linalg.norm(n)
+    return amp * 4.0 * s * (1.0 - s) * n[None, :]
+
+
 def p_wall(R):
     """the wall up to the facet edge: a ruled strip between l3 and Lm whose last row is the facet edge E -> S (R1.. unchanged forward of the station I_WF0)"""
     l3, Lm = R.edge('l3'), R.edge('Lm')
@@ -1189,7 +1219,7 @@ def p_wall(R):
             return blend_row(bd, i, 'wall', m)
         s = np.linspace(0, 1, m + 1)[:, None]
         if lagc[i] <= 1e-9:
-            return a + (b - a) * s
+            return a + (b - a) * s + qf_mid_bulge(a, b, s)
         # rearcrease: the partner is an L sample (integer lag: the edge is shared), but the rulings follow the CONTINUOUS lag (the point of the polyline L at the fractional index), the quantisation error
         # (b - t, along L, at most half a station) is absorbed in the top band of the row: a smooth fan in the interior, no zig-zag of 0 / 1 lag steps in the reflections
         f = i - lagc[i]

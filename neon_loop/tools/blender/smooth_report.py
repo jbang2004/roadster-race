@@ -26,7 +26,7 @@ SLOPE_TOL, CURV_TOL = 0.02, 0.05  # deg, 1/m
 PLANES = {'corner_tri': 2.5, 'facet': 4.0}            # designed planes: max distance from the best-fit plane (mm); limits = the pre-P3 shell (1.4, 3.6 mm) plus margin
 import re
 R_ARCH = float(re.search(r'^R_ARCH = ([\d.]+)', open(os.path.join(HERE, 'common.py')).read(), re.M).group(1))     # (common.py itself needs bpy)
-OFF = {k: '0' for k in ('QF_P3_L3', 'QF_P3_U', 'QF_P3_HIP', 'QF_P3_FRONT', 'QF_P3_LF', 'QF_P3_ARR', 'QF_P3_TAILX', 'QF_P3_L3Y', 'QF_P3_FRONT_DOOR')}
+OFF = {k: '0' for k in ('QF_P3_L3', 'QF_P3_U', 'QF_P3_HIP', 'QF_P3_FRONT', 'QF_P3_LF', 'QF_P3_ARR', 'QF_P3_TAILX', 'QF_P3_L3Y', 'QF_P3_FRONT_DOOR', 'QF_MID_L3', 'QF_MID_LW')}
 
 
 def lines_at(xs_by_line):
@@ -84,8 +84,8 @@ def joins():
         hip += [b[0] - S.QF_P3_HIP_FM, b[0], b[1], b[1] + S.QF_P3_HIP_FM]
     front = list(S.QF_P3_FRONT_RISE) + list(S.QF_P3_FRONT_END) + [S.QF_P3_FRONT_A[0][0], S.QF_P3_FRONT_A[-1][0]] + (list(S.QF_P3_FRONT_DX) if S.QF_P3_FRONT_DOOR else [])
     fields = sorted(set(([round(x, 4) for x in hip] if S.QF_P3_HIP else []) + ([round(x, 4) for x in front] if S.QF_P3_FRONT else [])))
-    J['L:plan'] = fields
-    J['l3:plan'] = sorted(set(fields + (list(D.QF_P3_L3Y_X) if D.QF_P3_L3Y else []) + (list(D.QF_NOSE_L3X) if D.QF_NOSE_WIDE else [])))
+    J['L:plan'] = sorted(set(fields + (list(D.QF_MID_LW_X) if D.QF_MID_LW else [])))
+    J['l3:plan'] = sorted(set(fields + (list(D.QF_P3_L3Y_X) if D.QF_P3_L3Y else []) + (list(D.QF_NOSE_L3X) if D.QF_NOSE_WIDE else []) + (list(D.QF_MID_L3_X) + [D.QF_MID_L3_END] if D.QF_MID_L3 else [])))
     J['L:elev'] = [D.QF_P3_LF_X1 - D.QF_P3_LF_JOIN, D.QF_P3_LF_X1] + [k[0] for k in D.QF_P3_LF_K] if D.QF_P3_LF else []
     J['l3:elev'] = list(D.QF_P3_L3X) if D.QF_P3_L3 else []
     J['U:plan'] = list(D.QF_P3_UX) if D.QF_P3_U else []

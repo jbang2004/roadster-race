@@ -17,6 +17,7 @@ Options:  --wing deploy|stow|hide   wing pose (the r81 / thrusters photos show i
           --reflect h|v|hv          reflection-line check: the paint becomes a perfect mirror under a striped sky (24 bands per
                                     revolution; h = horizontal bands, v = vertical, hv = both), no lights.  A clean surface
                                     gives smooth, parallel stripes; pinches / ripples / creases show as kinks and whorls.
+          --no-floor                hide the floor plane (with --reflect: the lower flank mirrors striped sky instead of the flat ground)
           --steer auto|off|<deg>    front wheels turned per view (wheelpose.py): auto (default) = the photo's calibrated angle (p016 -18, p017 +19,
                                     p003 +23 deg, calib/result.json), off = straight, <deg> = that angle in every view
 """
@@ -251,6 +252,8 @@ wingpose.apply(WING, GLB)
 # floor + world
 bpy.ops.mesh.primitive_plane_add(size=80, location=(0, 0, 0))
 fl = bpy.context.object
+if '--no-floor' in argv:        # (MID-2, with --reflect: no floor, so the lower flank, which leans in and mirrors the ground, shows the striped sky below the horizon instead of a flat grey)
+    fl.hide_render = True
 fm = bpy.data.materials.new('Floor')
 fm.use_nodes = True
 fm.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.028, 0.028, 0.031, 1)     # a dark room like the press photos: nothing bright for the glass to mirror at grazing angles

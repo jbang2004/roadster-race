@@ -2,17 +2,17 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "e04f1c8967a6d3ca",
+   "sha": "33c16de7bad8f832",
    "verts": 8511,
    "faces": 8280
   },
   "wall": {
-   "sha": "d516aad906fdb871",
+   "sha": "408f86e11d075a92",
    "verts": 5497,
    "faces": 5212
   },
   "wall_black": {
-   "sha": "6ef543a0d9236952",
+   "sha": "2435ea26f9d24071",
    "verts": 4872,
    "faces": 4578
   },

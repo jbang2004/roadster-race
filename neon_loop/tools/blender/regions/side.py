@@ -48,6 +48,12 @@ MK_COVER_H = 0.0018             # the rear cover's two facets rise this much to 
                                 # facet mirrored the studio's lit floor as a grey triangle in p016)
 MK_AMBER = (-0.972, -0.907)     # (was -0.985 .. -0.915) the amber line along the top of the rear cover, from just behind the rib (p003 1070 -> 1133 px) to 1 cm before the top-rear corner
 MK_AMBER_Z = (0.0042, 0.0078)   # (was 0.0035 .. 0.0065) ... this far below L (p003: 3.5 - 4 px thick under a 3 - 4 px black lip)
+# 2026-10-26 (MID-2, QF_MID_MK): the housing's top edge is NOT on L.  p003 (a close, sharp view along the flank, landmark residuals <= 2 px) reads the black housing's upper boundary at z 0.679 / 0.692 / 0.710 / 0.729 / 0.737
+# at x -1.28 / -1.19 / -1.08 / -0.95 / -0.89 (rays onto |y| 1.07): a straight line of slope 0.149 - 0.157 through DFJ (-0.896, 0.739), which at the tip stands 1.5 cm below L (L's slope there is 0.107; 1.9 cm at
+# x -1.28, 0.3 cm at x -0.89).  L itself stays (DFJ -0.5 mm; FMc and the phase-2 L_side fit within 0.3 cm; p018's traced L is 1.2 - 1.5 cm low only because p018's camera sits ~4 px off the landmarks over z 0.3 - 1.0:
+# l3 shows the same +4 px, DFJ / DS1b / DS2b -3.9 / -3.9 / -5.2 px).  The tip is lowered by MK_TIP_DZ below L; the top edge, the amber line (it follows the top edge) and everything inset from them move with it.  QF_MID_MK=0: on L.
+QF_MID_MK = os.environ.get('QF_MID_MK', '1') == '1'
+MK_TIP_DZ = 0.016               # the tip T stands this far below L (p003 15.3 mm at x -1.19, p018 15 - 19 mm)
 
 # door seams, read in p018 (1800 px wide, camera 10 m away: near-orthographic).  Ridge positions measured row by row in the photo (the dark / light hairline of the seam),
 # then smoothed ([1 2 1] over the neighbours); the lines are cast from the p018 camera onto the HI body, so they sit exactly where the photo shows them.
@@ -365,7 +371,7 @@ def marker_outline(ctx):
     Lc = ctx.A.D.CURVES['L']
     xr = MK_X1 - 0.004
     zr = float(Lc.at(xr)[2])
-    return [(MK_TIP, float(Lc.at(MK_TIP)[2])), (xr, zr), (xr + MK_LEAN, zr - MK_HR), MK_FMC]
+    return [(MK_TIP, float(Lc.at(MK_TIP)[2]) - (MK_TIP_DZ if QF_MID_MK else 0.0)), (xr, zr), (xr + MK_LEAN, zr - MK_HR), MK_FMC]
 
 
 def side_markers(ctx, level):
@@ -506,7 +512,8 @@ def side_markers(ctx, level):
         Lc = ctx.A.D.CURVES['L']
         xs = sorted({MK_AMBER[0] + (MK_AMBER[1] - MK_AMBER[0]) * i / 6 for i in range(7)} | {mt[0]})
         oc = lambda x: float(np.interp(x, [dt[0], mt[0], r2[0]], [ob, o2 + MK_COVER_H, ob]))
-        ladder(Ma, [(x, float(Lc.at(x)[2]) - MK_AMBER_Z[0]) for x in xs], [(x, float(Lc.at(x)[2]) - MK_AMBER_Z[1]) for x in xs], [oc(x) + 0.0005 for x in xs], nF)
+        ztop = (lambda x: _z_on(T, R, x)) if QF_MID_MK else (lambda x: float(Lc.at(x)[2]))      # (the line under which the amber sits: the housing's top edge T -> R, or L)
+        ladder(Ma, [(x, ztop(x) - MK_AMBER_Z[0]) for x in xs], [(x, ztop(x) - MK_AMBER_Z[1]) for x in xs], [oc(x) + 0.0005 for x in xs], nF)
         emit(Ma, 'SideLamp_%d' % sd, 'SideMarker', smooth=False)
     return objs
 

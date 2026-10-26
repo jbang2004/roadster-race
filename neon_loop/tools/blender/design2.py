@@ -3874,6 +3874,24 @@ QF_P3_L3Y = os.environ.get('QF_P3_L3Y', '1') == '1'
 QF_P3_L3Y_X = tuple(float(v) for v in os.environ.get('QF_P3_L3Y_X', '-1.20,-0.82,0.25,0.80').split(','))
 QF_P3_L3Y_P = ((-0.799, 0.997), (0.264, 1.016))
 QF_P3_L3Y_D = float(os.environ.get('QF_P3_L3Y_D', '0.006'))      # (the seams' own lower ends, fitted without the landmarks, are 0.2 - 1.1 cm outboard of DS1b / DS2b)
+# QF_MID_L3 (2026-10-26, MID-2): the rear door seam's lower end.  DS_rear (four views, sd 0.44 cm in y) meets the black zone at |y| 1.0179 (x 0.266, z 0.34); the line above stood 4.9 mm outboard there (the front end is
+#   right: DS_front 1.0070 vs 1.0078).  l3 moves inboard by QF_MID_L3_D (m) with a C2 window: 0 at x -0.90 (the door cut: nothing ahead of it moves), full at x 0.264 (DS2b), faded out again over 0.30 .. 0.80 (the rear
+#   quarter / hip, the rear agent's: the lean returns to the old section there).  The wall's section is the shell2 QF_MID_WALL curve between l3 and L.  QF_MID_L3=0: l3 as QF_P3_L3Y left it.
+QF_MID_L3 = os.environ.get('QF_MID_L3', '1') == '1'
+QF_MID_L3_D = float(os.environ.get('QF_MID_L3_D', '0.005'))
+QF_MID_L3_X = tuple(float(v) for v in os.environ.get('QF_MID_L3_X', '-0.90,0.264,0.30,1.00').split(','))
+#   MID-2 (2) the lean's end: the QF_P3_L3Y fade back to the vertical rear quarter used to run 0.25 .. 0.80, a 4 cm step of l3 in 0.5 m (slope 0.126 at x 0.6, 0.01 at 0.8): the soft vertical light band of p017 / p018 and a ring in the
+#   vertical-band zebra (the plan of l3 peaked at x 0.8).  The photos' l3 (fit.json l3, five views) is a straight line of slope 0.06 from x 0.2 to the rear arch (1.0: 1.052, 5 mm from the old l3 there).  The fade now ends at
+#   QF_MID_L3_END (1.0, where the old l3 and that line meet: max slope 0.065 instead of 0.126; every piece aft of 0.8 is the REAR agent's to refine).  QF_MID_L3=0: the fade ends at 0.80.
+QF_MID_L3_END = float(os.environ.get('QF_MID_L3_END', '1.00'))
+# QF_MID_LW (2026-10-26, MID-2): the shoulder crease L along the front door is wider in plan.  p013 (straight down; the outline sits 1.4 / 2.1 / 1.8 / 1.5 / 1.1 / 0.6 / 0.3 cm outboard of the model at x -1.0 / -0.7 / -0.5 /
+#   -0.3 / -0.1 / 0.1 / 0.3, both sides alike, the p013 U_win line is exact there) and the phase-2 L_side line (3-D, +1.7 / +1.7 / +1.5 / +1.2 / +0.9 / +0.6 / +0.4 cm) agree; DFJ (-0.896, 1.064, 0.739, sd 9 mm) and the door
+#   seam's top end (DS_front |y| 1.063 at z 0.70, cross-view sd 10 mm) stand at the model's L.  CONFLICT, not settled: L moves out by QF_MID_LW_D (m) only, about half way (DFJ then 8 mm inside the model, the p013 outline
+#   still 0.6 - 1.0 cm outside it).  C2 window: 0 at x QF_MID_LW_X[0] (-1.22, the arch's rear edge: A's panels ahead of x -0.9 move by <= 3 mm), full from [1], back to 0 over [2..3] (0.45: where p013 and the
+#   fit agree with the model).  QF_MID_LW=0: L as before.
+QF_MID_LW = os.environ.get('QF_MID_LW', '1') == '1'
+QF_MID_LW_D = float(os.environ.get('QF_MID_LW_D', '0.008'))
+QF_MID_LW_X = tuple(float(v) for v in os.environ.get('QF_MID_LW_X', '-1.22,-0.85,-0.55,0.45').split(','))
 
 
 def _p3_line(name):
@@ -3922,9 +3940,18 @@ def p3_apply():
 
         def dy(x, old=old, w=QF_P3_L3Y_X, xa=xa, ya=ya, m=m):
             a, b, c, d = w
+            if QF_MID_L3:
+                d = QF_MID_L3_END                  # (MID-2: the lean is handed to the rear quarter at x 1.0, not dropped by 0.8)
             x = np.asarray(x, float)
             return sstep(a, b, x) * (1.0 - sstep(c, d, x)) * (ya + QF_P3_L3Y_D + m * (x - xa) - np.asarray(old.fy(x), float))
         CURVES['l3'] = PlanMod(old, old.x0, dy, lambda x: 0.0 * np.asarray(x, float), 'l3')
+    if QF_MID_L3:
+        old = CURVES['l3']
+
+        def dym(x, w=QF_MID_L3_X):
+            x = np.asarray(x, float)
+            return -QF_MID_L3_D * sstep(w[0], w[1], x) * (1.0 - sstep(w[2], w[3], x))
+        CURVES['l3'] = PlanMod(old, old.x0, dym, lambda x: 0.0 * np.asarray(x, float), 'l3')
     if QF_P3_U:
         _p3_toward('U', 'U_win', QF_P3_UX, 1)
     if QF_P3_LF:
@@ -3939,6 +3966,13 @@ def p3_apply():
             xc = np.clip(x, old.x0, xe)
             return np.where(x < xe, (sp(xc) - np.asarray(old.fz(xc), float)) * (1.0 - sstep(xe - QF_P3_LF_JOIN, xe, xc)), 0.0)
         CURVES['L'] = PlanMod(old, old.x0, lambda x: 0.0 * np.asarray(x, float), dz, 'L')
+    if QF_MID_LW:
+        oldw = CURVES['L']                                     # (not `old`: the closures above are late-bound to that name)
+
+        def dyw(x, w=QF_MID_LW_X, b=QF_MID_LW_D):
+            x = np.asarray(x, float)
+            return b * sstep(w[0], w[1], x) * (1.0 - sstep(w[2], w[3], x))
+        CURVES['L'] = PlanMod(oldw, oldw.x0, dyw, lambda x: 0.0 * np.asarray(x, float), 'L')
 
 
 p3_apply()
