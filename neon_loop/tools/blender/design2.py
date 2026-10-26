@@ -117,10 +117,31 @@ def face_x(y, z):
     return FACE['x'] + FACE['bow'] * (np.asarray(y) / 0.67) ** 2 + FACE['rake'] * (0.545 - np.asarray(z)) / 0.3
 
 TAIL_X = [(0.19, 1.80), (0.30, 1.98), (0.40, 2.067), (0.50, 2.165), (0.60, 2.241), (0.70, 2.316), (0.80, 2.352), (0.90, 2.374), (1.00, 2.385), (1.08, 2.385)]
+# QF_TAIL_CVX (2026-10-25, coordinator, from the REAR-LOWER joint fit of the red bar traced in r81 / high / p002 / p012 / thrust / p004: x = 2.4603 - 0.0265 y^2 - 0.0505 y^4 in the photo frame):
+# at lamp height the tail face is convex in plan; the model's bar (cast on this face) ran 2.435 at the centre to 2.420 at |y| 0.9, i.e. the photo is +2.5 cm (|y| 0 - 0.2), +2.0 (0.5),
+# +0.9 (0.7), 0 (0.8), -1.4 (0.9).  The face moves aft by d(y) = [0] (1 - (|y| / [1])^4)^[2] (+2.5 / 2.0 / 1.5 / 0.9 / 0.3 cm at |y| 0 / 0.5 / 0.6 / 0.7 / 0.8: the fit's difference
+# to 1 mm up to |y| 0.7), which is 0 with zero slope and curvature at the face's side edge [1]: the corner facet (a plane on that edge) and the bar's ends stay, and the face stays monotone
+# in plan (the photo's -1.4 / -1.8 cm at |y| 0.9 / 0.92 would pull that edge).  Over the lamp band only: from nothing at the split (l3's end, z [3]) up to the band's bottom [4], held,
+# back to nothing between [5] and [6] (the top edge -- 0.995 at the corner, 1.042 between the ears -- and z 1.0, where regions/rear.py takes the wing's aft edge, do not move: p013
+# sees the paint edge within 0.5 cm of the model).  0 = the flat face.  OFF by default: with the top edge held the band's top has to come back 2.5 cm within ~4 cm over the bar, a ledge
+# that regions/rear.py's visor and deck panel (placed from the face at z 0.96) turn into a bright tab on the tail top in r81 / p017 / high (CALIB "尾面在灯高处俯视外凸").
+QF_TAIL_CVX = os.environ.get('QF_TAIL_CVX', '0') == '1'
+TAIL_CVX = (0.025, 0.944, 2.83, 0.807, 0.880, 0.956, 0.996)
+
+
+def tail_cvx(y, z):
+    """QF_TAIL_CVX: the tail face's x change at (y, z) (m, aft = +)"""
+    c = TAIL_CVX
+    u = np.minimum(np.abs(np.asarray(y, float)) / c[1], 1.0)
+    z = np.asarray(z, float)
+    return c[0] * (1.0 - u ** 4) ** c[2] * sstep(c[3], c[4], z) * (1.0 - sstep(c[5], c[6], z))
+
+
 def tail_x(y, z):
     z = np.asarray(z, float)
     xs = np.array([pchip(TAIL_X, v) for v in z.ravel()]).reshape(z.shape)
-    return xs - 0.015 * (np.asarray(y) / 0.9) ** 2
+    xs = xs - 0.015 * (np.asarray(y) / 0.9) ** 2
+    return xs + tail_cvx(y, z) if QF_TAIL_CVX else xs
 
 
 def hood_z(x):
@@ -717,6 +738,21 @@ QF_EAR = float(os.environ.get('QF_EAR', '7.5'))      # q17 ear step (deg; 0 = of
 #   side): it is darker than the deck beside it on the shaded ear (166 / 191) and brighter on the lit one (197 / 178), with the same tone ahead of and behind the seam; r81 at the seam:
 #   R-1 4 px (1.7 cm) over the window's corner P3, P3 level with the centre.  The window and the deck sit that much under R-1 (the face ~7.5 deg, 1.75 cm at the seam, 0 at the glass
 #   corner and at E); the model had them flush (q13, "三角带与后窗玻璃共面").
+_spv_ = os.environ.get('QF_SEAM_PV', '0')
+QF_SEAM_PV = {'a': (0.015, 0.024), 'b': (0.028, 0.024)}.get(_spv_) or (tuple(float(v) for v in _spv_.split(',')) if ',' in _spv_ else None)
+# PREVIEW (2026-10-25, default off; for the user's decision, CALIB "后窗 / 尾翼交界与耳朵"): five photos put the rear window's lower edge (the seam to the wing) 2.2 - 2.8 cm under the model.
+#   (drop of the tail edge and the ear tip E, drop of the seam): the edge stays level at R-1's own end height (A plan) and R-1 stays straight to E, so R-1 turns down about the window tip
+#   (its raise QF_Q16_R1 gets the extra slope; the glass edge and the centre line follow R-1 as they do for that raise: 0.72 of [0] at the seam); the ear step (QF_EAR) takes the rest of
+#   [1] at the seam.  'a' = (0.015, 0.024): R-1 1.1 cm lower at the seam, the step 3.1 cm (r81: 1.8); 'b' = (0.028, 0.024): R-1 2.0 cm lower at the seam, the step 2.1 cm (p018's top line
+#   then 2 - 3 cm over the model's).  Both: the deck falls 3.0 / 4.3 cm from the seam to the edge (with only the seam lowered it fell 1.5 cm and sagged before the edge).
+_efc_ = os.environ.get('QF_EAR_FACET', '0')
+QF_EAR_FACET = (1.6, 2.1, 0.823, 1.0, 0.921, 0.997, 0.04) if _efc_ == '1' else (tuple(float(v) for v in _efc_.split(',')) if ',' in _efc_ else None)
+# PREVIEW (2026-10-25, default off; for the user's decision): faceted ears.  official-02 (high) and p002 (rays to the photo's crisp outer edge, on the model's surface) put the edge between
+#   the ear's outer face and the platform at |y| 0.81 (x 1.1) .. 0.86 (1.45) .. 0.89 (1.7) .. 0.92 (1.96) .. 0.94 (2.1), z 1.03 -> 1.0; r81: the face from R-1 at the window tip runs straight
+#   down to |y| ~0.8, z ~1.0.  The model's soft arc (ARC_K reading, radius QF_Q16_R) lies at |y| 0.71 -> 0.52 there.  Aft of [0] each row is the beam face, straight from R-1 down to the
+#   crease K, and the platform, straight from K out to L, joined with radius r: K leaves the soft arc's reading at [0] and reaches the line from ([2], [3]) at the window tip to ([4], [5])
+#   at the tail corner (2 cm inside L's end) by [1], r goes from the soft arc's to [6] (m) geometrically over the same stretch (both C2: at [0] the rows are the soft arc's own).  Blending
+#   the two faces' slopes instead left a closed swirl in the zebra where the crease jumped outward.  Ahead of [0] nothing changes (the 0.45 m soft arc under the window tip, R-6).
 QF_Q16_R1 = tuple(float(v) for v in os.environ.get('QF_Q16_R1', '0.80,0.013,1.50').split(','))      # R-1 raised (p018 top outline, user 2026-10-23 "R-1 和后窗玻璃边一起抬高"): by [1] at the tip, a quintic from [0] (G2), straight to E aft; the rear glass edge and centre line rise with it; 0 = off.
 #   [2] (2026-10-24, user: "顶梁尾部上边还是有点拱起，应该调成跟实车一样完全平滑"): the quintic runs on past the tip to x [2], G2 with R-1's raised straight line there (the line itself, E and
 #   the raise at E unchanged).  Ending at the tip with the line's slope, it flattened the roof rail to -0.074 at x 1.0 before steepening to -0.172 (a hump; p018's top outline is 6 - 9 mm
@@ -1295,7 +1331,7 @@ def q16_p2(x):
 
 def _e_tail():
     """the ear tip E; with QF_Q17 at the level tail top edge's height"""
-    return np.array([E_TARGET[0], E_TARGET[1], QF_Q17[0] if QF_Q17 else E_TARGET[2]], float)
+    return np.array([E_TARGET[0], E_TARGET[1], (QF_Q17[0] - (QF_SEAM_PV[0] if QF_SEAM_PV else 0.0)) if QF_Q17 else E_TARGET[2]], float)
 
 
 def _q16_raw(x):
@@ -1398,6 +1434,24 @@ def q16_face(x):
     return R[..., 1], R[..., 2], np.tan(q16_ruled(x)[1])
 
 
+def _ear_facet(x, a, c, t2, t1, k, r):
+    """preview QF_EAR_FACET: the row's platform and beam-face slopes and smooth-max size: both faces straight through the crease K, which leaves the soft arc's reading at [0]
+    and reaches the straight line K by [1] (its position blended, C2), the radius going from the soft arc's r to [6] geometrically over the same stretch"""
+    f = QF_EAR_FACET
+    wf = float(sstep(f[0], f[1], x))
+    xb = QF_Q17_L[1] if QF_Q17 else float(E_TARGET[0])
+    u = (x - X_TIP) / (xb - X_TIP)
+    ky, kz = f[2] + (f[4] - f[2]) * u, f[3] + (f[5] - f[3]) * u
+    if wf < 1.0:
+        A = np.asarray(_Q16['rd'].at(x), float)[1:]
+        ky, kz = A[0] + wf * (ky - A[0]), A[1] + wf * (kz - A[1])
+    ky = min(ky, a[0] - 0.01)
+    t2f, t1f = (kz - a[1]) / (a[0] - ky), (c[1] - kz) / (ky - c[0])
+    rf = math.exp(math.log(r) + wf * (math.log(f[6]) - math.log(r)))
+    kf = rf * abs(t1f - t2f) ** 2 / (1.0 + (0.5 * (t1f + t2f)) ** 2) ** 1.5
+    return t2f, t1f, kf
+
+
 def q16_section_ruled(x, a, c):
     """q16 'ruled': the row between a = L and c = U (forward of / at the tip) or R-1 (aft): smooth max of the platform (through L) and the beam face (through c), which meet on the arc
     reading.  Forward of the tip the face is the strip reading -> U (the window is an opening in the face); the roll there is sized to the strip (kf of its width, the size behind the tip
@@ -1435,6 +1489,8 @@ def q16_section_ruled(x, a, c):
         w = float(sstep(X_TIP, X_TIP + QF_Q16_R[2] if len(QF_Q16_R) > 2 else float(E_TARGET[0]), x))
         r = QF_Q16_R[0] + (QF_Q16_R[1] - QF_Q16_R[0]) * w
         k = r * abs(t1 - t2) ** 2 / (1.0 + (0.5 * (t1 + t2)) ** 2) ** 1.5
+        if QF_EAR_FACET and x > QF_EAR_FACET[0]:
+            t2, t1, k = _ear_facet(x, a, c, t2, t1, k, r)
         if QF_TAIL and x > _Q16['rc'][0] and not _Q16.get('_tail_in'):
             # QF_TAIL: aft of the seam the row is the BLEND, point for point along L -> R-1, of the row the platform law gives (concave: the soft arc beside R-1) and the end section on
             # this row's own L and R-1 (convex: level from R-1 out to |y| QF_TAIL[0], rolled down to L with radius QF_TAIL[1]), weight smootherstep from QF_TAIL[2] to the tail edge.
@@ -3118,6 +3174,15 @@ def build_all():
             def _q16_r1d(x, _q=_rq_, _rl=_rl_):
                 x = np.asarray(x, float)
                 return np.where(x < _q[0], 0.0, np.where(x <= _q[4], quint1(np.clip(x, _q[0], _q[4]), *_q), _rl(x)))
+            if QF_SEAM_PV:
+                # (preview QF_SEAM_PV: R-1 turns down about the window tip by [0] at E, straight from x _rx_ on and G2 from the tip: nothing ahead of the tip moves)
+                _sd_ = QF_SEAM_PV[0] / (_Ex_ - X_TIP)
+                _sq_ = (X_TIP, 0.0, 0.0, 0.0, _rx_, -_sd_ * (_rx_ - X_TIP), -_sd_, 0.0)
+                _r1d0_ = _q16_r1d
+
+                def _q16_r1d(x, _f=_r1d0_, _q=_sq_, _s=_sd_):
+                    x = np.asarray(x, float)
+                    return _f(x) + np.where(x <= _q[0], 0.0, np.where(x <= _q[4], quint1(np.clip(x, _q[0], _q[4]), *_q), -_s * (x - _q[0])))
             _Q16['r1d'] = _q16_r1d
             CURVES['rail'] = Fn(_R0_.x0, _R0_.x1, lambda x, _r=_R0_: _r.at(x)[..., 1], lambda x, _r=_R0_: _r.at(x)[..., 2] + _q16_r1d(x), 'rail')
         if QF_Q16_L[0] > 0.0:
@@ -3406,6 +3471,7 @@ def build_all():
         # meets the deck by QF_Q17[1] (p013: the ear triangle between R-1 and the panel edge closes 4.6 cm before the tail edge; R-1 stays within 1.2 mm of the panel edge, as it was); the corner
         # (L, straight from the facet apex S: QF_Q17_L) and the platform's end chord (_e_tail) go to the same height.  Plan views do not change (but for the corner, 2.4 mm: shell2.facet_L).
         _ze_, _xa_, _xb_ = QF_Q17
+        _ze_ -= QF_SEAM_PV[0] if QF_SEAM_PV else 0.0
         _xe_ = float(E_TARGET[0])
         _r0_, _g0_, _t0_ = CURVES['rail'], CURVES['gedge'], CURVES['top']
         _dg_ = float(_g0_.at(_xe_)[2]) - _ze_
@@ -3428,6 +3494,9 @@ def build_all():
             # it down onto the deck at E with the face at its own angle there (s'(E) = tan(QF_EAR) * w'(E), s = R-1 over the panel edge, w = their distance in plan)
             _tn_ = np.tan(np.radians(QF_EAR))
             _wf_ = lambda x: (lambda x: np.maximum(_r0_.at(x)[..., 1] - _g0_.at(x)[..., 1] - 0.005, 0.0) * sstep(0.95, 1.10, x))(np.maximum(np.asarray(x, float), 0.95))
+            if QF_SEAM_PV:
+                # (preview QF_SEAM_PV: the step at the seam takes the part of the seam's drop [1] that R-1's turn does not give)
+                _tn_ += (QF_SEAM_PV[1] - QF_SEAM_PV[0] * (X_SEAM - X_TIP) / (_xe_ - X_TIP)) / float(_wf_(X_SEAM))
             _sb0_ = _tn_ * float(_wf_(X_SEAM))
             _sb1_ = _tn_ * float(_wf_(X_SEAM) - _wf_(X_SEAM - _e_)) / _e_
             _rest_ = _dg_ - (_sb0_ + _sb1_ * (_xe_ - X_SEAM))
