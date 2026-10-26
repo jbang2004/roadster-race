@@ -81,7 +81,7 @@ I_WF0 = int(np.argmin(abs(XS - float(os.environ.get('QF_WF0', '1.30' if D.QF_REA
 WALL_BAND = 0.9                     # rearcrease: the share of a wall row (from the l3 end) over which the continuous ruling is kept; the top 40 % absorb the one-station quantisation of the L partner
 X_BIRTH = float(os.environ.get('X_BIRTH', '0.0'))        # rearcrease round 4 (VARIANT, off by default: reflect check showed coarser arcs but concentric rings in p018 h and a 18 degree crease fading along U): the ruling rows blend into the fold over D.X_FOLD0 .. X_BIRTH
 I_L3K0 = IXN(1.5054)                # (station 240) rearcrease 2: from this station (x 1.505) the l3 plan is replaced forward of the kink (nothing forward of x 1.5 moves)
-L3_FRONT_DEG = float(os.environ.get('L3_FRONT_DEG', '3.0'))     # plan angle of l3 just forward of the kink at E (aft of it: 14.85 degrees)
+L3_FRONT_DEG = float(os.environ.get('L3_FRONT_DEG', '9.0' if D.QF_REAR_L3 else '3.0'))     # plan angle of l3 just forward of the kink at E (aft of it: 14.85 degrees); REAR-3: 9 (was 3): the plan slope of the wall's lower edge ran -0.19, -0.15, -0.26 (a bump of 0.06 at x 1.95 = the fan sliver of p018 v), now -0.17, -0.15, -0.27
 # 2026-10-24 (user: "尾翼两边的梯形平面应该是前面的车身的延伸，模型似乎折了一个角度对吗？"): the facet (the wing's endplate, aft of the side seam) is the side carried on, not a plane folded
 #   12 deg off it.  p018: the side's tone and its reflection band run on across the seam unchanged; p017: the trapezoid has the side's tone (the model's was white against grey).  L and l3
 #   now turn into the facet's plane SMOOTHLY (G2, plan only) and arrive on its straight lines tangentially; the wall, ruled between them, becomes tangent to the plane, the facet edge
