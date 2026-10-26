@@ -77,7 +77,7 @@ I_LAST = NS - 1
 # E, S to the photo's crease is < 2 px.  l3 is already a straight 3D line aft of x 1.99; the facet is the PLANE through that line and the tail face's side edge; L aft of S becomes the straight line S -> L end
 # lying in that plane (design: facet_L), so the facet is planar by construction.
 I_FS, I_FE = IXN(1.9719), IXN(2.1486)         # (stations 269, 280 without TIP_REF)
-I_WF0 = IXN(1.5054)                 # (station 240) the wall's rows start to fan towards S at this station (x 1.80, the wheel arch's rear end; nothing forward of x 1.5 changes, the apillar rule): the rows' L partner lags behind the l3 sample
+I_WF0 = int(np.argmin(abs(XS - float(os.environ.get('QF_WF0', '1.30' if D.QF_REAR_L3 else '1.5054')))))      # (REAR-3: the fan starts at x 1.30, was 1.5054: the rows' partner lag peaked at 0.8 stations / station and the reflected azimuth dipped across the fan)                 # (station 240) the wall's rows start to fan towards S at this station (x 1.80, the wheel arch's rear end; nothing forward of x 1.5 changes, the apillar rule): the rows' L partner lags behind the l3 sample
 WALL_BAND = 0.9                     # rearcrease: the share of a wall row (from the l3 end) over which the continuous ruling is kept; the top 40 % absorb the one-station quantisation of the L partner
 X_BIRTH = float(os.environ.get('X_BIRTH', '0.0'))        # rearcrease round 4 (VARIANT, off by default: reflect check showed coarser arcs but concentric rings in p018 h and a 18 degree crease fading along U): the ruling rows blend into the fold over D.X_FOLD0 .. X_BIRTH
 I_L3K0 = IXN(1.5054)                # (station 240) rearcrease 2: from this station (x 1.505) the l3 plan is replaced forward of the kink (nothing forward of x 1.5 moves)
@@ -1767,9 +1767,9 @@ def checksum(pm):
 # (A was trimmed after the first build: p013 put that build 1 cm wide at x 1.6 .. 2.0.)  The FRONT widening is its own switch, QF_P3_FRONT below.
 QF_P3_HIP = os.environ.get('QF_P3_HIP', '1') == '1'
 QF_P3_HIP_A = tuple(tuple(float(u) for u in kv.split(':')) for kv in os.environ.get(
-    'QF_P3_HIP_A', '1.00:0,1.20:1.6,1.40:3.9,1.60:4.4,1.80:4.3,2.00:3.9,2.20:2.6,2.38:0.9,2.46:0').split(','))
+    'QF_P3_HIP_A', ('0.50:0,0.80:0,1.00:0.3,1.20:1.9,1.40:3.5,1.60:4.3,1.80:4.1,2.00:3.9,2.20:2.6,2.38:0.9,2.46:0' if D.QF_REAR_L3 else '1.00:0,1.20:1.6,1.40:3.9,1.60:4.4,1.80:4.3,2.00:3.9,2.20:2.6,2.38:0.9,2.46:0')).split(','))
 QF_P3_HIP_Z0 = float(os.environ.get('QF_P3_HIP_Z0', '0.40'))                 # bottom of the field (z, m)
-QF_P3_HIP_W = tuple(float(v) for v in os.environ.get('QF_P3_HIP_W', '1.00,1.20,2.30,2.46').split(','))   # C2 window on A: in over [0..1], out over [2..3] (value, slope and
+QF_P3_HIP_W = tuple(float(v) for v in os.environ.get('QF_P3_HIP_W', '0.30,0.50,2.30,2.46' if D.QF_REAR_L3 else '1.00,1.20,2.30,2.46').split(','))   # C2 window on A: in over [0..1], out over [2..3] (value, slope and
 #   curvature reach 0 at the ends; the spline alone ended with a curvature step of 1.1 / 4.7 1/m)
 # The rear-corner facet (SPEC L12, the wing's endplate side) is a PLANE: the field above would bend it (3.6 -> 7.9 mm off its plane).  Inside the box QF_P3_HIP_FACET (x0, x1, z0, z1, around
 # the facet: x 1.97-2.37, z 0.73-0.99) the hip is replaced by its least-squares affine fit a0 + a1 x + a2 z (an affine map keeps planes planar), blended back to the hip over QF_P3_HIP_FM (m)

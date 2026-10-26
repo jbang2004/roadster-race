@@ -4050,6 +4050,23 @@ QF_MID_L3_X = tuple(float(v) for v in os.environ.get('QF_MID_L3_X', '-0.90,0.264
 #   vertical-band zebra (the plan of l3 peaked at x 0.8).  The photos' l3 (fit.json l3, five views) is a straight line of slope 0.06 from x 0.2 to the rear arch (1.0: 1.052, 5 mm from the old l3 there).  The fade now ends at
 #   QF_MID_L3_END (1.0, where the old l3 and that line meet: max slope 0.065 instead of 0.126; every piece aft of 0.8 is the REAR agent's to refine).  QF_MID_L3=0: the fade ends at 0.80.
 QF_MID_L3_END = float(os.environ.get('QF_MID_L3_END', '1.00'))
+# QF_REAR_L3 (2026-10-26, REAR-3, user: the zebra of the quarter / hip must be clean): the fade of l3's lean back to the old l3 was a smoothstep (0.25 .. 1.00): its plan slope peaks at x 0.6 (0.097)
+#   and falls to 0 at 1.0, so the reflected azimuth of the lower door had an extremum there (the closed lower-door island in p018 v, a minimum of -95 deg at x 0.54 z 0.38).  Now 1 - u^2 (u from 0.25 to
+#   QF_REAR_L3_END = 1.15, the front edge of the rear wheel opening where the black wall is cut away): l3's plan slope grows monotonically (convex rise) to the end of what is visible, no extremum in
+#   the door section; x <= 0.25 is untouched.  QF_REAR_L3=0: the smoothstep fade.
+QF_REAR_L3 = os.environ.get('QF_REAR_L3', '1') == '1'
+QF_REAR_L3_END = float(os.environ.get('QF_REAR_L3_END', '1.15'))
+QF_REAR_L3_P = tuple(float(v) for v in os.environ.get('QF_REAR_L3_P', '0.03,0.01').split(','))      # alpha, beta of the convex rise (m, t in m)
+QF_REAR_L3_X = tuple(float(v) for v in os.environ.get('QF_REAR_L3_X', '1.20,0.30,1.60,2.05').split(','))        # x1 where the rise ends (the arch's front edge), lz the length of the slope's ease-out, the blend onto the old l3 (hidden: wheel opening) over [2] .. [3]
+
+
+def _rear_fade(c, d, x):
+    """1 up to c, then falling to 0 at d: smoothstep (old) or the convex 1 - u^2 (QF_REAR_L3)"""
+    x = np.asarray(x, float)
+    if QF_REAR_L3:
+        u = np.clip((x - c) / (d - c), 0.0, 1.0)
+        return 1.0 - u * u
+    return 1.0 - sstep(c, d, x)
 # QF_MID_LW (2026-10-26, MID-2): the shoulder crease L along the front door is wider in plan.  p013 (straight down; the outline sits 1.4 / 2.1 / 1.8 / 1.5 / 1.1 / 0.6 / 0.3 cm outboard of the model at x -1.0 / -0.7 / -0.5 /
 #   -0.3 / -0.1 / 0.1 / 0.3, both sides alike, the p013 U_win line is exact there) and the phase-2 L_side line (3-D, +1.7 / +1.7 / +1.5 / +1.2 / +0.9 / +0.6 / +0.4 cm) agree; DFJ (-0.896, 1.064, 0.739, sd 9 mm) and the door
 #   seam's top end (DS_front |y| 1.063 at z 0.70, cross-view sd 10 mm) stand at the model's L.  CONFLICT, not settled: L moves out by QF_MID_LW_D (m) only, about half way (DFJ then 8 mm inside the model, the p013 outline
@@ -4109,14 +4126,24 @@ def p3_apply():
             if QF_MID_L3:
                 d = QF_MID_L3_END                  # (MID-2: the lean is handed to the rear quarter at x 1.0, not dropped by 0.8)
             x = np.asarray(x, float)
-            return sstep(a, b, x) * (1.0 - sstep(c, d, x)) * (ya + QF_P3_L3Y_D + m * (x - xa) - np.asarray(old.fy(x), float))
+            if QF_REAR_L3:
+                # the line, plus a convex rise t^2 (alpha + beta t) from x c (t = x - c): the photos' l3 (fit.json) keeps flaring to the rear wheel opening; held to X1, blended onto the old l3 over X1 .. X2
+                x1, lz, xb0, xb1 = QF_REAR_L3_X
+                t = np.clip(x - c, 0.0, x1 - c)
+                s1 = 2.0 * QF_REAR_L3_P[0] * (x1 - c) + 3.0 * QF_REAR_L3_P[1] * (x1 - c) ** 2          # the rise's slope at x1; aft of it the slope eases to 0 over lz (smoothstep): the slope has ONE maximum, at x1 (the arch edge)
+                v = np.clip((x - x1) / lz, 0.0, 1.0)
+                ln = ya + QF_P3_L3Y_D + m * (x - xa) + t * t * (QF_REAR_L3_P[0] + QF_REAR_L3_P[1] * t) + s1 * lz * (v - (v ** 6 - 3.0 * v ** 5 + 2.5 * v ** 4))
+                wb = sstep(xb0, xb1, x)
+                of = np.asarray(old.fy(x), float)
+                return sstep(a, b, x) * ((1.0 - wb) * ln + wb * of - of)
+            return sstep(a, b, x) * _rear_fade(c, d, x) * (ya + QF_P3_L3Y_D + m * (x - xa) - np.asarray(old.fy(x), float))
         CURVES['l3'] = PlanMod(old, old.x0, dy, lambda x: 0.0 * np.asarray(x, float), 'l3')
     if QF_MID_L3:
         old = CURVES['l3']
 
         def dym(x, w=QF_MID_L3_X):
             x = np.asarray(x, float)
-            return -QF_MID_L3_D * sstep(w[0], w[1], x) * (1.0 - sstep(w[2], w[3], x))
+            return -QF_MID_L3_D * sstep(w[0], w[1], x) * _rear_fade(w[2], QF_REAR_L3_END if QF_REAR_L3 else w[3], x)
         CURVES['l3'] = PlanMod(old, old.x0, dym, lambda x: 0.0 * np.asarray(x, float), 'l3')
     if QF_P3_U:
         _p3_toward('U', 'U_win', QF_P3_UX, 1)
