@@ -2036,7 +2036,7 @@ def qf_l3_dy(x):
 # monotonically along x from 0 at QF_FD_X[0] to its maximum at the arch mouth QF_FD_X[1] (x -1.80; the visible crease ends at x -1.795).  The rest of the dihedral (1 - w) * phi stays as the (filleted) crease in the middle of the band
 # (the shared edge Lm of the shoulder and the wall); it is 0 where w = 1, so the rim cuts one smooth surface.  w is held to QF_FD_X[2] and falls back to 0 between QF_FD_X[2] and [3] inside the wheel opening (hidden; tyre clearance).
 # QF_FD_ON=0: c8.
-QF_FD_ON = os.environ.get('QF_FD_ON', '1') == '1'
+QF_FD_ON = os.environ.get('QF_FD_ON', '0') == '1'
 QF_FD_A = float(os.environ.get('QF_FD_A', '0.045'))     # tangent length of the band (m): the band reaches 45 mm up the face and down the wall from the crease
 # 2026-10-24 (user: "the side panel bends gently all the way into the wheel's plane; the model stays flat and bends only just before the wheel"; the sections at x -1.95 / -1.85 were a 55-58 deg plane for 12-14 cm
 # and a 30-37 deg roll within 4-7 cm): the band's tangent length grows from QF_FD_A to QF_FD_AA over QF_FD_AX (x) and may take QF_FD_CAP of the shorter face (was 0.4), so towards the arch mouth the roll spreads over
@@ -2206,7 +2206,7 @@ QF_C11_UD = float(os.environ.get('QF_C11_UD', '5.0'))                           
 QF_C11_SD = float(os.environ.get('QF_C11_SD', '0.05'))                              # m: the arc leaves the wall line this far BELOW the wall top Lm (tangent, curvature 0)
 QF_C11_SK = float(os.environ.get('QF_C11_SK', '1.2'))                                # speed of the quintic Hermite arc at both ends, as a multiple of the chord Lm -> U
 QF_C11_SC1 = float(os.environ.get('QF_C11_SC1', '0.0'))                              # curvature of the arc at U, as a multiple of the circle through the same chord and turn (0 at the lip: G2 with the wall)
-QF_C11_FA = float(os.environ.get('QF_C11_FA', '1.0'))                              # amplitude of the round fill (0 = off: the old straight face = c11; 1 = the target section = c11b)
+QF_C11_FA = float(os.environ.get('QF_C11_FA', '0.0'))                              # amplitude of the round fill (0 = off: the old straight face = c11; 1 = the target section = c11b)
 QF_C11_FX = tuple(float(v) for v in os.environ.get('QF_C11_FX', '-2.10,-1.35,-1.00,-0.20').split(','))   # fill weight: 0 at [0], 1 at [1] .. [2], 0 at [3] (quintic; the ramp-in raised to QF_C11_FP).  h5: -1.82,-1.35,-1.25,-0.45.
 #   2026-10-24: the ramp-in starts at -2.10 (was -1.82): ahead of the arch the middle face bends from just below U into the wall (x -1.85: 50 50 52 53 54 56 59 63 70 76 79 85 deg per 2 cm) instead of a 55 deg plane and a 4-7 cm roll; L ahead of -2.10 is untouched
 #   q12 (review 2026-10-22, item 2; user: "都同意", criterion: no valley along x, monotone lean): the h5 fill retreated from x -1.25 while the untouched door (c10b) only widens from -1.05 on: a 13-14 mm
@@ -3654,14 +3654,30 @@ PAIR_LEAD = float(os.environ.get('PAIR_LEAD', '0.0'))
 PAIR_SMOOTH = float(os.environ.get('PAIR_SMOOTH', '4'))   # rows: Gaussian smoothing of the L5 sample steps aft of the same-x blend (0 = off)
 
 
+_TAU_CACHE = {}
+
+
 def l5_tau(n=TRI_N):
-    """fractions along L5 (N -> W) of its n + 1 samples"""
+    """fractions along L5 (N -> W) of its n + 1 samples (cached per crest curve object)"""
+    key = (n, id(CURVES.get('U')), QF_FT_CYL, QF_FT_TC, QF_FT_D)
+    if key not in _TAU_CACHE:
+        _TAU_CACHE[key] = _l5_tau(n)
+    return _TAU_CACHE[key].copy()
+
+
+def _l5_tau(n=TRI_N):
     k = np.arange(n + 1, dtype=float)
     uni = k / n
     if PAIR_MODE == 'uni':
         return uni
     xu = np.array([squeezed_x(float(N[0]), int(i)) for i in range(n + 1)])
     t = np.clip((xu - N[0]) / (W[0] - N[0]) + PAIR_LEAD, 0.0, 1.0)
+    if QF_FT_CYL:                                           # the L5 partner of U[k] = where its ruling (parallel to d) meets L5
+        Uc = CURVES['U']
+        yu = np.array([float(Uc.at(float(x))[1]) for x in xu])
+        t = np.clip((cyl_partner_x(xu, yu) - N[0]) / (W[0] - N[0]), 0.0, 1.0)
+        w = np.ones_like(k)
+        uni = t
     w = np.clip((k - TRI_K) / PAIR_BLEND, 0.0, 1.0)
     w = w * w * (3 - 2 * w)
     base = uni * (1 - w) + t * w
@@ -3670,12 +3686,14 @@ def l5_tau(n=TRI_N):
     r = m - PAIR_SOFT * np.log(np.exp(-(base - m) / PAIR_SOFT) + np.exp(-(line - m) / PAIR_SOFT))
     r = r + (1.0 - r[-1]) * np.clip((k - TRI_K) / (n - TRI_K), 0.0, 1.0) ** 6          # (the soft minimum stays PAIR_SOFT ln 2 under 1 at the end: lift it there, over the last rows)
     r = np.where(k <= TRI_K, uni, np.minimum(r, 1.0))
+    if QF_FT_CYL:
+        r[0] = 0.0
     r[-1] = 1.0
     if PAIR_SMOOTH > 0:
         # q12 (review 2026-10-22, item 1): the soft minimum drops the sample step from 13 to 2.5 mm over ~4 rows (k 56 .. 60): the rulings' turning rate jumps there and the fender top shows a fold
         # line across it (row-to-row normal turn 1.6 deg against 0.3 around it).  The steps aft of the same-x blend are smoothed (Gaussian, PAIR_SMOOTH rows) with their sum kept: L5, W, the flap
         # (k <= TRI_K) and the end row do not move, only the samples between.
-        k0 = int(TRI_K + PAIR_BLEND)
+        k0 = int(TRI_K + (0 if QF_FT_CYL else PAIR_BLEND))
         d = np.diff(r)[k0:]
         pad = int(4 * PAIR_SMOOTH) + 1
         dp = np.r_[np.full(pad, d[0]), d, np.full(pad, d[-1])]
@@ -3700,10 +3718,40 @@ QF_HOOD_SAG = float(os.environ.get('QF_HOOD_SAG', '0.012'))
 #   QF_HC_S that meets the L5 level at x ~-2.0 (crown 50 -> 3 mm from the nose to x -1.9: the front edge is bowed forward), then rounds over (curvature rising C2 from 0 at QF_HC_XA over QF_HC_W; with the new W this is one gentle parabola, k 0.3 1/m)
 #   onto the cowl corner W's height: the hood stays a clean convex face (centre never below L5; no S in the length profile).  QF_L5_FIT=0: the 12 mm parabolas of 2026-10-24.
 QF_L5_FIT = os.environ.get('QF_L5_FIT', '1') == '1'
-QF_L5_BC = float(os.environ.get('QF_L5_BC', '0.028' if QF_W_FIT else '0.038'))
+QF_L5_BC = float(os.environ.get('QF_L5_BC', '0.036' if QF_W_FIT else '0.038'))
 QF_HC_S = float(os.environ.get('QF_HC_S', '0.4575' if QF_W_FIT else '0.415'))
 QF_HC_XA = float(os.environ.get('QF_HC_XA', '-2.50' if QF_W_FIT else '-2.20'))
 QF_HC_W = float(os.environ.get('QF_HC_W', '0.30' if QF_W_FIT else '0.50'))
+# QF_FT_CYL (2026-10-26, FRONT-2 round 2; user: every face flat or ONE smooth single curvature): p005 (--exposure -1.5) shows the corner flap and the fender top as ONE evenly lit face whose seam is only a cut line,
+#   bounded by the hood edge L5 and the crest U.  Built as a CYLINDER (developable, straight parallel rulings) over L5: every row is a straight line of the SAME direction d = (QF_FT_D[0], 1, QF_FT_D[1]) (x per y, z per y),
+#   the partner of crest sample U[k] on L5 is the point the ruling through U[k] hits (design2.l5_tau), U's height is the cylinder's height over its plan (QF_U_CYL in p3_apply; the old height differs by <= 5 mm, a least-squares fit
+#   of d over x -2.4 .. -1.75), the flap (L5 straight, rulings parallel) is exactly a plane.  The old rows twisted from 17 deg (flap diagonal) to 4.6 deg (x-sections, x -1.79) and back to a fan: the closed rings of the zebra.
+#   Aft of the cowl corner W (no L5 left) the rows fan out from W (a cone, as before).  QF_FT_TC = the flap's L5 fraction (the partner of U[TRI_K]).  QF_FT_CYL=0: the old pairing.
+QF_FT_CYL = os.environ.get('QF_FT_CYL', '1') == '1'
+QF_FT_D = tuple(float(v) for v in os.environ.get('QF_FT_D', '0.1,0.09').split(','))
+# QF_L_RULE (2026-10-26, FRONT-2 round 2): the shoulder face U -> L (the big side face of the fender in p016) is a cylinder only against the OLD crest (ruling_dz in build_all); the new crest (QF_FT_CYL, QF_U_ROUND, QF_U_NOVALLEY ..) and the
+#   photo-fitted L (QF_P3_LF) left its rows' lean wandering 56.9 -> 52.2 deg over x -1.85 .. -1.30 (5 deg of twist: the closed rings in the p016 zebra).  L's height is set from the FINAL U at ONE ruling angle QF_L_RULE_DEG
+#   (the mean of the old rows 56.2), faded in over QF_L_RULE_X[0..1] and out over [2..3] (B's zone starts at -1.22: L is theirs from there on; the ruled L lies 1.0 - 1.9 cm lower than the old at x -1.35 .. -1.25, the
+#   direction of their finding that L is 1.2 - 1.5 cm too high behind the arch).  L moves in height only.  QF_L_RULE=0: the old L.
+QF_L_RULE = os.environ.get('QF_L_RULE', '1') == '1'
+QF_L_RULE_DEG = float(os.environ.get('QF_L_RULE_DEG', '56.2'))
+QF_L_RULE_X = tuple(float(v) for v in os.environ.get('QF_L_RULE_X', '-2.02,-1.88,-1.42,-1.22').split(','))
+QF_U_ROLL = float(os.environ.get('QF_U_ROLL', '0.0'))
+QF_U_ROLL_X = tuple(float(v) for v in os.environ.get('QF_U_ROLL_X', '-2.02,-1.40').split(','))
+QF_FT_PAR = os.environ.get('QF_FT_PAR', '1') == '1'          # (shell2.fender_rows) behind the cowl corner W the rows stay parallel and start on the glass edge W -> A instead of fanning out from W
+QF_FT_FADE = tuple(float(v) for v in os.environ.get('QF_FT_FADE', '0.35,0.0').split(','))
+QF_FT_TC = float(os.environ.get('QF_FT_TC', '0.6056'))
+
+
+def _tc():
+    return QF_FT_TC if QF_FT_CYL else TRI_K / float(TRI_N)
+
+
+def cyl_partner_x(x, y):
+    """x on L5 (the straight plan line N -> W) of the point whose ruling (direction (QF_FT_D[0], 1, ..) per unit y) passes through the plan point (x, y)"""
+    m = (W[1] - N[1]) / (W[0] - N[0])
+    dxy = QF_FT_D[0]
+    return (x - dxy * (y - N[1]) - dxy * m * N[0]) / (1.0 - dxy * m)
 
 
 def hood_sag(t):
@@ -3711,7 +3759,7 @@ def hood_sag(t):
     t = np.asarray(t, float)
     if not QF_L5_FIT:
         return QF_HOOD_SAG * 4.0 * t * (1.0 - t)
-    tc = TRI_K / float(TRI_N)
+    tc = _tc()
     b1 = QF_L5_BC / tc
     c = (QF_L5_BC + b1 * (1.0 - tc)) / (1.0 - tc) ** 2
     return np.where(t <= tc, b1 * t, QF_L5_BC + b1 * (t - tc) - c * (t - tc) ** 2)
@@ -3752,7 +3800,7 @@ def flap_edge_dir(old=False):
     N_, W_ = np.array(N, float), np.array(W, float)
     if old or not QF_L5_FIT:
         return _unit(W_ - N_)
-    tc = TRI_K / float(TRI_N)
+    tc = _tc()
     return _unit((W_ - N_) * tc + np.array([0.0, 0.0, float(hood_sag(tc))]))
 
 
@@ -3858,7 +3906,7 @@ def build_nose():
     n_low = min(E_CAP_LOW, max(1, int(round(float(np.linalg.norm(l3_0 - sill_0)) / 0.020))))          # capped at the division counts of the old wall / wall_black rows: their grids (aft of the arch) must not change)
     # ---- the corner triangle (flap): apex N, C on L5, B on the crest U; the plane Q contains the line L5 and B
     W_ = np.array(W, float)
-    C_ = N_ + (W_ - N_) * (TRI_K / TRI_N) + np.array([0.0, 0.0, float(hood_sag(TRI_K / TRI_N))])     # (on the bowed L5)
+    C_ = N_ + (W_ - N_) * _tc() + np.array([0.0, 0.0, float(hood_sag(_tc()))])     # (on the bowed L5)
     xsU = np.array([squeezed_x(N_[0], k) for k in range(TRI_K + 1)])
     B_ = Cv['U'].at(xsU[-1])
     nH = _unit(np.array([-HOOD_B, 0.0, 1.0]))
@@ -3940,13 +3988,20 @@ QF_P3_UX = tuple(float(v) for v in os.environ.get('QF_P3_UX', '-1.37,-1.12,0.60,
 #   distance from it, the move fading out C2 between QF_U_ROUND_X[0] and [1] (exactly zero aft of [1]; none at N).  With the flap plane (its U samples were fitted before) the change is below 1 mm out of plane (q 0.01).
 #   QF_U_ROUND=0: the old plan.
 QF_U_ROUND = os.environ.get('QF_U_ROUND', '1') == '1'
-QF_U_ROUND_L = float(os.environ.get('QF_U_ROUND_L', '0.5'))
-QF_U_ROUND_X = tuple(float(v) for v in os.environ.get('QF_U_ROUND_X', '-2.15,-1.65').split(','))
+QF_U_ROUND_L = float(os.environ.get('QF_U_ROUND_L', '0.0'))
+QF_U_ROUND_X = tuple(float(v) for v in os.environ.get('QF_U_ROUND_X', '-2.35,-1.65').split(','))
 # QF_U_MONO (2026-10-26, FRONT-2 round): behind the flap the crest U rolls over from slope 0.52 to ~0.07 by x -1.6 and then its slope RISES again by 5 mm/m (0.069 -> 0.074 at x -1.55 .. -1.50: a small hump, the 'slope rises'
 #   line of check.py fender, and one of U's curvature sign changes in p016).  The photos (p016 / p018 / p005) show the crest falling monotonically to the pillar foot.  The slope is replaced by its running minimum (never
 #   rising) over x QF_U_MONO_X[0] .. [2] (z re-integrated from [0]); the correction is faded in C2 over [0] .. [1] and out over [1] .. [2] (a fraction of a mm).  QF_U_MONO=0: the old z.
 QF_U_MONO = os.environ.get('QF_U_MONO', '1') == '1'
-QF_U_MONO_X = tuple(float(v) for v in os.environ.get('QF_U_MONO_X', '-1.80,-1.55,-1.30').split(','))
+QF_U_MONO_S = float(os.environ.get('QF_U_MONO_S', '0.04'))
+QF_U_MONO_X = tuple(float(v) for v in os.environ.get('QF_U_MONO_X', '-1.75,-1.55,-1.12').split(','))
+# QF_U_NOVALLEY (2026-10-26, FRONT-2 round 2): U's plan has an S behind the fender: |y| 0.935 at x -1.64, a valley 0.924 at x -1.32 (the traced U_front ends at 0.926 at x -1.40, U_win starts at 0.927 at -1.37: the
+#   photos' own pillar-foot notch, 1 cm deep), then the window sill widens to 0.944 at x -1.1.  The valley is filled: Delta = (running maximum of |y| from the fender's peak) - |y|, Gaussian-smoothed (sigma QF_U_NV_S), faded
+#   out C2 by x QF_U_NV_X[1] (-0.9: unchanged from there on).  Fills <= 1 cm (<= 4 px in p016 / p018), U is then monotone in plan |y| from the peak on.  QF_U_NOVALLEY=0: the old plan.
+QF_U_NOVALLEY = os.environ.get('QF_U_NOVALLEY', '1') == '1'
+QF_U_NV_X = tuple(float(v) for v in os.environ.get('QF_U_NV_X', '-1.78,-1.0').split(','))
+QF_U_NV_S = float(os.environ.get('QF_U_NV_S', '0.05'))
 # QF_P3_LF: the shoulder crease L ahead of the front wheel is lower in the photos: 1.7 (x -2.4), 2.6 (-2.2), 3.2 (-2.0), 3.7 cm (-1.9) (L_front, sigma 0.8-1.5 cm; p018, p001, p016, p013).  The
 #   New L from the nose corner N (which stays) to QF_P3_LF_X1: one C2 spline through the measured heights QF_P3_LF_K (x:z) that rejoins the old L at X1 (value and slope; L_side agrees with
 #   the photos from x -1.2 on); over the front wheel opening it carries the measured slope across.  (The fitted line itself starts 1 cm above N and dips behind it: an end effect, not followed.)
@@ -4031,17 +4086,71 @@ def p3_apply():
             chord = y0 + (yj - y0) * (xc - x0) / (xj - x0)
             return -(1.0 - QF_U_ROUND_L) * (np.asarray(old.fy(xc), float) - chord) * (1.0 - sstep(xa, xj, xc)) * (x <= xj)
         CURVES['U'] = PlanMod(old, old.x0, dy, lambda x: 0.0 * np.asarray(x, float), 'U')
-    if QF_U_MONO:
+    if QF_U_NOVALLEY:
+        old = CURVES['U']
+        xa, xb = QF_U_NV_X
+        _xs = np.linspace(xa - 0.4, -0.7, 1301)
+        _y = np.asarray(old.at(_xs), float)[:, 1]
+        _yc = float(old.at(A_OUT[0])[1])                                    # the pillar foot's |y| (the crest passes through A_OUT)
+        _i0 = int(np.argmax((_xs >= xa) & (_y >= _yc)))                      # first station of the fender's bulge (above the foot's width)
+        _i1 = int(np.argmax((_xs > A_OUT[0]) & (_y >= _yc)))                 # where the window sill's widening crosses the foot's width again
+        _t = _y.copy()
+        _t[_i0:_i1] = _yc
+        _d = _t - _y
+        _dx = _xs[1] - _xs[0]
+        _n = int(4.0 * QF_U_NV_S / _dx)
+        _kx = np.arange(-_n, _n + 1) * _dx
+        _g = np.exp(-0.5 * (_kx / QF_U_NV_S) ** 2); _g /= _g.sum()
+        _db = np.convolve(np.r_[np.full(_n, _d[0]), _d, np.full(_n, _d[-1])], _g, mode='valid')
+
+        def dy(x, _xs=_xs, _db=_db, xa=xa, xb=xb):
+            x = np.asarray(x, float)
+            return np.interp(x, _xs, _db) * sstep(xa - 0.35, xa - 0.05, x) * (1.0 - sstep(xb - 0.25, xb, x))
+        CURVES['U'] = PlanMod(old, old.x0, dy, lambda x: 0.0 * np.asarray(x, float), 'U')
+    if QF_U_MONO:                                  # (see QF_U_MONO: the slope never rises; then a Gaussian blur of z over the pillar foot, sigma QF_U_MONO_S)
         old = CURVES['U']
         xa, xm, xb = QF_U_MONO_X
-        _xs = np.linspace(xa, xb, 601)
+        _xs = np.linspace(xa - 0.2, xb + 0.2, 1001)
         _z = np.asarray(old.at(_xs), float)[:, 2]
-        _sm = np.minimum.accumulate(np.gradient(_z, _xs))
-        _dzv = (_z[0] + np.r_[0.0, np.cumsum(0.5 * (_sm[1:] + _sm[:-1]) * np.diff(_xs))]) - _z
+        _dx = _xs[1] - _xs[0]
+        _n = int(4.0 * QF_U_MONO_S / _dx)
+        _kx = np.arange(-_n, _n + 1) * _dx
+        _g = np.exp(-0.5 * (_kx / QF_U_MONO_S) ** 2); _g /= _g.sum()
+        _zb = np.convolve(np.r_[np.full(_n, _z[0]), _z, np.full(_n, _z[-1])], _g, mode='valid')
+        _dzv = _zb - _z
 
         def dz(x, _xs=_xs, _dzv=_dzv, xa=xa, xm=xm, xb=xb):
             x = np.asarray(x, float)
-            return np.interp(x, _xs, _dzv) * sstep(xa, xm, x) * (1.0 - sstep(xm, xb, x)) * ((x > xa) & (x < xb))
+            return np.interp(x, _xs, _dzv) * sstep(xa, xm, x) * (1.0 - sstep(xm + 0.1, xb, x)) * ((x > xa) & (x < xb))
+        CURVES['U'] = PlanMod(old, old.x0, lambda x: 0.0 * np.asarray(x, float), dz, 'U')
+    if QF_FT_CYL:                                  # QF_FT_CYL: U's height = the height of the cylinder over L5 (rulings d) above U's plan point; faded out to the old height as the ruling's L5 partner reaches W
+        old = CURVES['U']
+        L5c = CURVES['L5']
+
+        def dz(x, old=old, L5c=L5c):
+            x = np.asarray(x, float)
+            P = np.asarray(old.at(x), float)
+            xp = np.clip(cyl_partner_x(x, P[..., 1]), N[0], W[0])
+            Q5 = np.asarray(L5c.at(xp), float)
+            zc = Q5[..., 2] + (P[..., 1] - Q5[..., 1]) * QF_FT_D[1]
+            return (zc - P[..., 2]) * (1.0 - sstep(W[0] - QF_FT_FADE[0], W[0] + QF_FT_FADE[1], xp)) * (x > N[0] + 1e-6)
+        CURVES['U'] = PlanMod(old, old.x0, lambda x: 0.0 * np.asarray(x, float), dz, 'U')
+    if QF_U_ROLL > 0.0:                            # QF_U_ROLL: the crest's roll-over (slope 0.52 -> 0.07) spread out: Gaussian blur of U's height (sigma QF_U_ROLL) between QF_U_ROLL_X
+        old = CURVES['U']
+        xa, xb = QF_U_ROLL_X
+        _xs = np.linspace(xa - 0.4, xb + 0.4, 1201)
+        _z = np.asarray(old.at(_xs), float)[:, 2]
+        _dx = _xs[1] - _xs[0]
+        _n = int(4.0 * QF_U_ROLL / _dx)
+        _kx = np.arange(-_n, _n + 1) * _dx
+        _g = np.exp(-0.5 * (_kx / QF_U_ROLL) ** 2); _g /= _g.sum()
+        _zl = _z[0] + (_xs - _xs[0]) * (_z[1] - _z[0]) / _dx
+        _zb = np.convolve(np.r_[_z[0] + (np.arange(-_n, 0)) * (_z[1] - _z[0]), _z, _z[-1] + (np.arange(1, _n + 1)) * (_z[-1] - _z[-2])], _g, mode='valid')
+        _dzv = _zb - _z
+
+        def dz(x, _xs=_xs, _dzv=_dzv, xa=xa, xb=xb):
+            x = np.asarray(x, float)
+            return np.interp(x, _xs, _dzv) * sstep(xa, xa + 0.10, x) * (1.0 - sstep(xb - 0.10, xb, x)) * ((x > xa) & (x < xb))
         CURVES['U'] = PlanMod(old, old.x0, lambda x: 0.0 * np.asarray(x, float), dz, 'U')
     if QF_P3_LF:
         old = CURVES['L']
@@ -4055,6 +4164,18 @@ def p3_apply():
             xc = np.clip(x, old.x0, xe)
             return np.where(x < xe, (sp(xc) - np.asarray(old.fz(xc), float)) * (1.0 - sstep(xe - QF_P3_LF_JOIN, xe, xc)), 0.0)
         CURVES['L'] = PlanMod(old, old.x0, lambda x: 0.0 * np.asarray(x, float), dz, 'L')
+    if QF_L_RULE:                                  # QF_L_RULE: L's height follows the FINAL crest U: the shoulder rows U -> L keep ONE angle (a cylinder), not the old crest's
+        _lo, _uf = CURVES['L'], CURVES['U']
+        _tn = math.tan(math.radians(QF_L_RULE_DEG))
+        _xa0, _xa1, _xb0, _xb1 = QF_L_RULE_X
+
+        def _dzl(x, _lo=_lo, _uf=_uf, _tn=_tn):
+            x = np.asarray(x, float)
+            xc = np.clip(x, _lo.x0, _xb1)
+            u, l = np.asarray(_uf.at(xc), float), np.asarray(_lo.at(xc), float)
+            w = sstep(_xa0, _xa1, x) * (1.0 - sstep(_xb0, _xb1, x))
+            return w * (u[..., 2] - (l[..., 1] - u[..., 1]) * _tn - l[..., 2])
+        CURVES['L'] = PlanMod(_lo, _lo.x0, lambda x: 0.0 * np.asarray(x, float), _dzl, 'L')
 
 
 p3_apply()

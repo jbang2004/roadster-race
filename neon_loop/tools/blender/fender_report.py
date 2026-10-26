@@ -117,7 +117,7 @@ def p018(rep):
     U = D.CURVES['U']
     xs = np.linspace(-2.40, -1.55, 400)
     Q = cm.project(U.at(xs) * [1, -1, 1])
-    d = []
+    d, dc = [], []
     for c in range(int(Q[0, 0]) + 3, int(Q[-1, 0]) - 2, 4):
         col = lum[:, c]
         ok = np.where((col[:-2] > 110) & (col[1:-1] > 110) & (col[2:] > 110))[0]
@@ -126,7 +126,10 @@ def p018(rep):
             continue
         mrow = float(np.interp(c, Q[:, 0], Q[:, 1]))
         d.append(int(ok[0]) - mrow)
+        dc.append(float(np.interp(c, Q[:, 0], xs)))
     d = np.array(d)
+    if os.environ.get('P18_LIST'):
+        print('  p018 per-column (x: d px):', ' '.join('%.2f:%+.0f' % (a_, b_) for a_, b_ in list(zip(dc, d))[::3]))
     print('p018 crest U against the photo top edge (cols %d..%d): mean %+5.1f px  mean|d| %5.1f  max|d| %5.1f px   (+: photo lower = the model crest is higher than the photo)' % (Q[0, 0], Q[-1, 0], d.mean(), np.abs(d).mean(), np.abs(d).max()))
     rep['p018'] = dict(mean=float(d.mean()), mean_abs=float(np.abs(d).mean()), max_abs=float(np.abs(d).max()))
 

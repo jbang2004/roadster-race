@@ -2,7 +2,7 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "5667885b282fb001",
+   "sha": "aa68c0aec77ffbeb",
    "verts": 8511,
    "faces": 8280
   },
@@ -37,19 +37,19 @@
    "faces": 646
   },
   "hood": {
-   "sha": "6c1bf8f2437d6460",
+   "sha": "96baa77057a2ac1e",
    "verts": 2730,
    "faces": 2618
   },
   "corner_tri": {
-   "sha": "19692ce60e66c7fa",
+   "sha": "1e4eea56b661eca0",
    "verts": 628,
    "faces": 594
   },
   "fender_top": {
-   "sha": "87de8fd7b495072b",
-   "verts": 855,
-   "faces": 805
+   "sha": "c12b516b29fc9e0f",
+   "verts": 836,
+   "faces": 841
   },
   "rear_shoulder": {
    "sha": "78a7746594d29161",

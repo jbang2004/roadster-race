@@ -548,3 +548,10 @@ p013 俯视平面（0.05 m 一格）：未加长的模型在 x ≤ 2.28 与照�
 数字（前 → 后）：linecheck L5 p016L 11.1 → 2.8、p016R 8.7 → 2.7、p013R 6.8 → 3.6、p014L 3.4 → 4.2、p014R 6.8 → 7.3 px；U_front p016L 4.3 → 4.8、p018L 2.2 → 3.4、p013L 7.0 → 5.5、p013R 5.5 → 4.4 px；全部线 rms 5.07 → 4.77 px。`check.py fender`：p016 L5 平均 10.6 → 3.0 px；p018 顶线 max 7.4 → 8.2 px（FAIL，目标 ≤ 8）；U 曲率变号 1 → 3（FAIL）；顶面倾角 x −2.0：+11.7° → +2.8°。`check.py nose` 9 PASS。lock 17 PASS、smooth 242 PASS、budget 5 PASS、clearance 4 PASS、npm test 通过。
 
 未完成：翼子板顶面斑马纹（h / v）仍是一串闭合环（改前改后都有），顶面不是照片里的平整一块；WA 窗角（|y| 0.925 对 0.861）没动；U 的 p018 顶线 8.2 px、p016 曲率变号 3；下唇两端 `QF_LIP_RAMP=arc` 没有逐视角验证（默认关）。
+
+## FRONT-2 返工（评审后，同分支）
+- fender_top：QF_FT_CYL 圆柱（平行直母线），corner_tri 保持平面；U 的 S 形由 QF_U_NOVALLEY 清除，x ≥ −0.9 不变。
+- shoulder 环形斑马纹根源：shell2.p3_front_dy 的 smoothstep 位移把直母线弯成 S（13 mm）。新开关 QF_P3_FRONT_LIN（默认开）改为线性剪切；QF_L_RULE 让 L 按 56.2° 圆柱母线取 z。
+- 默认关闭 QF_C11_FA、QF_FD_ON、QF_H_ON、QF_U_ROLL。胎隙 4/4 PASS。
+- 结果：p016/p005/p018/p013 斑马纹 h、v 无闭环；U 曲率变号 0；p016 L5 均值 3.0 px；p018 最大偏差 8.4 px（目标 ≤ 8，未达标）。
+- 锁：仅重锁 hood、corner_tri、fender_top、shoulder；wall、door_glass 留给合并时重锁。
