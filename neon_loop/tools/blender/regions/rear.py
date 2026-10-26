@@ -212,6 +212,15 @@ BAND = (0.880 if REAR_LOW else 0.930 + DZ_TAIL, 1.040)  # gloss-black light band
                                  # (REAR_LOW: r81 col 1085 black panel rows 707 - 736 = z 0.880 .. 0.997 (tail_top 0.997); was 0.864)
 BAR_Z = 0.9455 if REAR_LOW else None     # centre of the red bar: the joint fit of the bar traced in r81 / high / p002 / p012 / thrust / p004 (z 0.9455 at the centre, 0.942 at the end;
                                          # CALIB tail_bar 0.947 - 0.951, TB 0.941).  None = the middle of the band (0.926 before)
+# REAR_LOW polish (2026-10-26): the lamp unit (black band + red bar + brake bar + lens strips, the lip roll under it) is convex in plan and stands on the shell's flat tail face: its rear
+# face follows the joint bar fit x = 2.4603 - 0.0265 y^2 - 0.0505 y^4 (photo frame; the shell face is 2.5 cm further forward at the centre, level with it at |y| 0.8 and 1.4 cm aft of
+# it at 0.9, where the unit thins out to LAMP_T on the face).  It is closed on top by a level black strip under the visor (lamp_top) and underneath by the lip roll, which runs
+# back to the face.  (Bulging the shell's face instead, design2 QF_TAIL_CVX, made a bright up-facing tab above the band.)  REAR_LAMP_CVX=0: the flat band.
+LAMP_CVX = REAR_LOW and os.environ.get('REAR_LAMP_CVX', '1') == '1'
+LAMP_FIT = (2.4603, -0.0265, -0.0505)    # x = c0 + c2 y^2 + c4 y^4 of the red bar's centre line (photo frame)
+LAMP_T = 0.003                           # the unit's least standoff from the face (towards the corners, where the fit falls inside the face)
+LAMP_W = 0.010                           # softness of the max(fit, LAMP_T) where the fit crosses the face (|y| ~0.75).  (6 mm: the band turned within ~3 cm, a bright vertical glint there in
+                                         # thrust / p017; 20 mm with a fade back to LAMP_T at the end moved it into a crisp white tab at the band's end)
 BAND_Y = 0.930                   # half width (column parameter) of band / bar: r81 red bar ends +-236 px = +-0.95 m.  The rays swing round at the corner, so a column at 0.930 lands at |y| 0.949 on the
                                  # tail's corner (0.945): round 3b: the band / bar stop there, so the corner facet seen from the side (p018) is plain paint (it was 0.940 -> 0.965: a black cap on the facet)
 BAR_H, BAR_Y = 0.018 if REAR_T17 else 0.015, 0.928 if REAR_LOW else 0.918    # red bar (2026-10-23: 1.5 -> 1.8 cm, r81 rows 719 - 723.5) (round 7, DR-2: the same width along the whole band, straight to the ends, 1.2 cm short of the band's end, centred in the band: r81): thickness, half width
@@ -334,6 +343,62 @@ def tail_top_z(y, ctx):
     ye, ze, zc = (0.403, 1.042, 1.005) if D is None else (D.E_TARGET[1], float(D.CURVES['rail'].at(D.E_TARGET[0])[2]), float(D.CURVES['L'].at(D.E_TARGET[0])[2]))      # (E's height from R-1's end: q17 levels it)
     t = min(1.0, max(0.0, (abs(y) - ye) / (0.945 - ye)))
     return ze + (zc - ze) * t
+
+
+def lamp_d(ctx):
+    """-> d(y): how far (in x) the lamp unit's rear face stands aft of the shell's tail face at |y| (0 without LAMP_CVX).  From the HI face at the bar's height, in the photo frame
+    (the rear-end extension moves the face +TAILX_S and slides its outer part inward: the fit is taken at the slid y); a smooth max with LAMP_T near the corners."""
+    import numpy as np
+    if not LAMP_CVX or ctx.level == 2:          # (lod2 keeps the flat band: its budget stays as it was)
+        return lambda y: 0.0
+    c = ctx.cache.get('lamp_d')
+    if c is None:
+        S2 = ctx.A.S2
+        on = bool(getattr(S2, 'QF_P3_TAILX', False))
+        ys = np.linspace(0.0, 0.96, 97)
+        ds = []
+        for y in ys:
+            y = float(y)
+            xs = tail_x(ctx.surf_hi, y, BAR_Z)
+            if xs is None:
+                ds.append(LAMP_T)
+                continue
+            dx, dy, _ = S2.p3_dxyz(xs, y, BAR_Z) if on else (TAILX_S, 0.0, 0.0)
+            yf = y + dy
+            d = LAMP_FIT[0] + LAMP_FIT[1] * yf * yf + LAMP_FIT[2] * yf ** 4 - (xs + dx) - 0.0045      # (the bar stands 4.5 mm off the band)
+            ds.append(0.5 * (d + LAMP_T + math.sqrt((d - LAMP_T) ** 2 + LAMP_W ** 2)))       # (a soft max; at the band's end, |y| 0.93, it is LAMP_T + 1 mm)
+        c = (ys, np.array(ds))
+        ctx.cache['lamp_d'] = c
+    ys, ds = c
+    return lambda y: float(np.interp(abs(y), ys, ds))
+
+
+def push_lamp(ctx, objs):
+    """move the lamp skins (cast on the shell's face) aft by lamp_d: the unit's convex rear face"""
+    D = lamp_d(ctx)
+    for ob in objs:
+        if ob.name.startswith(('TailBand', 'TailBar', 'TailLens', 'BrakeBar')):
+            for v in ob.data.vertices:
+                v.co.x += D(v.co.y)
+            ob.data.update()
+
+
+def lamp_top(ctx, level):
+    """-> [object]: the lamp unit's top, a level black strip from 4 mm inside the shell's face to the band's (pushed) top edge, under the visor"""
+    if not LAMP_CVX or level == 2:
+        return []
+    D, bt, k = lamp_d(ctx), band_top(ctx), (2.0 if level == 2 else 1.0)
+    nu = (110, 40, 20)[level]
+    cb = ctx.CB()
+    P = []
+    for i in range(nu):                          # (the band's own columns and top-edge rays: the strip's rear edge IS the band's top edge)
+        o, d = rear_ray(ycol(2.0 * i / (nu - 1) - 1.0, BAND_Y), bt)
+        p, _n = ctx.surf.cast(o, d, 0.0025 * k)
+        P.append(None if p is None or p.x <= 1.95 else (cb.v(p - Vector((0.004, 0.0, 0.0))), cb.v(Vector((p.x + D(p.y), p.y, p.z)))))
+    for A, B in zip(P, P[1:]):
+        if A and B:
+            cb.facen([A[0], B[0], B[1], A[1]], W_DARK, (0.0, 0.0, 1.0))
+    return [ctx.cb_obj(cb, 'TailLampTop', 'GlossBlack' if level < 2 else 'Trim', sharp=60)]
 
 
 def band_top(ctx):
@@ -466,6 +531,7 @@ def build_tail_skin(ctx, level):
         for s in (-1, 1):
             out.append(patch(f'R_SideReflector_{"L" if s < 0 else "R"}', 'Reflector', ((2.03, 2.19), (0.0, 1.0)), None, None, 0.0030, 9, 2, unit_uv=True,
                              ray_fn=lambda a, bb, s=s: (Vector((a, s * 2.5, zc(a) - 0.0008 - bb * 0.019)), Vector((0.0, -s, 0.0)))))
+    push_lamp(ctx, out)          # (LAMP_CVX: the band, bars and lenses become the convex unit's rear face)
     return out
 
 
@@ -510,7 +576,8 @@ def build_tail_lip(ctx, level):
                     (0.59 * P, -0.88), (0.004 * sc, -1.0), (-0.02 * sc, -1.0)]
         else:
             prof = [(-0.02 * sc, 1.0), (0.35 * P, 0.8), (P, 0.0), (0.35 * P, -0.8), (-0.02 * sc, -1.0)]
-        sec_r.append([(xr + dx, y, zc + H * hv) for dx, hv in prof])
+        dl = lamp_d(ctx)(y)          # (LAMP_CVX: the roll moves aft with the lamp unit, its back still on the face: it closes the unit underneath; CALIB tail_bot 2.46 at |y| 0.5)
+        sec_r.append([(xr + dx + (dl if dx > -0.01 else 0.0), y, zc + H * hv) for dx, hv in prof])
     cb.prism(sec_v, [W_DARK] * 3, cap=W_DARK)
     cb.prism(sec_r, [W_DARK] * (len(sec_r[0]) - 1), cap=W_DARK)
     # (round 7: the end frame, a thin white vertical edge down the band's end, is gone: it doubled the edge the white corner facet already makes against the band's end, with small ticks at both ends;
@@ -810,10 +877,11 @@ def build_beam_face(cb, level):
         inn = sorted({s * v for s in (-1, 1) for v in ys if yl < s * v < yr})
         if abs(k) in (1, 3):
             hole, dep = (k / abs(k) * JET_Y[2 if abs(k) == 1 else 3], JET_Z, NOZ_R), 0.0
-        elif abs(k) in (0, 2, 4):
+        elif abs(k) in (0, 2, 4) and level == 0:         # (polish: a hexagonal mount round a shallow satin tube (port_mount); the tile's hole hides under the mount)
             i = PORT_Y.index(next(p for p in PORT_Y if abs(p - k * h) < 0.01))
-            hole, dep = (PORT_Y[i], JET_Z, PORT_R[i]), 0.035
-        else:
+            hole, dep = (PORT_Y[i], JET_Z, PORT_HEX * math.cos(math.pi / 6) - 0.001), 0.0
+            port_mount(cb, X, PORT_Y[i], PORT_R[i], n)
+        else:           # (the curled ends; lod1: the mounts are plain cells, lighter than the old 3.5 cm holes)
             hole = None
         if hole is not None:
             poly = [(yl, zb)] + [(v, zb) for v in inn] + [(yr, zb), (yr, zt(yr))] + [(v, zt(v)) for v in inn[::-1]] + [(yl, zt(yl))]
@@ -822,6 +890,42 @@ def build_beam_face(cb, level):
             e = [yl] + inn + [yr]
             for a, b in zip(e, e[1:]):
                 cb.face([cb.v((X(a), a, zb)), cb.v((X(b), b, zb)), cb.v((X(b), b, zt(b))), cb.v((X(a), a, zt(a)))], N_WALL)
+    if level == 0:      # polish (r81 rows 815 - 817 / 831 - 833 on the beam: two faint light lines between the rings): two thin satin ribs, broken by the rings and the mounts
+        cuts = [(y, NOZ_R) for y in JET_Y] + [(y, PORT_HEX) for y in PORT_Y]
+        for zr in BEAM_RIB_Z:
+            e = [-BEAM_RIB_Y, BEAM_RIB_Y]
+            for yc, r in cuts:
+                hw = math.sqrt(max(r * r - (zr - JET_Z) ** 2, 0.0)) + 0.004 if abs(zr - JET_Z) < r else 0.0
+                if hw:
+                    e += [yc - hw, yc + hw]
+            e = sorted(e)
+            for a, b in zip(e[0::2], e[1::2]):                # (pairs: open runs between the cuts)
+                if b - a < 0.004:
+                    continue
+                ss = [a] + [s * v for s in (-1, 1) for v in ys if a < s * v < b] + [b]
+                ss = sorted(ss)
+                for p, q in zip(ss, ss[1:]):
+                    cb.facen([cb.v((X(p) + 0.0012, p, zr - 0.002)), cb.v((X(q) + 0.0012, q, zr - 0.002)), cb.v((X(q) + 0.0012, q, zr + 0.002)),
+                              cb.v((X(p) + 0.0012, p, zr + 0.002))], N_PLANE, (1.0, 0.0, 0.0))
+
+
+PORT_HEX = 0.050                 # polish: circumradius of the hexagonal mounts round the ports (SPEC DR-7: the dark holes beside the nozzles are hexagonal mounts; thrust / p011: dark tubes whose
+                                 # thin rims light up only at a slant; r81: invisible square on)
+PORT_DEPTH, PORT_PROUD = 0.010, 0.004    # the tube's depth behind the mount's face (it was a 3.5 cm black hole: a black disc in r81; 1.6 cm still read darker square on); the mount stands this far proud
+BEAM_RIB_Z, BEAM_RIB_Y = (0.578, 0.516), 0.58      # the two ribs (r81 rows 816 / 832 on the beam's plane) and their half length
+
+
+def port_mount(cb, X, yc, r, n):
+    """a hexagonal mount (flats up and down) standing PORT_PROUD off the beam's face X(y), with a shallow satin tube of radius r in it: the mount's face is the beam's black metal, its
+    six sides and the tube satin (they catch the light only at a slant), the tube's floor satin too (square on, the shallow tube is as dark as the face round it)"""
+    R = PORT_HEX
+    hexp = [(yc + R * math.cos(math.radians(a)), JET_Z + R * math.sin(math.radians(a))) for a in range(0, 360, 60)]
+    Xf = lambda yy: X(yy) + PORT_PROUD
+    holed_tile(cb, Xf, hexp, (yc, JET_Z, r), N_WALL, n=n, depth=PORT_DEPTH + PORT_PROUD, bore=N_PLANE, floor=N_PLANE)
+    for i in range(6):
+        (a, b), (c, d) = hexp[i], hexp[(i + 1) % 6]
+        cb.facen([cb.v((Xf(a), a, b)), cb.v((Xf(c), c, d)), cb.v((X(c) - 0.006, c, d)), cb.v((X(a) - 0.006, a, b))], N_PLANE,
+                 (0.0, 0.5 * (a + c) - yc, 0.5 * (b + d) - JET_Z))
 
 
 def build_beam_body(cb, level, col=W_DARK):
@@ -1335,7 +1439,7 @@ def lod_post(ctx, level, body):
 def build(ctx, level):
     """-> static objects for the body.  level 2 merges everything static (no node): the nozzle ring, the plain walls and the deployed wing come here too."""
     K = consts(ctx)
-    stat = build_tail_skin(ctx, level) + [build_tail_lip(ctx, level)] + wing_seam(ctx, level)
+    stat = build_tail_skin(ctx, level) + [build_tail_lip(ctx, level)] + wing_seam(ctx, level) + lamp_top(ctx, level)
     cm = 'GlossBlack' if level < 2 else 'Trim'          # round 5: the diffuser is black (Carbon read mid-grey in the studio light)
     cb = ctx.CB()
     build_diffuser(cb, level)
