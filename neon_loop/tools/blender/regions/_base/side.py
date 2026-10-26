@@ -4,9 +4,9 @@ Still to come (REGIONS.md section 4): door seams L13, glass splits L8, black arc
 
   build(ctx, level)   level 0 = hi, 1 = lod1, 2 = lod2 -> [objects]:  the skirt always; the side-marker assembly only with --front (as before the split)
 
-The side markers sit behind the top of the front arch (x -1.34 ... -1.00).  Photo 003: a red reflector whose pointed front tip sits on the arch circle, its lower
-edge following the arch up to a flat bottom; behind it the gloss-black blade (4.8 cm) with the round camera and, at its rear end, the amber lamp; the top edge is
-one straight line from the arch tip down to the door cut.  They are laid on the body by rays, so they inherit whatever the shell does there.
+The side-marker assembly sits on L behind the front arch (x -1.19 ... -0.90, DS-3, constants MK_*): an angular gloss-black housing with a forward-pointing tip, the red
+reflector in its front part, the camera lens behind it, a rib, the faceted rear cover and the amber line under its top edge (photo 003).  It is laid on the body by rays,
+so it inherits whatever the shell does there.
 SIDE (like FRONT) casts on ctx.surf_hi at every level, as before the split.
 """
 import math, os
@@ -15,26 +15,39 @@ import bpy
 from mathutils import Vector
 import common as S
 import cam as _cam                      # numpy replica of the matched press-photo cameras (Cam(view).ray(px, py))
-from common import Mesh, grid, prism, smooth, W_DARK
-from common import sstep as sstep_
+from common import Mesh, grid, smooth, W_DARK
 
 NAME = 'side'
 
-# the side-marker assembly (R2e): its top edge IS the shell's L curve (ctx.A.D.CURVES['L']), x -1.22 (reflector tip, on the arch circle) ... -0.894 (the door's front cut).
-# p018 (near-orthographic, 3.37 mm / px): reflector px 565-604 = x -1.17...-1.03, blade px 604-644 = x -1.03...-0.89
-MK_X0 = -1.170                  # the reflector's pointed front tip (p018: the red starts at px 565; the arch circle crosses L at x -1.221, the tyre hides the rest)
-MK_BLADE = -1.035               # the blade starts here (p018 px 604: red -> black); p003: the reflector is 0.67 x the blade's length
-MK_X1 = -0.894                  # the blade ends at the door's front cut
-MK_H = 0.050                    # blade height
-REFL_H = 0.70                   # the reflector's greatest height, as a fraction of the blade height (3.5 cm)
-MK_AMBER = (-0.985, -0.915)     # the amber strip: along the top edge of the blade's rear half (p003: 41 % ... 87 % of the blade's length)
-# 2026-10-23 (p018 x8 / p003): ONE black housing from a pointed front tip (p018 px 557 = x -1.197) to the door cut, full height from px 575 (x -1.140); the red reflector sits INSIDE its front
-# part (px 575 .. 602) with a black border, the amber lamp is only a thin line under the top edge (p003; not visible in p018), the side camera sits in the rear lower part (p003)
-MK_TIP, MK_FULL = -1.197, -1.140
-MK_REFL = (-1.136, -1.037)      # the red inside the housing (x), inset MK_REFL_IN from its top and bottom edges
-MK_REFL_IN = (0.004, 0.007)
-MK_AMBER_Z = (0.0035, 0.0065)   # the amber line: this far below the top edge
-MK_CAM_X = -0.928
+# the side-marker assembly (DS-3).  2026-10-25 rebuild from the p003 close-up; x and z from the near-orthographic side views p018 / p001 and the CALIB landmarks
+# DFJ (-0.896, 1.064, 0.739) = the top-rear corner and FMc (-1.144, 1.075, 0.657) = the front-lower corner.  ONE angular gloss-black housing: a forward-pointing tip on L, the top
+# edge along L (ctx.A.D.CURVES['L']) to the door's front cut, the rear edge down the cut, a straight bottom edge rising rearward to FMc, a straight front edge parallel to the arch
+# back up to the tip.  A raised rim (chamfered outer edge) frames a floor holding, front to rear: the red reflector (a trapezoid with prismatic ridges), the camera lens, a diagonal
+# rib, and the smoked rear cover (two facets) with the amber line under its top edge.  p003 against p018 / p001 puts the red's edges 2 cm further forward than the housing's at
+# the same depth: the reflector / lens sit ~2 cm deeper than the housing's edge.  The body can't be cut here, so the floor is only 0.6 mm under the rim's top and every x below is
+# the side views' x (which is also where p003 shows the red: the model's flank there is 2.5 cm outboard of DFJ / FMc, |y| 1.090 / 1.100 against 1.064 / 1.075).
+# (until 2026-10-24: MK_TIP -1.197, full height MK_H 0.050 from MK_FULL -1.140 (bottom z 0.664 there), a flat plate with a plain red rectangle MK_REFL (-1.136, -1.037) inset (0.004, 0.007),
+#  the camera at MK_CAM_X -0.928 in the lower rear, the amber MK_AMBER (-0.985, -0.915) at MK_AMBER_Z (0.0035, 0.0065) below L)
+MK_TIP = -1.190                 # (was -1.197) the tip on L: p018 -1.1875, p001 -1.190, p003 -1.190 (on |y| 1.075)
+MK_X1 = -0.894                  # the housing ends at the door's front cut (DFJ x -0.896; its top-rear corner is MK_X1 - 0.004)
+MK_FMC = (-1.144, 0.657)        # (new) the front-lower corner (x, z) = CALIB FMc (was x -1.140, z 0.664)
+MK_HR = 0.054                   # (was MK_H 0.050) the housing's height at the door cut (p003 62 px = 5.7 cm, p018 16.7 px = 5.6 cm)
+MK_LEAN = 0.010                 # the rear edge leans back this much top -> bottom, with the door cut (p018 1.1 cm, p003 1.7 cm, CALIB DS_front 0.6 cm)
+MK_R_F = 0.006                  # the front-lower corner is cut back this far along both edges (p003: rounded)
+MK_RIM = (0.004, 0.005, 0.005)  # rim width at the top, rear, bottom (p003 3.5 - 5 px); at the front the rim runs back to the reflector (MK_REFL_DX)
+MK_RIM_C = 0.0018               # the rim's outer chamfer
+MK_O = (0.0010, 0.0020, 0.0014)  # offsets off the body along its normal (m): rim edge, rim top, floor (the rim's chamfers tilt <= 30 deg: steeper, the studio's rim light ran along the top edge as a white line)
+MK_REFL_DX = 0.026              # the reflector's front edge (parallel to the housing's): this far behind it in x (p018 / p001: 3.3 cm at its top, 1.9 - 2.5 at mid height; p003 1.8 - 2.0)
+MK_REFL_X1 = (-1.043, -1.046)   # the reflector's rear edge at its top / bottom (p018 -1.042, p001 -1.043; p003: leans forward 3 - 7 mm)
+MK_REFL_B = (0.0, 0.005)        # the reflector's bottom edge above the floor's at its front / rear end (p003: the black under it widens rearward 5 -> 10 mm)
+MK_REFL_RIDGES = 8              # prismatic ridges across the reflector (hi), parallel to its front edge ...
+MK_REFL_RH = 0.0003             # ... this high
+MK_CAM = (-1.015, 0.0115, 0.0072, 0.0016)  # the lens (was MK_CAM_X -0.928, low in the rear): centre x (p003 1034 px: 2.8 cm behind the red's edge), bezel / glass radius (p003 26 / 17 px), bezel height
+MK_DIV = (-0.999, -0.975)       # the diagonal rib between the camera and the rear cover: x at the floor's bottom / top edge (p003 (1047, 427) -> (1067, 385), at the red's depth)
+MK_COVER_H = 0.0018             # the rear cover's two facets rise this much to their ridge, which runs parallel to the rib (they tilt fore / aft only: a pyramid's down-facing
+                                # facet mirrored the studio's lit floor as a grey triangle in p016)
+MK_AMBER = (-0.972, -0.907)     # (was -0.985 .. -0.915) the amber line along the top of the rear cover, from just behind the rib (p003 1070 -> 1133 px) to 1 cm before the top-rear corner
+MK_AMBER_Z = (0.0042, 0.0078)   # (was 0.0035 .. 0.0065) ... this far below L (p003: 3.5 - 4 px thick under a 3 - 4 px black lip)
 
 # door seams, read in p018 (1800 px wide, camera 10 m away: near-orthographic).  Ridge positions measured row by row in the photo (the dark / light hairline of the seam),
 # then smoothed ([1 2 1] over the neighbours); the lines are cast from the p018 camera onto the HI body, so they sit exactly where the photo shows them.
@@ -48,6 +61,10 @@ P018_DIAG = [(678, 524), (642, 560)]                   # the front door cut's up
 P018_QF1 = [(784.0, 436), (773.3, 444), (762.0, 452), (751.3, 460), (740.8, 468), (730.8, 476), (721.3, 484), (712.2, 492), (703.3, 500), (694.8, 508), (686.6, 516), (678.9, 524)]
 P018_QF2 = [(802.6, 440), (792.0, 448), (781.9, 456), (772.2, 464), (763.0, 472), (754.2, 480), (745.9, 488), (737.8, 496), (729.9, 504), (722.2, 512), (714.8, 520), (711.2, 524)]
 BELT_Y = 497.0                  # p018 row of the glass's lower edge (belt) at the B pillar: lines above it lie on the glass
+# the camera the traces are cast with.  The front lines (DoorSeamFront, DoorCutDiag, DoorGlassFront*) stay on the old p018_v1: cast with it they meet the shell's L crease at DFJ
+# (the calibrated p018 has a 4 px residual there; it would drop their junction 1.8 cm below L).  2026-10-25: the rear seam, the B pillar's front line and the DS-7 notches use the
+# calibrated p018 (was p018_v1): cast with p018_v1 they sat 13 - 20 mm ahead of CALIB's 4-view DS_rear line (5 - 7 px ahead of the photo's in the calibrated p018 render), now 6 - 13 mm behind it
+P018_CAM_REAR = 'p018'
 # roof glass splits (DS-6), read in p013 and symmetrised about the centre line; positions are RELATIVE to the glass edge (p013's absolute x has ~10 cm of known slack):
 ROOF_X1 = -0.247                # transverse seam 1: its middle section lies at this x ...
 ROOF_X1_KINK = 0.182            # ... between |y| = this (where it folds out to the glass edge: x -0.31 at the edge, p013 -0.297 / -0.324)
@@ -62,8 +79,13 @@ GLASS_W = 0.0060
 SEAL_W = 0.009                  # the window's black seal under the pillar / roof-rail band (p018: 2 - 3 px)
 SEAL_TIP = 0.35                 # ... at most this fraction of the glass' height (it tapers into the window's two tips)
 
-# skirt: runs from SKIRT_IN behind the front hub to SKIRT_OUT ahead of the rear hub (= 0.082 behind / 0.095 before the arch edges, R_ARCH 0.415)
-SKIRT_IN, SKIRT_OUT = 0.497, 0.510
+# skirt (DS-4): runs from SKIRT_IN behind the front hub to SKIRT_OUT ahead of the rear hub.  2026-10-25 (p018 / p001 / p017 / p003): the carbon panel runs from x -1.085 (2 cm
+# behind the front arch at its top) to x 1.19 and from z 0.115 (its lip at the front: p018 0.119, p003 0.10 - 0.12, p001 0.115) to 0.225 (p003 0.22 - 0.23): 7 cm lower than the
+# body's lowest side face; its lip rises towards the rear wheel (p017: lip highlights 1.5 cm higher at x 1.1 than at the front)
+SKIRT_IN, SKIRT_OUT = 0.402, 0.420      # (was 0.497, 0.510: x -0.99 .. 1.10)
+SKIRT_Z = (0.115, 0.140, 0.225)         # (new) the lip's bottom at the front / rear end, the panel's top edge (was: the body's lowest side face zb - 0.010 .. zb + 0.084 - 0.112)
+SKIRT_LIP = 0.012                       # (was 0.026) the lip's outward step
+SKIRT_OFF = 0.006                       # (was 0.003 - 0.010) the face's stand-off from the body at its top edge
 
 
 # ----------------------------------------------------------------------------- seams read off a photo
@@ -201,7 +223,7 @@ def door_notches(ctx, level):
     is the seam itself).  Here: the cut's rear edge, NOTCH_DX behind the seam, from L inboard to NOTCH_REACH of the way to the belt, closed back to the seam with a rounded corner."""
     objs = []
     cast = ctx.surf_hi.cast
-    sh = [c for c in photo_line(ctx, 'p018_v1', P018_REAR, BELT_Y, 523.0, 1.5) if c is not None]       # the seam's shoulder part, belt -> L
+    sh = [c for c in photo_line(ctx, P018_CAM_REAR, P018_REAR, BELT_Y, 523.0, 1.5) if c is not None]       # the seam's shoulder part, belt -> L
     if len(sh) < 6:
         return objs
     sh.reverse()                                                                # L -> belt
@@ -240,8 +262,8 @@ def door_seams(ctx, level):
         return k * (SEAM_W + (GLASS_W - SEAM_W) * t)
     lines = (('DoorSeamFront', photo_line(ctx, 'p018_v1', P018_FRONT, 560, 686, step)),
              ('DoorCutDiag', photo_line(ctx, 'p018_v1', P018_DIAG, 524, 561, step * 0.7)),
-             ('DoorSeamRear', photo_line(ctx, 'p018_v1', P018_REAR, 409, 682, step if level else 1.5)),      # (hi: dense, or its quads sink into the rounded roof-rail band it crosses)
-             ('BPillarFront', photo_line(ctx, 'p018_v1', P018_BFRONT, 424, 499, step * 0.7)))
+             ('DoorSeamRear', photo_line(ctx, P018_CAM_REAR, P018_REAR, 409, 682, step if level else 1.5)),      # (hi: dense, or its quads sink into the rounded roof-rail band it crosses)
+             ('BPillarFront', photo_line(ctx, P018_CAM_REAR, P018_BFRONT, 424, 499, step * 0.7)))
     glass = (('DoorGlassFront', photo_line(ctx, 'p018_v1', P018_QF1, 437, 525, step * 0.7)),        # the door glass' front frame: wholly in the glass (its belt is lower than BELT_Y)
              ('DoorGlassFront2', photo_line(ctx, 'p018_v1', P018_QF2, 441, 525, step * 0.7)))
     for sd in (-1, 1):
@@ -290,7 +312,66 @@ def window_seal(ctx, level):
 
 
 # ----------------------------------------------------------------------------- side markers
+def _isect(p, d, q, e):
+    """intersection of the 2D lines p + t d and q + s e"""
+    t = ((q[0] - p[0]) * e[1] - (q[1] - p[1]) * e[0]) / (d[0] * e[1] - d[1] * e[0])
+    return (p[0] + t * d[0], p[1] + t * d[1])
+
+
+def _inset(poly, ds):
+    """corners of the closed polygon poly [(x, z)] (clockwise seen from the left: x aft, z up) with edge i (poly[i] -> poly[i + 1]) moved inward by ds[i]"""
+    lines = []
+    for i, a in enumerate(poly):
+        b = poly[(i + 1) % len(poly)]
+        d = (b[0] - a[0], b[1] - a[1])
+        l = math.hypot(*d)
+        lines.append(((a[0] + d[1] / l * ds[i], a[1] - d[0] / l * ds[i]), d))     # (clockwise: the inside is to the right of each edge)
+    return [_isect(*lines[i - 1], *lines[i]) for i in range(len(poly))]
+
+
+def _lerp(a, b, t):
+    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+
+
+def _split(pts, n):
+    """the open polyline pts [(x, z)] cut into n segments (one per edge at least, the rest by length), its corners kept: n + 1 points"""
+    ls = [math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:])]
+    k = [1] * len(ls)
+    for _ in range(n - len(ls)):
+        i = max(range(len(ls)), key=lambda j: ls[j] / k[j])
+        k[i] += 1
+    out = [pts[0]]
+    for a, b, m in zip(pts, pts[1:], k):
+        out += [_lerp(a, b, j / m) for j in range(1, m + 1)]
+    return out
+
+
+def _z_on(a, b, x):
+    """z of the 2D line through a and b at x"""
+    return a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0])
+
+
+def _face(M, vs, want):
+    """a face through the bmesh verts vs, wound so that its normal points along want (a new bmesh face has no normal yet: common.Mesh.face's flip can't do it)"""
+    P = [Vector(v.co) for v in vs]
+    n = Vector((0.0, 0.0, 0.0))
+    for a, b in zip(P, P[1:] + P[:1]):
+        n += a.cross(b)                                              # (Newell: the area vector)
+    return M.face(vs if n.dot(Vector(want)) >= 0 else vs[::-1])
+
+
+def marker_outline(ctx):
+    """the housing's outline in the side plane (x, z), clockwise from the left: tip T on L, top-rear R on L at the door cut, bottom-rear B, front-lower F (= FMc)"""
+    Lc = ctx.A.D.CURVES['L']
+    xr = MK_X1 - 0.004
+    zr = float(Lc.at(xr)[2])
+    return [(MK_TIP, float(Lc.at(MK_TIP)[2])), (xr, zr), (xr + MK_LEAN, zr - MK_HR), MK_FMC]
+
+
 def side_markers(ctx, level):
+    """DS-3 (constants MK_*): the housing is laid on the HI flank by rays along y; its parts stand off the body by MK_O along the flank's normal.  hi: rim (chamfer, top, inner wall),
+    floor, rib and the rear cover's facets (GlossBlack, flat-shaded), the reflector's ridges (Reflector), the lens bezel (PanelGap) and glass (GlossBlack), the amber line (SideMarker).
+    lod1 / lod2: the outline as one plate (GlossBlack; Trim at lod2 by LEVEL_MATS), 12 triangles a side."""
     cast = ctx.surf_hi.cast
     objs = []
 
@@ -304,74 +385,129 @@ def side_markers(ctx, level):
             return
         objs.append(ctx.mk(M.bm, name, m, smooth))
 
-    Lc = ctx.A.D.CURVES['L']
+    T, R, B, F = outline = marker_outline(ctx)
+    d3 = (T[0] - F[0], T[1] - F[1])
+    d_front = MK_REFL_DX * d3[1] / math.hypot(*d3)                   # (a shift by dx across the front edge = dx times its normal's x component)
 
-    def mk_top(x):
-        return float(Lc.at(x)[2])                 # the marker's top edge is the shell's L curve
-
-    def arch_z(x):
-        return ctx.HUB_Z + math.sqrt(max(ctx.R_ARCH ** 2 - (x - ctx.HUBS[0][0]) ** 2, 0.0))
-
+    def chamfer(ring, c):
+        """ring corners [T, R, B, F] -> [T, R, B, Fb, Ff]: the F corner cut back by c along both edges"""
+        t, r, b, f = ring
+        ub = math.hypot(b[0] - f[0], b[1] - f[1])
+        uf = math.hypot(t[0] - f[0], t[1] - f[1])
+        return [t, r, b, _lerp(f, b, c / ub), _lerp(f, t, c / uf)]
+    rings2d = [chamfer(_inset(outline, ds), c) for ds, c in (((0, 0, 0, 0), MK_R_F), ((MK_RIM_C,) * 4, 0.75 * MK_R_F), ((*MK_RIM, d_front), 0.001))]
     for sd in (-1, 1):
-        x_end = MK_X1 - 0.004
-        # housing: the black blade from the pointed tip at the arch to the door cut, top edge = L, height growing from 0 at the tip to MK_H at MK_FULL
+        pc, nF = cast((-1.04, sd * 2.5, 0.69), (0, -sd, 0), 0.0)
+        if pc is None:
+            continue
+        cache, vcache = {}, {}
+
+        def hit(q):
+            k = (round(q[0], 6), round(q[1], 6))
+            if k not in cache:
+                p, nn = cast((q[0], sd * 2.5, q[1]), (0, -sd, 0), 0.0)
+                cache[k] = (p, nn) if p is not None else (Vector((q[0], pc.y, q[1])), nF)      # (a miss: never seen, the housing lies wholly on the flank)
+            return cache[k]
+
+        def P3(q, o):
+            return hit(q)[0] + nF * o                                 # (one normal for the whole flat flank: the hit normal tilts up on L's fillet)
+
+        def V(M, q, o):
+            k = (id(M), round(q[0], 6), round(q[1], 6), round(o, 6))
+            if k not in vcache:
+                vcache[k] = M.v(P3(q, o))
+            return vcache[k]
+
+        def band(M, ra, oa, rb, ob, want):
+            n = len(ra)
+            for i in range(n):
+                j = (i + 1) % n
+                vs = [V(M, ra[i], oa), V(M, ra[j], oa), V(M, rb[j], ob), V(M, rb[i], ob)]
+                w = want(vs) if callable(want) else want
+                _face(M, vs, w)
+
+        def ladder(M, top, bot, offs, want):
+            for i in range(len(top) - 1):
+                _face(M, [V(M, top[i], offs[i]), V(M, top[i + 1], offs[i + 1]), V(M, bot[i + 1], offs[i + 1]), V(M, bot[i], offs[i])], want)
+
         Mk = Mesh()
-        nx = 12 if level else 22
-        P, N = [], []
-        for i in range(nx + 1):
-            x = MK_TIP + (x_end - MK_TIP) * i / nx
-            hh = MK_H * float(sstep_(MK_TIP, MK_FULL, x)) ** 0.7 + 0.002
-            rp, rn = [], []
-            for t in (0.0, 0.5, 1.0):
-                p, nn = cast((x, sd * 2.5, mk_top(x) - hh * t), (0, -sd, 0), 0.0014)
-                rp.append(p)
-                rn.append(nn)
-            P.append(rp)
-            N.append(rn)
-        _grid(Mk, P, N)
-        emit(Mk, 'SideBlade_%d' % sd, 'GlossBlack')
-        # reflector: dark red, inside the housing's front part with a black border; its front edge leans back a little (p003)
+        if level:
+            # LOD: the outline as one plate, a ladder between its top edge and its bottom (front-lower corner -> bottom-rear), standing off the decimated body like the seams
+            o = (0.0014, 0.0035, 0.0045)[level]
+            r0 = rings2d[0]
+            ladder(Mk, _split([r0[0], r0[1]], 3), _split([r0[4], r0[3], r0[2]], 3), [o] * 4, nF)
+            emit(Mk, 'SideBlade_%d' % sd, 'GlossBlack', smooth=False)
+            continue
+        cnt = (10, 2, 8, 1, 2)                                        # segments: top, rear, bottom, corner cut, front
+        rings = []
+        for r in rings2d:
+            loop = []
+            for k, m in enumerate(cnt):
+                loop += _split([r[k], r[(k + 1) % 5]], m)[:-1]
+            rings.append(loop)
+        o0, o1, o2 = MK_O
+        cen = P3(((T[0] + R[0] + B[0] + F[0]) / 4, (T[1] + R[1] + B[1] + F[1]) / 4), o2)
+        band(Mk, rings[0], o0, rings[1], o1, nF)                                  # the rim's outer chamfer
+        band(Mk, rings[1], o1, rings[2], o1, nF)                                  # the rim's top (wide at the front: up to the reflector)
+        band(Mk, rings[2], o1, rings[2], o2, lambda vs: cen - sum((Vector(v.co) for v in vs), Vector()) / 4)    # the inner wall, facing the floor
+        t2, r2, b2, fb2, ff2 = rings2d[2]
+        top = _split([t2, r2], 10)
+        ladder(Mk, top, _split([ff2, fb2, b2], 10), [o2] * 11, nF)              # the floor
+        # the rib between the camera and the rear cover
+        db, dt = (MK_DIV[0], _z_on(fb2, b2, MK_DIV[0])), (MK_DIV[1], _z_on(t2, r2, MK_DIV[1]))
+        u = (dt[0] - db[0], dt[1] - db[1])
+        lu = math.hypot(*u)
+        pw = (u[1] / lu * 0.0015, -u[0] / lu * 0.0015)
+        quad = [(db[0] - pw[0], db[1] - pw[1]), (dt[0] - pw[0], dt[1] - pw[1]), (dt[0] + pw[0], dt[1] + pw[1]), (db[0] + pw[0], db[1] + pw[1])]
+        orib = o1 + 0.0008
+        _face(Mk, [V(Mk, q, orib) for q in quad], nF)
+        mid = P3(db, o2) * 0.5 + P3(dt, o2) * 0.5
+        for a, b in ((0, 1), (2, 3)):
+            vs = [V(Mk, quad[a], orib), V(Mk, quad[b], orib), V(Mk, quad[b], o2), V(Mk, quad[a], o2)]
+            _face(Mk, vs, sum((Vector(v.co) for v in vs), Vector()) / 4 - mid)
+        # the smoked rear cover: two facets meeting in a ridge halfway between the rib and the rear edge (they catch the light differently, p003's "internal facets")
+        mt, mb = _lerp(dt, r2, 0.5), _lerp(db, b2, 0.5)
+        ob = o2 + 0.0001
+        _face(Mk, [V(Mk, dt, ob), V(Mk, mt, o2 + MK_COVER_H), V(Mk, mb, o2 + MK_COVER_H), V(Mk, db, ob)], nF)
+        _face(Mk, [V(Mk, mt, o2 + MK_COVER_H), V(Mk, r2, ob), V(Mk, b2, ob), V(Mk, mb, o2 + MK_COVER_H)], nF)
+        # the lens: a gloss-black glass disc sunk in a matte black bezel, between the reflector and the rib (p003; a Trim bezel read as a grey ring, a gloss one as a white one)
+        xc = MK_CAM[0]
+        zc = 0.5 * (_z_on(t2, r2, xc) + _z_on(fb2, b2, xc))
+        pcen, _ = hit((xc, zc))
+        ex = (Vector((1, 0, 0)) - nF * nF.x).normalized()
+        ez = nF.cross(ex) * (1 if nF.cross(ex).z > 0 else -1)
+        circ = lambda r_, o: [pcen + nF * o + (ex * math.cos(a) + ez * math.sin(a)) * r_ for a in [2 * math.pi * i / 16 for i in range(16)]]
+        rb_, rg_, hb = MK_CAM[1], MK_CAM[2], MK_CAM[3]
+        Mc = Mesh()
+        rr = [[Mc.v(p) for p in circ(r_, o)] for r_, o in ((rb_, o2), (rb_, o2 + hb), (rg_, o2 + hb), (rg_, o2 + hb - 0.0008))]
+        for k, (a, b) in enumerate(zip(rr, rr[1:])):
+            for i in range(16):
+                vs = [a[i], a[(i + 1) % 16], b[(i + 1) % 16], b[i]]
+                c = sum((Vector(v.co) for v in vs), Vector()) / 4 - pcen
+                _face(Mc, vs, (c - nF * c.dot(nF)) * (1 if k == 0 else -1) if k != 1 else nF)   # outer wall out, top up, inner wall in
+        emit(Mc, 'SideCamera_%d' % sd, 'PanelGap', smooth=True)
+        Mg = Mesh()
+        cg = Mg.v(pcen + nF * (o2 + hb - 0.0008))
+        gl = [Mg.v(p) for p in circ(rg_, o2 + hb - 0.0008)]
+        for i in range(16):
+            _face(Mg, [cg, gl[i], gl[(i + 1) % 16]], nF)
+        emit(Mg, 'SideLens_%d' % sd, 'GlossBlack', smooth=False)
+        emit(Mk, 'SideBlade_%d' % sd, 'GlossBlack', smooth=False)
+        # the reflector: from the floor's front edge to MK_REFL_X1, its bottom edge rising off the floor's (MK_REFL_B); prismatic ridges across it, from its front edge's slant to its rear edge's
         Mr = Mesh()
-        P, N = [], []
-        for u in (0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0):
-            x = MK_REFL[0] + (MK_REFL[1] - MK_REFL[0]) * u
-            zt_ = mk_top(x) - MK_REFL_IN[0]
-            zb = mk_top(x) - MK_H + MK_REFL_IN[1]
-            rp, rn = [], []
-            for t in (0.0, 1.0):
-                xx = x + 0.008 * t * (1.0 - u)                        # (the lower front corner sits 8 mm further back)
-                p, nn = cast((xx, sd * 2.5, zt_ + (zb - zt_) * t), (0, -sd, 0), 0.0019)
-                rp.append(p)
-                rn.append(nn)
-            P.append(rp)
-            N.append(rn)
-        _grid(Mr, P, N)
-        emit(Mr, 'SideReflector_%d' % sd, 'Reflector')     # (the red reflector: fixed dark red, not lit, not livery-tinted; dropped at the LODs)
-        if level == 0:
-            # amber lamp: a thin line just under the top edge of the housing's rear half
-            Ma = Mesh()
-            P, N = [], []
-            for i in range(9):
-                x = MK_AMBER[0] + (MK_AMBER[1] - MK_AMBER[0]) * i / 8
-                rp, rn = [], []
-                for zz in MK_AMBER_Z:
-                    p, nn = cast((x, sd * 2.5, mk_top(x) - zz), (0, -sd, 0), 0.0021)
-                    rp.append(p)
-                    rn.append(nn)
-                P.append(rp)
-                N.append(rn)
-            _grid(Ma, P, N)
-            emit(Ma, 'SideLamp_%d' % sd, 'SideMarker')
-            # round side camera in the housing's rear lower part (p003)
-            Mc = Mesh()
-            xc = MK_CAM_X
-            p, nn = cast((xc, sd * 2.5, mk_top(xc) - MK_H * 0.64), (0, -sd, 0), 0.0)
-            if p is not None:
-                rings = []
-                for r_, dy in ((0.0085, 0.0), (0.0085, 0.0034), (0.0060, 0.0048)):
-                    rings.append([(p.x + r_ * math.cos(a), p.y + sd * dy, p.z + r_ * math.sin(a)) for a in [2 * math.pi * i / 14 for i in range(14)]])
-                prism(Mc, rings)
-            emit(Mc, 'SideCamera_%d' % sd, 'Trim', smooth=True)
+        n = 2 * MK_REFL_RIDGES
+        tr = (MK_REFL_X1[0], _z_on(t2, r2, MK_REFL_X1[0]))
+        bl = (fb2[0], fb2[1] + MK_REFL_B[0])
+        br = (MK_REFL_X1[1], _z_on(fb2, b2, MK_REFL_X1[1]) + MK_REFL_B[1])
+        ladder(Mr, _split([t2, tr], n), _split([bl, br], n), [o2 + 0.0003 + MK_REFL_RH * (i % 2) for i in range(n + 1)], nF)
+        emit(Mr, 'SideReflector_%d' % sd, 'Reflector', smooth=False)   # (fixed dark red, not lit, not livery-tinted; dropped at the LODs)
+        # the amber line under the top edge of the rear cover, 0.5 mm over the cover's facets (it bends over their ridge)
+        Ma = Mesh()
+        Lc = ctx.A.D.CURVES['L']
+        xs = sorted({MK_AMBER[0] + (MK_AMBER[1] - MK_AMBER[0]) * i / 6 for i in range(7)} | {mt[0]})
+        oc = lambda x: float(np.interp(x, [dt[0], mt[0], r2[0]], [ob, o2 + MK_COVER_H, ob]))
+        ladder(Ma, [(x, float(Lc.at(x)[2]) - MK_AMBER_Z[0]) for x in xs], [(x, float(Lc.at(x)[2]) - MK_AMBER_Z[1]) for x in xs], [oc(x) + 0.0005 for x in xs], nF)
+        emit(Ma, 'SideLamp_%d' % sd, 'SideMarker', smooth=False)
     return objs
 
 
@@ -399,11 +535,13 @@ def _interp(prof, z):
 
 
 def build_skirt(ctx, level):
-    """thin carbon skirt along the sill between the arches, with a small outward lip at the bottom."""
+    """DS-4: the carbon sill panel between the arches: a flat vertical face from SKIRT_Z[2] (where it meets the body's tucked-in lower side) down past the body's lowest side
+    face (z 0.18 - 0.20) to SKIRT_Z[0] at the front / [1] at the rear, a small outward lip at the bottom, square-cut ends (p003), closed behind (it hangs free below the body).
+    (until 2026-10-24: x -0.99 .. 1.10, the face following the body from its lowest side face zb up 8 - 11 cm (z ~0.18 .. 0.29), ends tapered over 12 cm, lip 2.6 cm)"""
     cb = ctx.CB()
-    x0, x1 = round(ctx.HUBS[0][0] + SKIRT_IN, 6), round(ctx.HUBS[2][0] - SKIRT_OUT, 6)      # -0.99 .. 1.10 for hubs at -1.487 / 1.61
-    nx = (60, 16, 8)[level]
-    rows = (0.0, 0.33, 0.66, 1.0) if level == 0 else (0.0, 1.0)
+    x0, x1 = round(ctx.HUBS[0][0] + SKIRT_IN, 6), round(ctx.HUBS[2][0] - SKIRT_OUT, 6)      # -1.085 .. 1.19 for hubs at -1.487 / 1.61
+    nx = (60, 12, 6)[level]
+    zf, zr, zt = SKIRT_Z
     for s in (-1, 1):
         secs = []
         for i in range(nx):
@@ -411,20 +549,14 @@ def build_skirt(ctx, level):
             prof = body_side(ctx.surf_hi, x, s)
             if len(prof) < 3:
                 continue
-            zb = prof[0][0]
-            end = min(smooth(x0, x0 + 0.12, x), smooth(x1, x1 - 0.12, x))
-            H = (0.080 + 0.028 * smooth(-1.0, 1.1, x)) * (0.55 + 0.45 * end)
-            off, lip = 0.003 + 0.007 * end, 0.026 * end
-            yb = _interp(prof, zb)
-            sec = [(x, yb - s * 0.03, zb - 0.004), (x, yb + s * (off + lip), zb - 0.010), (x, yb + s * (off + lip), zb - 0.002)]
-            z = zb
-            for f in rows:
-                z = zb + 0.004 + f * H
-                sec.append((x, _interp(prof, z) + s * off, z))
-            sec.append((x, _interp(prof, z + 0.004) + s * 0.0005, z + 0.004))
-            secs.append(sec)
+            lip = SKIRT_LIP * min(smooth(x0, x0 + 0.04, x), smooth(x1, x1 - 0.04, x))
+            z0 = zf + (zr - zf) * (x - x0) / (x1 - x0)
+            yf = _interp(prof, zt) + s * SKIRT_OFF                       # the face (vertical) stands SKIRT_OFF off the body at its top edge
+            secs.append([(x, yf - s * 0.03, z0 + 0.008), (x, yf + s * lip, z0), (x, yf + s * lip, z0 + 0.008), (x, yf, z0 + 0.016), (x, yf, zt),
+                         (x, _interp(prof, zt + 0.006) + s * 0.0005, zt + 0.006)])
         if len(secs) > 1:
-            cb.prism(secs, [W_DARK] * (len(secs[0]) - 1))
+            cb.prism(secs, [W_DARK] * (len(secs[0]) - 1), cap=W_DARK)
+            cb.prism([[sc[-1], sc[0]] for sc in secs], [W_DARK])         # the back (inner) face
     me = cb.mesh('Skirt', keep_color=False)
     ob = bpy.data.objects.new('Skirt', me)
     ctx.link(ob)
