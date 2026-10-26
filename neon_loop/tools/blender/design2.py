@@ -763,11 +763,12 @@ QF_FRS = os.environ.get('QF_FRS', '1') == '1'
 QF_FRS_T = tuple(float(v) for v in os.environ.get('QF_FRS_T', '0.600,1.180').split(','))      # the window tip T at X_TIP (y, z; WT 0.604 / 1.179 at x 1.220)
 QF_FRS_XD = float(os.environ.get('QF_FRS_XD', '1.40'))                                         # where the crease D meets L (P contains L aft of it)
 QF_FRS_RAIL = tuple(float(v) for v in os.environ.get('QF_FRS_RAIL', '0.80,0.0076').split(','))  # R-1 straight: the roof rail bends into R-1's line from [0] (G2), the tip C0 moves [1] (m) in height
+QF_FRS_XF = float(os.environ.get('QF_FRS_XF', '1.00'))      # the fold station: the door shoulder's straight rulings run to here, the faceted shoulder (K0 = K on the ruling, the creases D / Q start from nothing there) from here back.  0.874 (the old fold start) put K0 on L's side (|y| 1.02) and the crease Q (K0 -> window tip) lit up as a wedge across the shoulder in p013 (not in the photo) and V0 56 px outboard of the photo's corner in r81; 1.00: K0 (1.0, 0.85, 1.04) next to U, V0 (1.2, 0.785, 1.041) 19 px from the photo
 QF_FRS_RW = tuple(float(v) for v in os.environ.get('QF_FRS_RW', '-0.0145,-0.20,0.15').split(','))      # the roof rail is narrower than the model by 1.2 - 1.9 cm over x -0.2 .. 1.6 (fit.json rail: p013 -4.5 .. -8.4 px; fit - model y -19 / -18 / -13 / -18 mm at x -0.2 / 0.8 / 1.2 / 1.6): the rail moves in by [0] (m) between x [1] and [2], held to the window tip, R-1 starts from there
 QF_FRS_WL = tuple(float(v) for v in os.environ.get('QF_FRS_WL', '0.80,0.95').split(','))      # wl takes the photo line's plan in over [0] .. [1] (it is on it at x 0.8)
 QF_FRS_LEAN = tuple(float(v) for v in os.environ.get('QF_FRS_LEAN', '0,0,1.20').split(','))    # the lower flank's lean handed over at x 0.8 (MID-2): l3's plan offset there (m, + inboard)
 #   and its x slope, carried on by a quintic to 0 at [2] (inside the rear wheel opening); 0,0 = l3 as it is (the door tuck ends at 0.8)
-_spv_ = os.environ.get('QF_SEAM_PV', '-0.0046,0.024' if QF_FRS else '0')
+_spv_ = os.environ.get('QF_SEAM_PV', '-0.0046,0.018' if QF_FRS else '0')
 QF_SEAM_PV = {'a': (0.015, 0.024), 'b': (0.028, 0.024)}.get(_spv_) or (tuple(float(v) for v in _spv_.split(',')) if ',' in _spv_ else None)
 # PREVIEW (2026-10-25, default off; for the user's decision, CALIB "后窗 / 尾翼交界与耳朵"): five photos put the rear window's lower edge (the seam to the wing) 2.2 - 2.8 cm under the model.
 #   (drop of the tail edge and the ear tip E, drop of the seam): the edge stays level at R-1's own end height (A plan) and R-1 stays straight to E, so R-1 turns down about the window tip

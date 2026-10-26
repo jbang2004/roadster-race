@@ -2,9 +2,9 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "fa6206fe50b424d9",
-   "verts": 4305,
-   "faces": 4106
+   "sha": "f4b36c6aa16a0ed9",
+   "verts": 4854,
+   "faces": 4642
   },
   "wall": {
    "sha": "d1b1bedc1a9dde13",
@@ -52,22 +52,22 @@
    "faces": 792
   },
   "glass": {
-   "sha": "f54c26021f565dc3",
+   "sha": "c2e37d4e7be47147",
    "verts": 9331,
    "faces": 9125
   },
   "ridge_inner": {
-   "sha": "0e68fb5094ab11bc",
+   "sha": "ceb3926172b64f42",
    "verts": 1089,
    "faces": 952
   },
   "deck": {
-   "sha": "d3fe9c68e3c5f6bb",
+   "sha": "7e94d3bfe2f81af7",
    "verts": 586,
    "faces": 556
   },
   "tail_upper": {
-   "sha": "cdc72792d02b593e",
+   "sha": "a5fe9417ff751a93",
    "verts": 780,
    "faces": 708
   },
@@ -82,29 +82,29 @@
    "faces": 328
   },
   "frs_low": {
-   "sha": "d8ebcd301c05c262",
-   "verts": 149,
-   "faces": 111
+   "sha": "50f4833ea8fe6585",
+   "verts": 497,
+   "faces": 465
   },
   "frs_plat": {
-   "sha": "e365ee57741c8cef",
-   "verts": 3501,
-   "faces": 3400
+   "sha": "1f4d581a5900b651",
+   "verts": 3291,
+   "faces": 3196
   },
   "frs_bfwd": {
-   "sha": "4412b736b331208c",
-   "verts": 476,
-   "faces": 450
+   "sha": "d70aa1c25fdc3677",
+   "verts": 248,
+   "faces": 228
   },
   "frs_beam": {
-   "sha": "c3a219c1749df8cd",
-   "verts": 1876,
-   "faces": 1806
+   "sha": "70b865fe1ceaf202",
+   "verts": 1426,
+   "faces": 1350
   },
   "frs_win": {
-   "sha": "58f61e4f6718a152",
-   "verts": 426,
-   "faces": 400
+   "sha": "243efb9fb0673ec0",
+   "verts": 153,
+   "faces": 133
   }
  }
 }

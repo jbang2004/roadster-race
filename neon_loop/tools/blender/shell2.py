@@ -1150,7 +1150,7 @@ def p_shoulder(R):
     bd = blend_data(R)
 
     def rf(i, a, b, m):
-        if a[0] <= D.X_FOLD0 + 1e-9:
+        if a[0] <= (XFRS_F if D.QF_FRS else D.X_FOLD0) + 1e-9:
             if bd['h'][i] > 0.0:
                 r = blend_row(bd, i, 'shoulder', m)
                 return r + prof(i, chord_s(r), r)
@@ -1572,7 +1572,8 @@ EDGES['tip_up'] = e_tip_up
 #   frs_bfwd  B:  K -> crease Q (K0 -> window tip T), the beam face under the window's aft edge
 #   frs_beam  B:  K -> R-1 aft of the tip (its first row V0 -> T -> C0), the ear's triangle down to E
 #   frs_win   W:  Q -> U, the face under the window (ruled; U follows the photo)
-I_F = int(np.argmin(abs(XS - D.X_FOLD0)))
+I_F = int(np.argmin(abs(XS - (D.QF_FRS_XF if D.QF_FRS else D.X_FOLD0))))
+XFRS_F = float(XS[I_F])
 I_XD = int(np.argmin(abs(XS - D.QF_FRS_XD)))
 
 
