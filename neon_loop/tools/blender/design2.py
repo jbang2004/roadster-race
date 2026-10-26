@@ -60,7 +60,18 @@ NOSE_ZN = float(os.environ.get('NOSE_ZN', '0.510' if QF_NOSE_LOW else '0.541')) 
 #   2026-10-24 (user: the real car's front is more nose-down): 0.566 -> 0.541.  p018's silhouette (the primary height reference) has the crest 7 px = 2.5 cm lower than the model's at x -2.40, 2.2 / 1.8 / 1.1 /
 #   0.4 cm at -2.31 / -2.22 / -2.13 / -2.04, 0 by -1.95 and 0.4 - 0.7 cm HIGHER over -1.9 .. -1.5; the crest as rebuilt on the lower N (zfix, tilt, flap plane) is 2.1 / 1.6 / 1.2 / 0.7 / 0.3 cm lower there and
 #   0.4 - 0.5 cm higher at -1.9 .. -1.7 (within 0.6 cm everywhere).  p016's gloss band under the bar is ~15 % shorter than the model's, which the lower bar also gives (its lower edge stays at z 0.428)
-N = (NOSE_XN, 0.670, NOSE_ZN)      # nose corner: end of the bowed front edge / light bar; U, L, L5, the corner edge E start here
+# QF_NOSE_WIDE (2026-10-25, SHELL-MID): the nose corner N is 3 cm further out: |y| 0.670 -> 0.700.  CALIB's light-bar end FB (p016 both corners, p013 both, p014) is at |y| 0.7015 (sd 5 mm),
+#   the phase-2 lines start there too (L5 0.698, lamp_bar 0.700, L_front 0.707; U_front 6 cm behind N 0.751 against 0.712), and check.py nose had the p016 far corner 12.7 px and the p013 chamfer
+#   7.3 px inside the photos.  Everything that starts at N is rebuilt from it by the existing rules (L / U plan fits, L5, the planar corner triangle, the leaning face crease).
+#   QF_NOSE_WIDE=0: the ruling N-1 (0.670).
+QF_NOSE_WIDE = os.environ.get('QF_NOSE_WIDE', '1') == '1'
+NOSE_YN = float(os.environ.get('NOSE_YN', '0.700' if QF_NOSE_WIDE else '0.670'))
+# ... and the lower front fender stays vertical (S-2: the nose's side trapezoid follows L in plan): L's arc moves out with N but l3 / the wall's foot is fitted to the OLD corner, so the
+#   wall would lean in 3 - 5 deg over x -2.2 .. -1.9.  With QF_NOSE_WIDE, l3 runs on L's plan from its start (the foot of the face's end generator), its offset from L there (the leaning
+#   crease's foot is outboard) decaying to 0 by QF_NOSE_L3X[0], back to its own plan over [1..2] inside the wheel opening (the old wall: l3 1.2 / 0.5 / 0.3 cm outboard of L at x -2.35 / -2.25 /
+#   -2.20, within 3 mm aft of that).
+QF_NOSE_L3X = (-2.15, -1.89, -1.75)
+N = (NOSE_XN, NOSE_YN, NOSE_ZN)      # nose corner: end of the bowed front edge / light bar; U, L, L5, the corner edge E start here
 PILL_FOLLOW = float(os.environ.get('PILL_FOLLOW', '0.65'))   # (see build_all: how much of the foot point's move the straight pillar line follows)
 W_DZ = float(os.environ.get('W_DZ', '-0.030'))   # apillar round: the cowl corner is LOWERED by this much (m, negative = down); the hood is a recessed plane and the top face must lean up all the way to the window
 W = (-1.625, 0.547, 0.870 + W_DZ)          # cowl corner (end of L5)
@@ -2036,7 +2047,7 @@ QF_FD_X = tuple(float(v) for v in os.environ.get('QF_FD_X', '-1.95,-1.80,-1.74,-
 # peak and its length) carries it to the door line (the c9c line 1: its y and slope; zero curvature): hidden, curvature peak ~3.5 1/m.  l3, the foot of the wall, follows the change (QF_LA_L3: weight of the follow, ramp over x -2.34 .. -2.20) so the wall keeps its lean.
 # QF_LA_ON=0: the c9c plan.
 QF_LA_ON = os.environ.get('QF_LA_ON', '1') == '1'
-QF_LA_S = float(os.environ.get('QF_LA_S', '0.755'))
+QF_LA_S = float(os.environ.get('QF_LA_S', '0.735' if QF_NOSE_WIDE else '0.755'))     # QF_NOSE_WIDE: the arc starts 3 cm further out and a little flatter (p013's corner outline, see shell2 QF_P3_FRONT_RISE)
 QF_LA_K = float(os.environ.get('QF_LA_K', '-0.75'))
 QF_LA_J = float(os.environ.get('QF_LA_J', '0.80'))
 QF_LA_XB = float(os.environ.get('QF_LA_XB', '-1.83'))
@@ -2111,8 +2122,14 @@ QF_FT_C = float(os.environ.get('QF_FT_C', '0.005'))
 # p005's reflection lines).  The rise behind the flap seam (QF_FT_R0) stays; the fall to the end row is the face's narrowing plus QF_FT_R1K.  QF_FT_K = 0: the c10 crown QF_FT_C.
 QF_FT_K = float(os.environ.get('QF_FT_K', '0.9'))
 QF_FT_CMAX = float(os.environ.get('QF_FT_CMAX', '0.012'))
-QF_FT_R1K = float(os.environ.get('QF_FT_R1K', '0.25'))
-QF_FT_R0 = float(os.environ.get('QF_FT_R0', '0.35'))
+# QF_FT_FOOT (2026-10-25, SHELL-MID): the crown falls to the end row over the last 0.60 of the rows (x ~ -1.76 .. -1.43; was 0.25: -1.57 .. -1.43) and rises behind the flap seam over 0.50 (was 0.35).
+#   The rows behind the cowl corner W fan out from W, so their middles span only ~7 cm of x: a 12 mm crown falling there tilted the middle of the face 6 deg DOWN towards the pillar foot (dz/dx -0.11
+#   at x -1.58, |y| 0.70 - 0.83) while the crest U rises at only 0.05 - 0.09: a dip, the closed rings and the S-shaped highlight of p005 / p016 at x -1.535; now the face rises everywhere (dz/dx >= 0.03;
+#   the same fix as q12's QF_FT_R1 for the c10 crown).  The slower rise behind the seam (where U's side slope still runs straight) weakens the dome at x -1.9.  Crown: 9 mm at x -1.80, 11.8 at -1.74,
+#   9.7 at -1.65, 6.7 at -1.60 (was 12 / 12 / 12 / 12).  QF_FT_FOOT=0: 0.35 / 0.25.
+QF_FT_FOOT = os.environ.get('QF_FT_FOOT', '1') == '1'
+QF_FT_R1K = float(os.environ.get('QF_FT_R1K', '0.60' if QF_FT_FOOT else '0.25'))
+QF_FT_R0 = float(os.environ.get('QF_FT_R0', '0.50' if QF_FT_FOOT else '0.35'))
 QF_FT_R1 = float(os.environ.get('QF_FT_R1', '0.7'))
 # q12 (review 2026-10-22, item 1): QF_FT_R1 0.25 -> 0.7.  Over the last 11 rows the 5 mm crown fell to 0 within ~13 cm: two fold pulses across the face in front of the pillar foot (row-to-row normal turn 1.4 / 1.9 deg
 # against 0.3); spread over 0.7 of the rows they are gone (<= 0.4 deg)
@@ -3845,6 +3862,18 @@ QF_P3_LF = os.environ.get('QF_P3_LF', '1') == '1'
 QF_P3_LF_K = [tuple(float(u) for u in kv.split(':')) for kv in os.environ.get('QF_P3_LF_K', '-2.30:0.549,-2.10:0.581,-1.90:0.610').split(',')]
 QF_P3_LF_X1 = float(os.environ.get('QF_P3_LF_X1', '-1.20'))
 QF_P3_LF_JOIN = float(os.environ.get('QF_P3_LF_JOIN', '0.30'))      # length of that window (m)
+# QF_P3_L3Y (2026-10-25, SHELL-MID): l3 in plan along the doors: the photos tuck the lower flank in.  The door seams meet the black zone at the CALIB landmarks DS1b (-0.799, 0.997, 0.286) and DS2b
+#   (0.264, 1.016, 0.336) (sd 1 cm in y), and the seams themselves, fitted from four / five views without the landmarks, run up to |y| 1.06 at L (front seam 1.007 -> 1.044 -> 1.063 at z 0.29 / 0.50 /
+#   0.70, rear seam 1.018 -> 1.044 -> 1.058, sd 0.4 - 1.1 cm); the phase-2 l3 line agrees (0.99 - 1.01, sd 4 - 9 cm).  The model's l3 stood at 1.053 - 1.057 (+2.7 cm of the P3 widening at the
+#   front door): 4 - 8 cm out, the flank vertical.  l3 now follows the straight line through DS1b / DS2b (+ QF_P3_L3Y_D), faded in over QF_P3_L3Y_X[0..1] (from the arch's rear edge to the front door
+#   seam: p003, which looks along the flank from behind the wheel, has the arch's rear edge at z 0.3 - 0.6 between the vertical flank (10 - 20 px inboard of the photo) and the full tuck (30 - 50 px
+#   outboard, the well wall showing): the fender behind the arch stays fuller) and out over [2..3] (from the rear door seam, zero aft of x 0.80: the lean returns to the vertical rear quarter over
+#   0.55 m); the wall stays ruled (L -> l3), so along the doors it leans in by ~7 deg.
+#   QF_P3_L3Y=0: the l3 plan as before.
+QF_P3_L3Y = os.environ.get('QF_P3_L3Y', '1') == '1'
+QF_P3_L3Y_X = tuple(float(v) for v in os.environ.get('QF_P3_L3Y_X', '-1.20,-0.82,0.25,0.80').split(','))
+QF_P3_L3Y_P = ((-0.799, 0.997), (0.264, 1.016))
+QF_P3_L3Y_D = float(os.environ.get('QF_P3_L3Y_D', '0.006'))      # (the seams' own lower ends, fitted without the landmarks, are 0.2 - 1.1 cm outboard of DS1b / DS2b)
 
 
 def _p3_line(name):
@@ -3874,6 +3903,28 @@ def _p3_toward(name, line, win, k, hold=False):
 def p3_apply():
     if QF_P3_L3:
         _p3_toward('l3', 'l3', QF_P3_L3X, 2)
+    if QF_NOSE_WIDE:
+        old, Lc = CURVES['l3'], CURVES['L']
+        xR = float(_CF_PRE.get('xR', N[0]))                    # l3 starts at the foot of the face's end generator
+        off0 = float(old.fy(xR)) - float(Lc.fy(xR))           # ... outboard of L there (the leaning crease); the offset decays to 0 by QF_NOSE_L3X[0]
+
+        def dyn(x, old=old, Lc=Lc, w=QF_NOSE_L3X, xR=xR, off0=off0):        # (bound here: the closures below reuse the names)
+            b, c, d = w
+            x = np.asarray(x, float)
+            xc = np.clip(x, xR, d)
+            tgt = np.asarray(Lc.fy(xc), float) + off0 * (1.0 - sstep(xR, b, xc))
+            return sstep(xR - 0.02, xR, x) * (1.0 - sstep(c, d, x)) * (tgt - np.asarray(old.fy(xc), float))     # (full from l3's start on: nothing uses l3 ahead of it)
+        CURVES['l3'] = PlanMod(old, old.x0, dyn, lambda x: 0.0 * np.asarray(x, float), 'l3')
+    if QF_P3_L3Y:
+        old = CURVES['l3']
+        (xa, ya), (xb, yb) = QF_P3_L3Y_P
+        m = (yb - ya) / (xb - xa)
+
+        def dy(x, old=old, w=QF_P3_L3Y_X, xa=xa, ya=ya, m=m):
+            a, b, c, d = w
+            x = np.asarray(x, float)
+            return sstep(a, b, x) * (1.0 - sstep(c, d, x)) * (ya + QF_P3_L3Y_D + m * (x - xa) - np.asarray(old.fy(x), float))
+        CURVES['l3'] = PlanMod(old, old.x0, dy, lambda x: 0.0 * np.asarray(x, float), 'l3')
     if QF_P3_U:
         _p3_toward('U', 'U_win', QF_P3_UX, 1)
     if QF_P3_LF:

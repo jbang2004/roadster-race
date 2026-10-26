@@ -1629,15 +1629,27 @@ QF_P3_HIP_FSH = os.environ.get('QF_P3_HIP_FSH', '1') == '1'
 #         0 behind QF_P3_FRONT_UK[1] (U_front is pinned there, sigma 1 mm), so the fender top's tilt grows steadily instead of twisting where the rung is short; inboard of U the
 #         remaining k fades out over QF_P3_FRONT_DU (m).
 QF_P3_FRONT = os.environ.get('QF_P3_FRONT', '1') == '1'
+# design2.QF_NOSE_WIDE (the corner N 3 cm further out, the arc of L 0.02 flatter): the widening starts lower (A at N 3.0 cm, was 4.0) and rises over a longer stretch (to x -1.95, was -2.22): p013's
+# corner outline x -2.45 .. -2.0 within 1.2 cm (rms 0.5 cm; it was 0.4 .. 2.5 cm inside), and the rise no longer bends L's plan the wrong way behind N (its concave curvature there 3.5 -> 0.3 1/m).
 QF_P3_FRONT_A = tuple(tuple(float(u) for u in kv.split(':')) for kv in os.environ.get(
-    'QF_P3_FRONT_A', '-2.46:4.0,-1.85:4.8,-1.30:4.3,-0.80:2.7,-0.30:1.6,0.15:0.5,0.50:0').split(','))
-QF_P3_FRONT_RISE = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_RISE', '-2.46,-2.22').split(','))
+    'QF_P3_FRONT_A', ('-2.46:3.0' if D.QF_NOSE_WIDE else '-2.46:4.0') + ',-1.85:4.8,-1.30:4.3,-0.80:2.7,-0.30:1.6,0.15:0.5,0.50:0').split(','))
+QF_P3_FRONT_RISE = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_RISE', '-2.46,-1.95' if D.QF_NOSE_WIDE else '-2.46,-2.22').split(','))
 QF_P3_FRONT_END = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_END', '0.00,0.50').split(','))   # C2 window at the door end (the spline alone ended with a slope:
 #   a 0.66 deg corner in L's plan at x 0.50)
 QF_P3_FRONT_ZB = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_ZB', '0.10,0.30').split(','))
 QF_P3_FRONT_S0 = float(os.environ.get('QF_P3_FRONT_S0', '0.30'))
 QF_P3_FRONT_UK = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_UK', '-2.40,-2.00').split(','))
 QF_P3_FRONT_DU = float(os.environ.get('QF_P3_FRONT_DU', '0.08'))
+# QF_P3_FRONT_DOOR=1 (2026-10-25, SHELL-MID): the widening stays on the front fender and drops to QF_P3_FRONT_DR of itself by the door's front cut: A(x) times 1 - (1 - DR) sstep(QF_P3_FRONT_DX)
+# (C2; A 3.8 -> 1.9 cm at FMc, 3.0 -> 0.45 at DFJ, 1.6 -> 0.24 at x -0.3).  Along the door the flank
+# is where the five oblique / side views put it, not where p013's outline is: the CALIB landmarks DFJ (-0.896, 1.064, 0.739) on L and FMc (-1.144, 1.075, 0.657) (sd 9 mm in y), and the
+# front door seam fitted from p018 p017 p011 p016 p003 WITHOUT the landmark anchors (|y| 1.06 at L's height; dropping p003, p016 or p017 + p011 moves it <= 1.5 cm) -- with the full
+# widening the model stood 2.5 cm outside them (|y| 1.090 / 1.100).  p013 alone puts the outline there 1.8 cm further out (1.082 at x -0.9; its seam crossing is also 2.5 cm aft of
+# the 3-D seam): known conflict, p013 keeps the fender (x <= -1.25) and the rear door seam (where it agrees with the 4-view DS_rear to 0.5 cm).  (The small DR: the seam's top, 1.063 at z 0.69,
+# and p013 both lie outboard of DFJ.)  QF_P3_FRONT_DOOR=0: the p013 taper.
+QF_P3_FRONT_DOOR = os.environ.get('QF_P3_FRONT_DOOR', '1') == '1'
+QF_P3_FRONT_DX = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_DX', '-1.45,-0.90').split(','))
+QF_P3_FRONT_DR = float(os.environ.get('QF_P3_FRONT_DR', '0.15'))
 _P3_HIP = {}
 
 
@@ -1666,6 +1678,8 @@ def p3_front_dy(x, y, z):
     if x <= a or x >= b or abs(y) < 0.30:
         return 0.0
     A = 0.01 * max(0.0, float(s(x))) * float(D.sstep(QF_P3_FRONT_RISE[0], QF_P3_FRONT_RISE[1], x)) * (1.0 - float(D.sstep(QF_P3_FRONT_END[0], QF_P3_FRONT_END[1], x)))
+    if QF_P3_FRONT_DOOR:
+        A *= 1.0 - (1.0 - QF_P3_FRONT_DR) * float(D.sstep(QF_P3_FRONT_DX[0], QF_P3_FRONT_DX[1], x))
     if A <= 0.0:
         return 0.0
     ay = abs(y)
