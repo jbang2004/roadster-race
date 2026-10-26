@@ -4049,6 +4049,12 @@ QF_MID_L3_X = tuple(float(v) for v in os.environ.get('QF_MID_L3_X', '-0.90,0.264
 #   MID-2 (2) the lean's end: the QF_P3_L3Y fade back to the vertical rear quarter used to run 0.25 .. 0.80, a 4 cm step of l3 in 0.5 m (slope 0.126 at x 0.6, 0.01 at 0.8): the soft vertical light band of p017 / p018 and a ring in the
 #   vertical-band zebra (the plan of l3 peaked at x 0.8).  The photos' l3 (fit.json l3, five views) is a straight line of slope 0.06 from x 0.2 to the rear arch (1.0: 1.052, 5 mm from the old l3 there).  The fade now ends at
 #   QF_MID_L3_END (1.0, where the old l3 and that line meet: max slope 0.065 instead of 0.126; every piece aft of 0.8 is the REAR agent's to refine).  QF_MID_L3=0: the fade ends at 0.80.
+# QF_L3_LEAN (FRONT-3, 2026-10-26: "the face ahead of the wheel steps inward"): the wall's rows were vertical up to x -1.90 and leaned out 4 cm in 10 cm behind it (l3 stalled at |y| 1.017 .. 1.033 while L went on to 1.057): a
+#   twist of the wall, Gaussian curvature 0.9 /m^2 and a ring in the v zebra just ahead of the tyre.  l3 now follows L at the lean QF_L3_LEAN_V (dy per dz of the wall row) which rises as one C2 ramp over x [1] .. [2], so the wall
+#   leans out gradually from the nose to the wheel (weight in over [0] .. [1], out over [3] .. [4]; the lean at the end = the wall's own 0.043).  QF_L3_LEAN=0: l3 as before.
+QF_L3_LEAN = os.environ.get('QF_L3_LEAN', '1') == '1'
+QF_L3_LEAN_V = float(os.environ.get('QF_L3_LEAN_V', '0.045'))
+QF_L3_LEAN_X = tuple(float(v) for v in os.environ.get('QF_L3_LEAN_X', '-2.25,-2.05,-1.50,-1.60,-1.35').split(','))
 QF_MID_L3_END = float(os.environ.get('QF_MID_L3_END', '1.00'))
 # QF_REAR_L3 (2026-10-26, REAR-3, user: the zebra of the quarter / hip must be clean): the fade of l3's lean back to the old l3 was a smoothstep (0.25 .. 1.00): its plan slope peaks at x 0.6 (0.097)
 #   and falls to 0 at 1.0, so the reflected azimuth of the lower door had an extremum there (the closed lower-door island in p018 v, a minimum of -95 deg at x 0.54 z 0.38).  Now 1 - u^2 (u from 0.25 to
@@ -4145,6 +4151,20 @@ def p3_apply():
             x = np.asarray(x, float)
             return -QF_MID_L3_D * sstep(w[0], w[1], x) * _rear_fade(w[2], QF_REAR_L3_END if QF_REAR_L3 else w[3], x)
         CURVES['l3'] = PlanMod(old, old.x0, dym, lambda x: 0.0 * np.asarray(x, float), 'l3')
+    if QF_L3_LEAN:
+        _l3o = CURVES['l3']
+        _l3t = {}
+
+        def _dl3(x, _o=_l3o, _t=_l3t, w=QF_L3_LEAN_X):
+            if 'xs' not in _t:         # tabulated once (0.5 mm): L's chain of nose corrections is slow to evaluate
+                xs = np.linspace(w[0], w[4], int(round((w[4] - w[0]) / 0.0005)) + 1)
+                Lp, l3p = np.asarray(CURVES['L'].at(xs), float), np.asarray(_o.at(xs), float)
+                lean = QF_L3_LEAN_V * sstep(w[1], w[2], xs)
+                tgt = Lp[:, 1] - lean * (Lp[:, 2] - l3p[:, 2])
+                _t['xs'], _t['d'] = xs, sstep(w[0], w[1], xs) * (1.0 - sstep(w[3], w[4], xs)) * (tgt - l3p[:, 1])
+            x = np.asarray(x, float)
+            return np.interp(x, _t['xs'], _t['d'], left=0.0, right=0.0)
+        CURVES['l3'] = PlanMod(_l3o, _l3o.x0, _dl3, lambda x: 0.0 * np.asarray(x, float), 'l3')
     if QF_P3_U:
         _p3_toward('U', 'U_win', QF_P3_UX, 1)
     if QF_U_ROUND:

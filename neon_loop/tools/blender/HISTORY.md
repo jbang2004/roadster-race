@@ -939,3 +939,6 @@ R1b 的 Catmull-Clark 笼子在镜面检查里一直有褶皱（A 柱根、鼻�
 
 ### 车头第二轮返工（评审后）
 评审指出 p016 h 斑马纹仍有闭环。定位在 shoulder：p3_front 的 smoothstep 位移、C11 圆角、FD 带、QF_H 隆起。处理：线性剪切 QF_P3_FRONT_LIN、L 母线规则、关闭 C11/FD/H；fender_top 改圆柱。证据见 shots/front2/final/。遗留：p018 最大偏差 8.4 px；翼面接缝处有平行直条纹（可展面）；lip（QF_LIP_RAMP）未开启。
+
+### 前轮拱（FRONT-3）
+用户反馈俯视能看到轮胎、拱口变形。测量：肩面被圆形拱口切开，胎外缘 1.098 露出。拱改单圆，肩面在轮上抬高变平，轮前墙面平缓外倾，l3 跟随。证据 shots/front2/final3/。
