@@ -2,12 +2,12 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "f4b36c6aa16a0ed9",
+   "sha": "eeb62b73a020ae92",
    "verts": 4854,
    "faces": 4642
   },
   "wall": {
-   "sha": "d1b1bedc1a9dde13",
+   "sha": "6bb49cd570c2bef1",
    "verts": 5497,
    "faces": 5212
   },
@@ -17,14 +17,14 @@
    "faces": 4578
   },
   "pillar": {
-   "sha": "af679e60383e0442",
+   "sha": "fa0f44d833a93889",
    "verts": 1056,
    "faces": 936
   },
   "door_glass": {
-   "sha": "1804420d166d9773",
-   "verts": 3535,
-   "faces": 3404
+   "sha": "c72e740a9d784c03",
+   "verts": 3650,
+   "faces": 3519
   },
   "rail_band": {
    "sha": "43914bf8251bf9fe",
@@ -37,22 +37,22 @@
    "faces": 646
   },
   "hood": {
-   "sha": "2d4aa737dbb0a5b8",
+   "sha": "96baa77057a2ac1e",
    "verts": 2730,
    "faces": 2618
   },
   "corner_tri": {
-   "sha": "b673ff2f8a6151d1",
+   "sha": "1e4eea56b661eca0",
    "verts": 628,
    "faces": 594
   },
   "fender_top": {
-   "sha": "58c9a112e7acec2c",
-   "verts": 855,
-   "faces": 792
+   "sha": "c12b516b29fc9e0f",
+   "verts": 836,
+   "faces": 841
   },
   "glass": {
-   "sha": "c2e37d4e7be47147",
+   "sha": "e6c4e3679a1baa02",
    "verts": 9331,
    "faces": 9125
   },

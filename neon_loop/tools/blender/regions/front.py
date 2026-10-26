@@ -98,9 +98,11 @@ LIP_LOW_SLOPE = 0.0                       # the blade's top is level (the openin
 LIP_LOW_RT = 0.004                        # a crisp top-front edge (4 mm round; the 2026-10-24 lip had 12 mm)
 LIP_RAKE = 0.020                          # the blade's front leans back by this much from its top edge to its bottom (at LIP_P; less where it stands out less): the p018 / p001 profiles
                                           # recede 1.5 / 2.5 cm from the front-most point to the bottom; p016: the front catches the key light as a band under the top edge
-LIP_CHIN_RAMP = os.environ.get('QF_LIP_RAMP', '0') == '1'       # PREVIEW (off): at the corners the black runs from the paint edge straight down-forward to the blade's front-top edge (a chamfer, no
-                                          # vertical plate), as the side profiles read it: p018 (u, z) 239 / .29 -> 229 / .275 -> 222 / .26 -> 218 / .24 (the blade), p001 219 / .275 -> 208 / .26 -> 198 / .233.
-                                          # Off because p016's far end has nothing left of the crease above the blade (the chamfer shows there as a slanted wedge); 0: a flush plate down to the blade
+LIP_CHIN_RAMP = os.environ.get('QF_LIP_RAMP', '0') in ('1', 'arc')   # at the corners the black runs from the paint edge down-forward to the blade's front-top edge (no vertical plate), as the side profiles read it:
+                                          # p018 (u, z) 239 / .29 -> 229 / .275 -> 222 / .26 -> 218 / .24 (the blade), p001 219 / .275 -> 208 / .26 -> 198 / .233.  '1' = the straight chamfer of 2026-10-25 (a preview, off: p016's far end
+                                          # showed it as a slanted wedge); 'arc' (2026-10-26, FRONT-2: p018 / p001 at 12x: the black's top-front outline is one CONVEX round of ~4 - 5 cm radius, vertical at the paint edge,
+                                          # horizontal at the blade top, not a straight chamfer) = a quarter ellipse of those two end points; 0: a flush plate down to the blade
+LIP_RAMP_ARC = os.environ.get('QF_LIP_RAMP', '0') == 'arc'
 if QF_LIP_LOW:
     _zr_c = LIP_BT_C + LIP_LOW_SLOPE * (LIP_P + LIP_E - LIP_LOW_RT - LIP_WALL)  # the blade top's back edge at the face (centre)
     INTAKE['z0'] = _zr_c + 0.0015                                               # the opening reaches down to the blade (was LIP_ZT + 0.0015 = 0.3015)
@@ -650,6 +652,9 @@ def build(ctx, level):
             angs = (0.0, 30.0, 60.0, 90.0) if level == 0 else (0.0, 90.0)                       # (lod: 2 points, so the ring keeps the 8 points of the 2026-10-24 lip: same budget)
             top = [(pr + e - rt + rt * math.sin(math.radians(a_)), zto - rt + rt * math.cos(math.radians(a_))) for a_ in angs]
             plate = [(LIP_WALL, zp), (LIP_WALL, zr)] if not LIP_CHIN_RAMP else [(LIP_WALL, zp)]       # LIP_CHIN_RAMP: from the paint edge straight down-forward to the blade's front-top edge
+            if LIP_RAMP_ARC and level == 0:                                                           # 'arc': a quarter ellipse (a = the lip's depth, b = the paint edge's height over the blade top): vertical at the plate, level at the blade
+                _aa, _bb = max((pr + e - rt) - LIP_WALL, 1e-4), max(zp - zto, 1e-3)                     # (the same number of ring points at every station)
+                plate = [(LIP_WALL, zp)] + [(LIP_WALL + _aa * (1.0 - math.cos(math.radians(a_))), zp - _bb * math.sin(math.radians(a_))) for a_ in (30.0, 60.0)]
             prm = [(-LIP_IN, zp)] + plate + top + [(fb, zb + ch), (fb - ch, zb), (-LIP_IN, zb)]
         else:
             wc = float(sstep(ll['st0'] - LIP_CHIN_IN, ll['st1'], ay))         # the chamfer starts a little inboard of the step (p018: the side view's front-top corner is cut back)

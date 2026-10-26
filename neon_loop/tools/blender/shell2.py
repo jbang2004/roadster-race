@@ -274,7 +274,7 @@ def e_hood_cen(R):
     wc = np.array([D.W[0], 0.0, D.W[2]])
     t = D.l5_tau(I_A)
     P = hc + (wc - hc) * t[:, None]                          # the centre line sampled at L5's fractions (the hood's columns; uniform for the first TRI_K) ...
-    P[:, 2] += D.hood_sag(t)                                 # ... bowed up like L5 (2026-10-24, design2.QF_HOOD_SAG)
+    P[:, 2] += D.hood_cen_sag(t)                             # ... bowed up (2026-10-24, design2.QF_HOOD_SAG; QF_L5_FIT: the straight-then-rounded centre line of design2.hood_cen_z)
     return P
 
 
@@ -336,7 +336,7 @@ def e_cowl(R):
 
 
 def e_cowl_diag(R):
-    return snap(C['cowl_diag'].at(xlist(I_W, I_A, pins={I_A: D.A_IN[0]})), (0, D.W), (-1, D.A_IN))
+    return snap(C['cowl_diag'].at(xlist(I_W, I_A, pins={I_W: D.W[0], I_A: D.A_IN[0]})), (0, D.W), (-1, D.A_IN))
 
 
 def e_F_end(R):
@@ -456,7 +456,7 @@ def e_E_up(R):
 
 
 def e_rail(R):
-    return snap(C['rail'].at(xlist(I_W, I_LAST, None, R.E.rail1, pins={I_A: D.A_IN[0]})), (0, D.W), (I_A - I_W, D.A_IN))
+    return snap(C['rail'].at(xlist(I_W, I_LAST, None, R.E.rail1, pins={I_W: D.W[0], I_A: D.A_IN[0]})), (0, D.W), (I_A - I_W, D.A_IN))
 
 
 def e_rail_roof(R):
@@ -464,7 +464,7 @@ def e_rail_roof(R):
 
 
 def e_gedge(R):
-    P = C['gedge'].at(xlist(I_W, I_LAST, None, R.E.ge1, pins={I_A: D.A_IN[0]}))
+    P = C['gedge'].at(xlist(I_W, I_LAST, None, R.E.ge1, pins={I_W: D.W[0], I_A: D.A_IN[0]}))
     rail = R._edge('rail')
     P = snap(P, (0, D.W), (I_A - I_W, D.A_IN))
     if np.linalg.norm(P[-1] - rail[-1]) < 2e-3:
@@ -473,7 +473,7 @@ def e_gedge(R):
 
 
 def e_top(R):
-    P = C['top'].at(xlist(I_W, I_LAST, None, R.E.top1))
+    P = C['top'].at(xlist(I_W, I_LAST, None, R.E.top1, pins={I_W: D.W[0]}))
     ge = R._edge('gedge')
     P = snap(P, (0, [D.W[0], 0.0, D.W[2]]), (I_SEAM - I_W, [ge[I_SEAM - I_W][0], 0.0, ge[I_SEAM - I_W][2]]))
     return P
@@ -1011,7 +1011,7 @@ BLEND_DENS = 2.5                                         # the arc's nodes are (
 # The face below the crest U is ONE flat ruling from U to the line Lm.  Over the front wheel the wheel opening removes everything below z ~0.80 at the hub, so Lm (and the soft turn at it) is hidden there; the face
 # is only seen above the opening.  Raising Lm in z over the wheel (a C2 plateau, QF_H_DZ between QF_H_X[1] and [2], zero ahead of [0] and aft of [3]) tilts the rulings flatter there:
 # the straight face reaches the opening's top edge farther out (the body covers the tyre), the crest U is NOT moved, no section is rounded.  Hidden construction line only: the visible L (side marker, nose) is the L curve.
-QF_H_ON = os.environ.get('QF_H_ON', '1') == '1'
+QF_H_ON = os.environ.get('QF_H_ON', '0') == '1'
 QF_H_X = tuple(float(v) for v in os.environ.get('QF_H_X', '-1.85,-1.52,-1.52,-1.17').split(','))      # (QF_H_X=-1.85,-1.50,-1.50,-1.18: one peak without the plateau: no near-zero normal-rate strip at x -1.55, tested)
 # (review 2026-10-23, item 3: the fall -1.487 -> -1.20 twisted the face 6.6 cm in 29 cm and left a dish (z_xx +2.4 /m) over the arch's rear end in the p016 zebra; -1.52 -> -1.17 (35 cm): the dish
 #  -30 %, the body's edge over the arch 2.4 mm less far out at most (still over the tyre), the visible L aft of the arch (x > -1.211) raised 0.8 mm at most)
@@ -1306,6 +1306,13 @@ def row_pairs():
     return [(k, k) for k in range(n + 1)], D.TRI_K
 
 
+def I_A_PAR(U, L5):
+    """first row index whose crest sample lies behind the cowl corner W (its cylinder partner would be past L5's end)"""
+    xp = np.array([D.cyl_partner_x(u[0], u[1]) for u in U])
+    k = np.where(xp >= D.W[0])[0]
+    return int(k[0]) - 1 if len(k) else len(U)
+
+
 def fender_rows(R):
     """the rows of the flap and the fender top between the hood edge L5 and the crest U: row k pairs L5[k] with U[k] (see row_pairs).
     G-5 (user principle, 2026-10-19): the fender top is a RULED surface, every row a straight line from the crisp straight edge L5 to the crest U (no v^2 profile, no tilted plane Q, no blend band behind the
@@ -1330,7 +1337,16 @@ def fender_rows(R):
             r = END
         else:
             s = (1.0 - u ** P_END) * np.linspace(0.0, 1.0, m_end + 1) + u ** P_END * s_end
-            r = L5[a] + (U[b] - L5[a]) * s[:, None]
+            p0 = L5[a]
+            if D.QF_FT_CYL and D.QF_FT_PAR and b > I_A_PAR(U, L5):    # behind the cowl corner: the rulings stay parallel (plan direction of the cylinder) and start on the glass edge F_end
+                dd_ = A0 - W0
+                # plan intersection of the line U[b] - t (dxy, 1) with W0 + s dd_
+                dxy = D.QF_FT_D[0]
+                M_ = np.array([[dd_[0], dxy], [dd_[1], 1.0]])
+                sol = np.linalg.solve(M_, np.array([U[b][0] - W0[0], U[b][1] - W0[1]]))
+                if 0.0 <= sol[0] <= 1.0:
+                    p0 = W0 + sol[0] * dd_
+            r = p0 + (U[b] - p0) * s[:, None]
             if D.QF_FT_C > 0.0 or D.QF_FT_K > 0.0:                # c10: the fender top is slightly convex (see design2.QF_FT_C): the crown follows the row's chord parameter, its height the envelope over the rows
                 if D.QF_FT_K > 0.0:                               # 2026-10-24: constant cross curvature (design2.QF_FT_K): crown height K w^2 / 8 (capped), faded in behind the seam
                     wr = float(np.linalg.norm(U[b] - L5[a]))
@@ -1347,6 +1363,8 @@ def fender_rows(R):
                     r = r + (hc * 4.0 * cs * (1.0 - cs))[:, None] * nrm
             r[0], r[-1] = L5[a], U[b]
         rows.append(r)
+    if D.QF_FT_CYL and D.QF_FT_PAR:
+        rows = rows[:-1]                                  # (the END row is the glass edge: the parallel rows start on it)
     return rows, iseam
 
 
@@ -1779,6 +1797,7 @@ QF_P3_FRONT_RISE = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_RISE', '-
 QF_P3_FRONT_END = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_END', '0.00,0.50').split(','))   # C2 window at the door end (the spline alone ended with a slope:
 #   a 0.66 deg corner in L's plan at x 0.50)
 QF_P3_FRONT_ZB = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_ZB', '0.10,0.30').split(','))
+QF_P3_FRONT_LIN = os.environ.get('QF_P3_FRONT_LIN', '1') == '1'      # round 2 (front, no twist / bulge): the widening is LINEAR across the shoulder rung (a shear: a straight row stays straight)
 QF_P3_FRONT_S0 = float(os.environ.get('QF_P3_FRONT_S0', '0.30'))
 QF_P3_FRONT_UK = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_UK', '-2.40,-2.00').split(','))
 QF_P3_FRONT_DU = float(os.environ.get('QF_P3_FRONT_DU', '0.08'))
@@ -1833,7 +1852,7 @@ def p3_front_dy(x, y, z):
         r, d = max(math.hypot(yu - yl, zu - zl), 1e-3), math.hypot(ay - yl, z - zl)
         k = 1.0 - float(D.sstep(QF_P3_FRONT_UK[0], QF_P3_FRONT_UK[1], x))
         if d <= r:
-            g = 1.0 - (1.0 - k) * float(D.sstep(QF_P3_FRONT_S0, 1.0, d / r))
+            g = 1.0 - (1.0 - k) * (d / r if QF_P3_FRONT_LIN else float(D.sstep(QF_P3_FRONT_S0, 1.0, d / r)))      # round 2: LIN keeps every shoulder row a straight line (the smoothstep bent the rows into an S, 13 mm, and lit the rings)
         else:
             g = k * (1.0 - float(D.sstep(0.0, QF_P3_FRONT_DU, d - r)))
     return math.copysign(A * g * float(D.sstep(0.30, 0.50, ay)), y)
@@ -2167,7 +2186,7 @@ def build_shell2(bevel=True, check=True, unlock=()):
 
 def glass_half_width(x):
     """y of the glass edge (the foot of the ridge's inner wall) at station x"""
-    return float(C['gedge'].at(max(float(x), -1.625))[1])
+    return float(C['gedge'].at(max(float(x), D.W[0]))[1])
 
 
 def feature_lines():
