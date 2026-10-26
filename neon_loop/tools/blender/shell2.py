@@ -274,7 +274,7 @@ def e_hood_cen(R):
     wc = np.array([D.W[0], 0.0, D.W[2]])
     t = D.l5_tau(I_A)
     P = hc + (wc - hc) * t[:, None]                          # the centre line sampled at L5's fractions (the hood's columns; uniform for the first TRI_K) ...
-    P[:, 2] += D.hood_sag(t)                                 # ... bowed up like L5 (2026-10-24, design2.QF_HOOD_SAG)
+    P[:, 2] += D.hood_cen_sag(t)                             # ... bowed up (2026-10-24, design2.QF_HOOD_SAG; QF_L5_FIT: the straight-then-rounded centre line of design2.hood_cen_z)
     return P
 
 
@@ -336,7 +336,7 @@ def e_cowl(R):
 
 
 def e_cowl_diag(R):
-    return snap(C['cowl_diag'].at(xlist(I_W, I_A, pins={I_A: D.A_IN[0]})), (0, D.W), (-1, D.A_IN))
+    return snap(C['cowl_diag'].at(xlist(I_W, I_A, pins={I_W: D.W[0], I_A: D.A_IN[0]})), (0, D.W), (-1, D.A_IN))
 
 
 def e_F_end(R):
@@ -456,7 +456,7 @@ def e_E_up(R):
 
 
 def e_rail(R):
-    return snap(C['rail'].at(xlist(I_W, I_LAST, None, R.E.rail1, pins={I_A: D.A_IN[0]})), (0, D.W), (I_A - I_W, D.A_IN))
+    return snap(C['rail'].at(xlist(I_W, I_LAST, None, R.E.rail1, pins={I_W: D.W[0], I_A: D.A_IN[0]})), (0, D.W), (I_A - I_W, D.A_IN))
 
 
 def e_rail_roof(R):
@@ -464,7 +464,7 @@ def e_rail_roof(R):
 
 
 def e_gedge(R):
-    P = C['gedge'].at(xlist(I_W, I_LAST, None, R.E.ge1, pins={I_A: D.A_IN[0]}))
+    P = C['gedge'].at(xlist(I_W, I_LAST, None, R.E.ge1, pins={I_W: D.W[0], I_A: D.A_IN[0]}))
     rail = R._edge('rail')
     P = snap(P, (0, D.W), (I_A - I_W, D.A_IN))
     if np.linalg.norm(P[-1] - rail[-1]) < 2e-3:
@@ -473,7 +473,7 @@ def e_gedge(R):
 
 
 def e_top(R):
-    P = C['top'].at(xlist(I_W, I_LAST, None, R.E.top1))
+    P = C['top'].at(xlist(I_W, I_LAST, None, R.E.top1, pins={I_W: D.W[0]}))
     ge = R._edge('gedge')
     P = snap(P, (0, [D.W[0], 0.0, D.W[2]]), (I_SEAM - I_W, [ge[I_SEAM - I_W][0], 0.0, ge[I_SEAM - I_W][2]]))
     return P
@@ -2025,7 +2025,7 @@ def build_shell2(bevel=True, check=True, unlock=()):
 
 def glass_half_width(x):
     """y of the glass edge (the foot of the ridge's inner wall) at station x"""
-    return float(C['gedge'].at(max(float(x), -1.625))[1])
+    return float(C['gedge'].at(max(float(x), D.W[0]))[1])
 
 
 def feature_lines():

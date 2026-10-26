@@ -69,7 +69,7 @@ def rows(rep):
     U = D.CURVES['U']
     N_, W_ = np.array(D.N, float), np.array(D.W, float)
     yl5 = lambda x: N_[1] + (W_[1] - N_[1]) * (x - N_[0]) / (W_[0] - N_[0])
-    zl5 = lambda x: N_[2] + (W_[2] - N_[2]) * (x - N_[0]) / (W_[0] - N_[0])
+    zl5 = lambda x: N_[2] + (W_[2] - N_[2]) * (x - N_[0]) / (W_[0] - N_[0]) + float(D.hood_sag((x - N_[0]) / (W_[0] - N_[0])))      # (L5's own bow: QF_L5_FIT / QF_HOOD_SAG)
     out = {}
     print('top face lean  U - inner edge at the same x  (inner edge = L5, aft of its end W (x %.3f) the cowl diagonal W -> A_OUT)' % W_[0])
     A_ = np.array(D.A_OUT, float)

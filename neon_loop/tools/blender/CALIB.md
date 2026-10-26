@@ -539,3 +539,12 @@ p013 俯视平面（0.05 m 一格）：未加长的模型在 x ≤ 2.28 与照�
 **没有做**：`QF_LIP_RAMP`（可选项）未试。WA（侧窗前下角）模型 |y| 0.925、照片 0.861（+6.4 cm；第二阶段 U_front 在 x −1.40 也是 0.877），要动 A 柱脚和玻璃，不在这一轮。
 
 重锁：front_face、hood、corner_tri、fender_top、shoulder、wall、wall_black（其余 10 块不变）。
+
+# 车头第二轮（2026-10-26，FRONT-2，分支 r2-front）
+
+开关（design2，默认开；关 = 旧形状）：`QF_W_FIT`（风挡下前角 W (−1.625, 0.547, 0.84) → (−1.704, 0.532, 0.830)，p013 + p016 三角化，残差 ≤ 3 px）、`QF_L5_FIT`（L5 直线到翼子板翻板缝 C，再一段抛物线到 W；`QF_L5_BC` 0.028、引擎盖中线 `QF_HC_*`）、`QF_FT_FLAT`（翼子板顶面不再鼓顶：`QF_FT_C` / `QF_FT_K` 默认 0）、`QF_U_ROUND`（U 俯视过鼻角处收直，`_L` 0.5）、`QF_U_MONO`（U 在 x −1.75…−1.15 的斜率不回升，改动 < 1 mm）；front.py 的 `QF_LIP_RAMP=arc` 预览（默认关）。
+重锁：hood、corner_tri、fender_top、shoulder、wall、door_glass、pillar、glass（wall 的变化来自 L 随 U 的直纹高度，door_glass / pillar / glass 来自 W）。
+
+数字（前 → 后）：linecheck L5 p016L 11.1 → 2.8、p016R 8.7 → 2.7、p013R 6.8 → 3.6、p014L 3.4 → 4.2、p014R 6.8 → 7.3 px；U_front p016L 4.3 → 4.8、p018L 2.2 → 3.4、p013L 7.0 → 5.5、p013R 5.5 → 4.4 px；全部线 rms 5.07 → 4.77 px。`check.py fender`：p016 L5 平均 10.6 → 3.0 px；p018 顶线 max 7.4 → 8.2 px（FAIL，目标 ≤ 8）；U 曲率变号 1 → 3（FAIL）；顶面倾角 x −2.0：+11.7° → +2.8°。`check.py nose` 9 PASS。lock 17 PASS、smooth 242 PASS、budget 5 PASS、clearance 4 PASS、npm test 通过。
+
+未完成：翼子板顶面斑马纹（h / v）仍是一串闭合环（改前改后都有），顶面不是照片里的平整一块；WA 窗角（|y| 0.925 对 0.861）没动；U 的 p018 顶线 8.2 px、p016 曲率变号 3；下唇两端 `QF_LIP_RAMP=arc` 没有逐视角验证（默认关）。

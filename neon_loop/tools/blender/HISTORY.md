@@ -922,3 +922,6 @@ R1b 的 Catmull-Clark 笼子在镜面检查里一直有褶皱（A 柱根、鼻�
 - 资产：public/assets/car 重建（压缩 + raw）。hi 301,336 三角 / 49 调用，lod1 59,180 / 19，lod2 8,334 / 8，budget 5 PASS；lock 17 PASS，smooth 242 PASS，npm test 通过；浏览器（SwiftShader）里比赛场景加载正常。
 - 压缩导出在 Linux 上要 `LD_LIBRARY_PATH=$HOME/blender/lib`（README 已写），否则 meshopt 库加载失败。
 - 用户随后裁决（2026-10-26）："所有的规则都推翻吧，那些规则是过去的产物不准确的……面板和线条可以只要拉伸改变，不必拘泥"。第二轮按车头 / 车身中段 / 车尾三段重构，之后做全车光顺审查。
+
+## 车头第二轮（2026-10-26，FRONT-2）
+按校准照片重做 W / L5 / 翼子板顶面：W 前移 8 cm，L5 贴照片（p016 L5 平均 10.6 → 3.0 px），顶面去鼓顶，U 俯视收直、斜率不回升。顶面斑马纹闭合环、WA 窗角、U 曲率变号、p018 顶线 8.2 px 未解决（见 CALIB.md 同名节）。
