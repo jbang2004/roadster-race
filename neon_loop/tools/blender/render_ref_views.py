@@ -328,7 +328,10 @@ for _n in [v for v in os.environ.get('NOLIGHT', '').split(',') if v]:       # de
 for n in names:
     loc, tgt, lens, (w, h), (sx, sy), *roll = VIEWS[n]
     cd = bpy.data.cameras.new(n)
-    cd.lens = lens
+    cd.lens = abs(lens)
+    if lens < 0:        # FRONT-3: a negative 'lens' = an orthographic camera whose frame is -lens m wide
+        cd.type = 'ORTHO'
+        cd.ortho_scale = -lens
     cd.sensor_width = 36
     cd.sensor_fit = 'HORIZONTAL'
     cd.shift_x, cd.shift_y = sx, sy

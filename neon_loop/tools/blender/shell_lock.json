@@ -2,17 +2,17 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "eeb62b73a020ae92",
+   "sha": "9e1a0d74bd94ced8",
    "verts": 4854,
    "faces": 4642
   },
   "wall": {
-   "sha": "6bb49cd570c2bef1",
+   "sha": "326d3fa400c53662",
    "verts": 5497,
    "faces": 5212
   },
   "wall_black": {
-   "sha": "0faab78a826fc04d",
+   "sha": "7da80fcd25a1ba62",
    "verts": 4872,
    "faces": 4578
   },
@@ -42,7 +42,7 @@
    "faces": 2618
   },
   "corner_tri": {
-   "sha": "1e4eea56b661eca0",
+   "sha": "ca1d1902e503a0b9",
    "verts": 628,
    "faces": 594
   },

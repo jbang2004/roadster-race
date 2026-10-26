@@ -1797,6 +1797,7 @@ QF_P3_FRONT_RISE = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_RISE', '-
 QF_P3_FRONT_END = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_END', '0.00,0.50').split(','))   # C2 window at the door end (the spline alone ended with a slope:
 #   a 0.66 deg corner in L's plan at x 0.50)
 QF_P3_FRONT_ZB = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_ZB', '0.10,0.30').split(','))
+QF_P3_FRONT_WB = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_WB', '-2.15,-1.85,-1.10,-0.95,1.8').split(','))      # FRONT-3: extra widening (x0, x1 full, x2 still full, x3 gone, amplitude cm) over the front wheel
 QF_P3_FRONT_LIN = os.environ.get('QF_P3_FRONT_LIN', '1') == '1'      # round 2 (front, no twist / bulge): the widening is LINEAR across the shoulder rung (a shear: a straight row stays straight)
 QF_P3_FRONT_S0 = float(os.environ.get('QF_P3_FRONT_S0', '0.30'))
 QF_P3_FRONT_UK = tuple(float(v) for v in os.environ.get('QF_P3_FRONT_UK', '-2.40,-2.00').split(','))
@@ -1841,6 +1842,8 @@ def p3_front_dy(x, y, z):
     A = 0.01 * max(0.0, float(s(x))) * float(D.sstep(QF_P3_FRONT_RISE[0], QF_P3_FRONT_RISE[1], x)) * (1.0 - float(D.sstep(QF_P3_FRONT_END[0], QF_P3_FRONT_END[1], x)))
     if QF_P3_FRONT_DOOR:
         A *= 1.0 - (1.0 - QF_P3_FRONT_DR) * float(D.sstep(QF_P3_FRONT_DX[0], QF_P3_FRONT_DX[1], x))
+    if QF_P3_FRONT_WB[4] != 0.0:       # FRONT-3: the extra widening over the front wheel (the tyre's outer edge |y| 1.0975 must lie under the skin): C2 plateau
+        A += 0.01 * QF_P3_FRONT_WB[4] * float(D.sstep(QF_P3_FRONT_WB[0], QF_P3_FRONT_WB[1], x)) * (1.0 - float(D.sstep(QF_P3_FRONT_WB[2], QF_P3_FRONT_WB[3], x)))
     if A <= 0.0:
         return 0.0
     ay = abs(y)
@@ -1999,19 +2002,90 @@ def p3_dy(x, y, z):
     return (p3_hip_dy(x, y, z) if QF_P3_HIP else 0.0) + (p3_front_dy(x, y, z) if QF_P3_FRONT else 0.0)
 
 
+# FRONT-3 (user: "add some surface above the arch to cover the tyre"): the front arch's paint outline is a circle with its top at z 0.767 (shell2.QF_AZ_CC), but the crease L over the wheel is at z 0.66 (and |y| 1.117),
+# so the arch cut ate the outer 7 cm of the shoulder and the tyre (|y| up to 1.098) showed through it from above.  QF_FA_ON lifts the crease over the wheel to the arch top + QF_FA_M (a soft maximum, QF_FA_S wide)
+# and the shoulder with it: dz = Hz(x) g, g = 1 at L, 0 at U (a linear shear: every row of the shoulder stays a straight line, U and everything inboard of it do not move), and on the wall g runs 0 at the foot l3 (QF_FA_ZF)
+# to 1 at L (rows stay straight too).  The shoulder over the wheel is then a flatter (26 deg instead of 56) face; no skin is cut by the arch above L.
+QF_FA_ON = os.environ.get('QF_FA_ON', '1') == '1'
+QF_FA_M = float(os.environ.get('QF_FA_M', '0.015'))             # the crease stands this far above the arch outline's top (m)
+QF_FA_S = float(os.environ.get('QF_FA_S', '0.012'))             # softness of the maximum (m)
+QF_FA_ZF = float(os.environ.get('QF_FA_ZF', '0.29'))            # the foot of the wall (z of l3): the lift fades to 0 there
+
+
+def _arch_top(x):
+    """height (m) of the circle QF_AZ_CC at x (None outside it)"""
+    cx, cz, Rr = QF_AZ_CC
+    dx = x - cx
+    return None if abs(dx) >= Rr else cz + math.sqrt(Rr * Rr - dx * dx)
+
+
+_FA_H = {}
+QF_FA_BOWL = tuple(float(v) for v in os.environ.get('QF_FA_BOWL', '22.0,40.0,0.45,-1.50').split(','))   # the lean of the shoulder over the wheel, as a bowl: TH0 + TH1 ((x - xc) / W)^2 degrees (TH0 at the hub, xc)
+QF_FA_X = tuple(float(v) for v in os.environ.get('QF_FA_X', '-2.30,-1.98,-1.12,-0.98').split(','))    # the lift acts from [0] (zero), fully from [1] to [2], gone at [3] (C2); the bowl itself decides where it is needed
+QF_FA_SOFT = float(os.environ.get('QF_FA_SOFT', '0.004'))      # softness (m) of the max(0, target - L)
+
+
+def p3_front_hz(x):
+    """how much the crease L is lifted at x (m): softplus(z_target - L), z_target = U - (|L'| - |U|) tan(bowl lean): L' lies on the roof whose lean is the bowl QF_FA_BOWL where that is flatter than the shoulder's own lean"""
+    if x <= QF_FA_X[0] or x >= QF_FA_X[3]:
+        return 0.0
+    k = round(x, 4)
+    if k not in _FA_H:
+        T = _p3_hip_tables()
+        w = float(D.sstep(QF_FA_X[0], QF_FA_X[1], x)) * (1.0 - float(D.sstep(QF_FA_X[2], QF_FA_X[3], x)))
+        yl, zl, yu, zu = T['Ly'](x), T['L'](x), T['Uy'](x), T['U'](x)
+        yl_new = yl + p3_front_dy(x, yl, zl)                 # L after the plan widening
+        th0, th1, W, xc = QF_FA_BOWL
+        th = th0 + th1 * ((x - xc) / W) ** 2
+        zt = zu - (yl_new - yu) * math.tan(math.radians(min(th, 80.0)))
+        sf = QF_FA_SOFT
+        a = (zt - zl) / sf
+        _FA_H[k] = w * sf * (a if a > 30.0 else math.log1p(math.exp(a)))
+    return _FA_H[k]
+
+
+def p3_front_dz(x, y, z):
+    if not QF_FA_ON or x < -1.95 or x > -1.0:
+        return 0.0
+    ay = abs(y)
+    if ay < 0.80:
+        return 0.0
+    H = p3_front_hz(x)
+    if H <= 1e-6:
+        return 0.0
+    T = _p3_hip_tables()
+    yl, zl, yu, zu = T['Ly'](x), T['L'](x), T['Uy'](x), T['U'](x)
+    if z <= zl + 1e-9:
+        if ay < yl - 0.12 or z <= QF_FA_ZF:
+            return 0.0
+        return H * (z - QF_FA_ZF) / max(zl - QF_FA_ZF, 1e-3)
+    ux, uz = yu - yl, zu - zl
+    r2 = ux * ux + uz * uz
+    t = ((ay - yl) * ux + (z - zl) * uz) / r2
+    if t < -0.02 or t > 1.02:
+        return 0.0
+    perp = abs((ay - yl) * uz - (z - zl) * ux) / math.sqrt(r2)
+    if perp > 0.015:          # (the rows carry the lens bulge, up to 6 mm, and the straight ruling's own tolerance)
+        return 0.0
+    return H * (1.0 - min(max(t, 0.0), 1.0))
+
+
 def p3_morph(pm):
     if not (QF_P3_HIP or QF_P3_FRONT):
         return
     for i, v in enumerate(pm.verts):
         d = p3_dy(float(v[0]), float(v[1]), float(v[2]))
-        if d:
-            pm.verts[i] = (v[0], float(v[1]) + d, v[2]) + tuple(v[3:])
+        e = p3_front_dz(float(v[0]), float(v[1]), float(v[2]))
+        if d or e:
+            pm.verts[i] = (v[0], float(v[1]) + d, float(v[2]) + e) + tuple(v[3:])
     if getattr(pm, 'rows', None) is not None:
         rows = []
         for r in pm.rows:
             r = np.array(r, float)
             for k in range(len(r)):
+                e = p3_front_dz(r[k, 0], r[k, 1], r[k, 2])
                 r[k, 1] += p3_dy(r[k, 0], r[k, 1], r[k, 2])
+                r[k, 2] += e
             rows.append(r)
         pm.rows = rows
 
@@ -2280,9 +2354,26 @@ def p3_arr(phi_deg):
     return 1e-3 * _arr_mm(p) if QF_P3_ARR else 0.0
 
 
+# FRONT-3 (user: "the wheel arch looks deformed"): the 14 depth knots above make an egg (radius 0.415 at the front edge, 0.371 at the top, a 44 mm dip in a 40 deg stretch).  The knots'
+# outline is within 8.7 mm of ONE circle, centre (-1.478, 0.324) R 0.443 (least squares over 28 .. 176 deg), so the outline becomes that circle: top z 0.767 (the photo's 0.762 + 5 mm), front edge x -1.92 (was -1.902).
+QF_AZ_CIRC = os.environ.get('QF_AZ_CIRC', '1') == '1'
+QF_AZ_CC = tuple(float(v) for v in os.environ.get('QF_AZ_CC', '-1.478,0.324,0.443').split(','))
+
+
+def _az_circ_r(phi_deg):
+    """polar radius, about the old hub (-1.487, 0.39), of the circle QF_AZ_CC (centre x, z, radius) in the direction phi (deg, 0 = aft, 90 = up)"""
+    cx, cz, Rr = QF_AZ_CC
+    ux, uz = math.cos(math.radians(phi_deg)), math.sin(math.radians(phi_deg))
+    dx, dz = cx - (-1.487), cz - 0.39
+    cu = dx * ux + dz * uz
+    return cu + math.sqrt(max(Rr * Rr - (dx * dx + dz * dz) + cu * cu, 0.0))
+
+
 def qf_az_depth(phi_deg):
     """depth (m) of the front arch outline below the circle at the angle phi (deg, atan2(z - hub, x - hub), the bottom part of the front edge counted as +180 .. +270)"""
     p = phi_deg + 360.0 if phi_deg < -90.0 else phi_deg
+    if QF_AZ_CIRC:
+        return 0.415 - _az_circ_r(p)         # FRONT-3: the outline is ONE circle (R_ARCH 0.415 about the old hub (-1.487, 0.39) minus this depth = the circle's polar radius)
     return 1e-3 * QF_AZ_S * _AZ_F(p)
 
 
