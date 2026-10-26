@@ -12,7 +12,8 @@
 | `neon_loop/tools/blender/` | 车模生成管线：`build_game_car.py`、曲面 `design2.py` / `shell2.py` / `curves2.py`、检查 `check.py` |
 | `neon_loop/tools/*.mjs` | 浏览器测试和截图（Playwright） |
 | `refs/` | 参考照片。代号、机位和用途见 `neon_loop/tools/blender/REFS.md` |
-| `wip/c11b-h5/` | 未合并的前轮肩部改动，见其中的 README |
+| `wip/c11b-h5/` | 前轮肩部改动的存档（已合并） |
+| `wip/round2/` | 全车对标第二轮的交接：现状、用户裁决、三项任务、半成品补丁 |
 | `cloud-setup.sh` | Linux / 云端环境一键安装 |
 
 建模规则和历史记录：
@@ -67,7 +68,8 @@ export LD_LIBRARY_PATH="$HOME/blender/lib"   # 压缩导出（meshopt）要用 B
 
 这个脚本会安装 Blender 5.2、npm 依赖、Chromium 和 numpy。云环境的网络权限需要放行 download.blender.org、npm、Playwright CDN 和 PyPI。容器里没有 GPU，Cycles 用 CPU 渲染，会慢一些。
 
-## 当前状态（2026-10-22）
+## 当前状态（2026-10-26）
 
-- 主线车模是 c10b 车身加 q8 车头，外加 q12 / q12b 光顺：尾肩面、上面波纹、溜背、车顶边梁和玻璃边、窗下折带，以及合并后的 h5 前轮肩部（门缝前凹谷已处理）。细节见 `neon_loop/tools/blender/HISTORY.md`。
+- 全车对标第一轮已完成：用统一校准的相机把 14 个视角逐一对照照片，车轮、车头、侧面、前半车身、车尾下部、车尾加长都已改过并导出资产。汇总见 `neon_loop/tools/blender/SPEC.md` §9，数据见 `CALIB.md`，过程见 `HISTORY.md`。
+- 第二轮（推翻旧裁决、按校准照片重构车头 / 车身中段 / 车尾耳朵）从云端转到本机继续：**先读 `wip/round2/README.md`**。
 - `wip/c11b-h5/` 已合并进主线，只作存档。

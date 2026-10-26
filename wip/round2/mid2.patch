@@ -1,0 +1,160 @@
+diff --git a/neon_loop/tools/blender/design2.py b/neon_loop/tools/blender/design2.py
+index f73ac37..ff347ce 100644
+--- a/neon_loop/tools/blender/design2.py
++++ b/neon_loop/tools/blender/design2.py
+@@ -3874,6 +3874,12 @@ QF_P3_L3Y = os.environ.get('QF_P3_L3Y', '1') == '1'
+ QF_P3_L3Y_X = tuple(float(v) for v in os.environ.get('QF_P3_L3Y_X', '-1.20,-0.82,0.25,0.80').split(','))
+ QF_P3_L3Y_P = ((-0.799, 0.997), (0.264, 1.016))
+ QF_P3_L3Y_D = float(os.environ.get('QF_P3_L3Y_D', '0.006'))      # (the seams' own lower ends, fitted without the landmarks, are 0.2 - 1.1 cm outboard of DS1b / DS2b)
++# QF_MID_L3 (2026-10-26, MID-2): the rear door seam's lower end.  DS_rear (four views, sd 0.44 cm in y) meets the black zone at |y| 1.0179 (x 0.266, z 0.34); the line above stood 4.9 mm outboard there (the front end is
++#   right: DS_front 1.0070 vs 1.0078).  l3 moves inboard by QF_MID_L3_D (m) with a C2 window: 0 at x -0.90 (the door cut: nothing ahead of it moves), full at x 0.264 (DS2b), faded out again over 0.30 .. 0.80 (the rear
++#   quarter / hip, the rear agent's: the lean returns to the old section there).  The wall's section is the shell2 QF_MID_WALL curve between l3 and L.  QF_MID_L3=0: l3 as QF_P3_L3Y left it.
++QF_MID_L3 = os.environ.get('QF_MID_L3', '1') == '1'
++QF_MID_L3_D = float(os.environ.get('QF_MID_L3_D', '0.005'))
++QF_MID_L3_X = tuple(float(v) for v in os.environ.get('QF_MID_L3_X', '-0.90,0.264,0.30,0.80').split(','))
+ 
+ 
+ def _p3_line(name):
+@@ -3925,6 +3931,13 @@ def p3_apply():
+             x = np.asarray(x, float)
+             return sstep(a, b, x) * (1.0 - sstep(c, d, x)) * (ya + QF_P3_L3Y_D + m * (x - xa) - np.asarray(old.fy(x), float))
+         CURVES['l3'] = PlanMod(old, old.x0, dy, lambda x: 0.0 * np.asarray(x, float), 'l3')
++    if QF_MID_L3:
++        old = CURVES['l3']
++
++        def dym(x, w=QF_MID_L3_X):
++            x = np.asarray(x, float)
++            return -QF_MID_L3_D * sstep(w[0], w[1], x) * (1.0 - sstep(w[2], w[3], x))
++        CURVES['l3'] = PlanMod(old, old.x0, dym, lambda x: 0.0 * np.asarray(x, float), 'l3')
+     if QF_P3_U:
+         _p3_toward('U', 'U_win', QF_P3_UX, 1)
+     if QF_P3_LF:
+diff --git a/neon_loop/tools/blender/regions/side.py b/neon_loop/tools/blender/regions/side.py
+index f35804a..834d204 100644
+--- a/neon_loop/tools/blender/regions/side.py
++++ b/neon_loop/tools/blender/regions/side.py
+@@ -48,6 +48,12 @@ MK_COVER_H = 0.0018             # the rear cover's two facets rise this much to
+                                 # facet mirrored the studio's lit floor as a grey triangle in p016)
+ MK_AMBER = (-0.972, -0.907)     # (was -0.985 .. -0.915) the amber line along the top of the rear cover, from just behind the rib (p003 1070 -> 1133 px) to 1 cm before the top-rear corner
+ MK_AMBER_Z = (0.0042, 0.0078)   # (was 0.0035 .. 0.0065) ... this far below L (p003: 3.5 - 4 px thick under a 3 - 4 px black lip)
++# 2026-10-26 (MID-2, QF_MID_MK): the housing's top edge is NOT on L.  p003 (a close, sharp view along the flank, landmark residuals <= 2 px) reads the black housing's upper boundary at z 0.679 / 0.692 / 0.710 / 0.729 / 0.737
++# at x -1.28 / -1.19 / -1.08 / -0.95 / -0.89 (rays onto |y| 1.07): a straight line of slope 0.149 - 0.157 through DFJ (-0.896, 0.739), which at the tip stands 1.5 cm below L (L's slope there is 0.107; 1.9 cm at
++# x -1.28, 0.3 cm at x -0.89).  L itself stays (DFJ -0.5 mm; FMc and the phase-2 L_side fit within 0.3 cm; p018's traced L is 1.2 - 1.5 cm low only because p018's camera sits ~4 px off the landmarks over z 0.3 - 1.0:
++# l3 shows the same +4 px, DFJ / DS1b / DS2b -3.9 / -3.9 / -5.2 px).  The tip is lowered by MK_TIP_DZ below L; the top edge, the amber line (it follows the top edge) and everything inset from them move with it.  QF_MID_MK=0: on L.
++QF_MID_MK = os.environ.get('QF_MID_MK', '1') == '1'
++MK_TIP_DZ = 0.016               # the tip T stands this far below L (p003 15.3 mm at x -1.19, p018 15 - 19 mm)
+ 
+ # door seams, read in p018 (1800 px wide, camera 10 m away: near-orthographic).  Ridge positions measured row by row in the photo (the dark / light hairline of the seam),
+ # then smoothed ([1 2 1] over the neighbours); the lines are cast from the p018 camera onto the HI body, so they sit exactly where the photo shows them.
+@@ -365,7 +371,7 @@ def marker_outline(ctx):
+     Lc = ctx.A.D.CURVES['L']
+     xr = MK_X1 - 0.004
+     zr = float(Lc.at(xr)[2])
+-    return [(MK_TIP, float(Lc.at(MK_TIP)[2])), (xr, zr), (xr + MK_LEAN, zr - MK_HR), MK_FMC]
++    return [(MK_TIP, float(Lc.at(MK_TIP)[2]) - (MK_TIP_DZ if QF_MID_MK else 0.0)), (xr, zr), (xr + MK_LEAN, zr - MK_HR), MK_FMC]
+ 
+ 
+ def side_markers(ctx, level):
+@@ -506,7 +512,8 @@ def side_markers(ctx, level):
+         Lc = ctx.A.D.CURVES['L']
+         xs = sorted({MK_AMBER[0] + (MK_AMBER[1] - MK_AMBER[0]) * i / 6 for i in range(7)} | {mt[0]})
+         oc = lambda x: float(np.interp(x, [dt[0], mt[0], r2[0]], [ob, o2 + MK_COVER_H, ob]))
+-        ladder(Ma, [(x, float(Lc.at(x)[2]) - MK_AMBER_Z[0]) for x in xs], [(x, float(Lc.at(x)[2]) - MK_AMBER_Z[1]) for x in xs], [oc(x) + 0.0005 for x in xs], nF)
++        ztop = (lambda x: _z_on(T, R, x)) if QF_MID_MK else (lambda x: float(Lc.at(x)[2]))      # (the line under which the amber sits: the housing's top edge T -> R, or L)
++        ladder(Ma, [(x, ztop(x) - MK_AMBER_Z[0]) for x in xs], [(x, ztop(x) - MK_AMBER_Z[1]) for x in xs], [oc(x) + 0.0005 for x in xs], nF)
+         emit(Ma, 'SideLamp_%d' % sd, 'SideMarker', smooth=False)
+     return objs
+ 
+diff --git a/neon_loop/tools/blender/render_ref_views.py b/neon_loop/tools/blender/render_ref_views.py
+index d6ef340..3a71706 100644
+--- a/neon_loop/tools/blender/render_ref_views.py
++++ b/neon_loop/tools/blender/render_ref_views.py
+@@ -17,6 +17,7 @@ Options:  --wing deploy|stow|hide   wing pose (the r81 / thrusters photos show i
+           --reflect h|v|hv          reflection-line check: the paint becomes a perfect mirror under a striped sky (24 bands per
+                                     revolution; h = horizontal bands, v = vertical, hv = both), no lights.  A clean surface
+                                     gives smooth, parallel stripes; pinches / ripples / creases show as kinks and whorls.
++          --no-floor                hide the floor plane (with --reflect: the lower flank mirrors striped sky instead of the flat ground)
+           --steer auto|off|<deg>    front wheels turned per view (wheelpose.py): auto (default) = the photo's calibrated angle (p016 -18, p017 +19,
+                                     p003 +23 deg, calib/result.json), off = straight, <deg> = that angle in every view
+ """
+@@ -251,6 +252,8 @@ wingpose.apply(WING, GLB)
+ # floor + world
+ bpy.ops.mesh.primitive_plane_add(size=80, location=(0, 0, 0))
+ fl = bpy.context.object
++if '--no-floor' in argv:        # (MID-2, with --reflect: no floor, so the lower flank, which leans in and mirrors the ground, shows the striped sky below the horizon instead of a flat grey)
++    fl.hide_render = True
+ fm = bpy.data.materials.new('Floor')
+ fm.use_nodes = True
+ fm.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.028, 0.028, 0.031, 1)     # a dark room like the press photos: nothing bright for the glass to mirror at grazing angles
+diff --git a/neon_loop/tools/blender/shell2.py b/neon_loop/tools/blender/shell2.py
+index 272296f..ad95dc4 100644
+--- a/neon_loop/tools/blender/shell2.py
++++ b/neon_loop/tools/blender/shell2.py
+@@ -1177,6 +1177,36 @@ def wall_pairs():
+     return i - np.round((I_FE - I_FS) * D.sstep(I_WF0, I_FE, i.astype(float))).astype(int)
+ 
+ 
++# QF_MID_WALL (2026-10-26, MID-2): the lower flank along the doors is ONE smooth convex curve from L down to l3, not a straight ruling.  The door seams fitted from four / five calibrated
++# views (calib/lines/fit.json DS_front / DS_rear, sd 1.0 / 0.44 cm in y) are y(z) curves that bow out between the two edges: the tangent is ~3 deg off the vertical at L and ~12 deg inboard at l3
++# (a circle of R ~ 2.7 - 5 m); against the straight ruling the seams stood 1.0 cm (front, z 0.46) and 0.76 cm (rear, z 0.6) proud (rear: 1.0 cm once l3 is at the seam's foot).  Each wall row gets the parabola 4 s (1 - s) times the sag
++# QF_MID_SAG(x) (m) outward, perpendicular to its chord: the two edges (the shared L / l3, the 8 mm fillet at L) do not move, the sag is the seams' (10 mm at x -0.85 and at 0.34; with l3 at the rear seam's foot, QF_MID_L3),
++# faded in over QF_MID_WX[0..1] (C2: zero at x -0.90, the door cut) and out over [2..3] (zero at x 0.80: the rear quarter and the hip are the REAR agent's).  QF_MID_WALL=0: the straight rulings.
++QF_MID_WALL = os.environ.get('QF_MID_WALL', '1') == '1'
++QF_MID_SAG = tuple(float(v) for v in os.environ.get('QF_MID_SAG', '0.0100,0.0100').split(','))      # sag (m) of the section at x QF_MID_SX[0] / [1]
++QF_MID_SX = tuple(float(v) for v in os.environ.get('QF_MID_SX', '-0.85,0.34').split(','))
++QF_MID_WX = tuple(float(v) for v in os.environ.get('QF_MID_WX', '-0.90,-0.45,0.30,0.80').split(','))
++
++
++def qf_mid_sag(x):
++    """the sag (m) of the wall's section at x: the seams' values (linear between them), times the C2 window"""
++    x = np.asarray(x, float)
++    s = QF_MID_SAG[0] + (QF_MID_SAG[1] - QF_MID_SAG[0]) * (x - QF_MID_SX[0]) / (QF_MID_SX[1] - QF_MID_SX[0])
++    return s * D.sstep(QF_MID_WX[0], QF_MID_WX[1], x) * (1.0 - D.sstep(QF_MID_WX[2], QF_MID_WX[3], x))
++
++
++def qf_mid_bulge(a, b, s):
++    """offsets (len(s), 3) of the wall row a -> b (fractions s): the parabola 4 s (1 - s) times the sag, outward and perpendicular to the chord"""
++    amp = float(qf_mid_sag(0.5 * (a[0] + b[0])))
++    if not QF_MID_WALL or amp == 0.0:
++        return 0.0
++    c = (b - a) / np.linalg.norm(b - a)
++    n = np.array([0.0, 1.0, 0.0])
++    n = n - (n @ c) * c
++    n = n / np.linalg.norm(n)
++    return amp * 4.0 * s * (1.0 - s) * n[None, :]
++
++
+ def p_wall(R):
+     """the wall up to the facet edge: a ruled strip between l3 and Lm whose last row is the facet edge E -> S (R1.. unchanged forward of the station I_WF0)"""
+     l3, Lm = R.edge('l3'), R.edge('Lm')
+@@ -1189,7 +1219,7 @@ def p_wall(R):
+             return blend_row(bd, i, 'wall', m)
+         s = np.linspace(0, 1, m + 1)[:, None]
+         if lagc[i] <= 1e-9:
+-            return a + (b - a) * s
++            return a + (b - a) * s + qf_mid_bulge(a, b, s)
+         # rearcrease: the partner is an L sample (integer lag: the edge is shared), but the rulings follow the CONTINUOUS lag (the point of the polyline L at the fractional index), the quantisation error
+         # (b - t, along L, at most half a station) is absorbed in the top band of the row: a smooth fan in the interior, no zig-zag of 0 / 1 lag steps in the reflections
+         f = i - lagc[i]
+diff --git a/neon_loop/tools/blender/smooth_report.py b/neon_loop/tools/blender/smooth_report.py
+index cfb7a02..5c12a9d 100644
+--- a/neon_loop/tools/blender/smooth_report.py
++++ b/neon_loop/tools/blender/smooth_report.py
+@@ -26,7 +26,7 @@ SLOPE_TOL, CURV_TOL = 0.02, 0.05  # deg, 1/m
+ PLANES = {'corner_tri': 2.5, 'facet': 4.0}            # designed planes: max distance from the best-fit plane (mm); limits = the pre-P3 shell (1.4, 3.6 mm) plus margin
+ import re
+ R_ARCH = float(re.search(r'^R_ARCH = ([\d.]+)', open(os.path.join(HERE, 'common.py')).read(), re.M).group(1))     # (common.py itself needs bpy)
+-OFF = {k: '0' for k in ('QF_P3_L3', 'QF_P3_U', 'QF_P3_HIP', 'QF_P3_FRONT', 'QF_P3_LF', 'QF_P3_ARR', 'QF_P3_TAILX', 'QF_P3_L3Y', 'QF_P3_FRONT_DOOR')}
++OFF = {k: '0' for k in ('QF_P3_L3', 'QF_P3_U', 'QF_P3_HIP', 'QF_P3_FRONT', 'QF_P3_LF', 'QF_P3_ARR', 'QF_P3_TAILX', 'QF_P3_L3Y', 'QF_P3_FRONT_DOOR', 'QF_MID_L3')}
+ 
+ 
+ def lines_at(xs_by_line):
+@@ -85,7 +85,7 @@ def joins():
+     front = list(S.QF_P3_FRONT_RISE) + list(S.QF_P3_FRONT_END) + [S.QF_P3_FRONT_A[0][0], S.QF_P3_FRONT_A[-1][0]] + (list(S.QF_P3_FRONT_DX) if S.QF_P3_FRONT_DOOR else [])
+     fields = sorted(set(([round(x, 4) for x in hip] if S.QF_P3_HIP else []) + ([round(x, 4) for x in front] if S.QF_P3_FRONT else [])))
+     J['L:plan'] = fields
+-    J['l3:plan'] = sorted(set(fields + (list(D.QF_P3_L3Y_X) if D.QF_P3_L3Y else []) + (list(D.QF_NOSE_L3X) if D.QF_NOSE_WIDE else [])))
++    J['l3:plan'] = sorted(set(fields + (list(D.QF_P3_L3Y_X) if D.QF_P3_L3Y else []) + (list(D.QF_NOSE_L3X) if D.QF_NOSE_WIDE else []) + (list(D.QF_MID_L3_X) if D.QF_MID_L3 else [])))
+     J['L:elev'] = [D.QF_P3_LF_X1 - D.QF_P3_LF_JOIN, D.QF_P3_LF_X1] + [k[0] for k in D.QF_P3_LF_K] if D.QF_P3_LF else []
+     J['l3:elev'] = list(D.QF_P3_L3X) if D.QF_P3_L3 else []
+     J['U:plan'] = list(D.QF_P3_UX) if D.QF_P3_U else []
