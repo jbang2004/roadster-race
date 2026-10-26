@@ -2,33 +2,33 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "33c16de7bad8f832",
-   "verts": 8511,
-   "faces": 8280
+   "sha": "fa6206fe50b424d9",
+   "verts": 4305,
+   "faces": 4106
   },
   "wall": {
-   "sha": "408f86e11d075a92",
+   "sha": "d1b1bedc1a9dde13",
    "verts": 5497,
    "faces": 5212
   },
   "wall_black": {
-   "sha": "2435ea26f9d24071",
+   "sha": "0faab78a826fc04d",
    "verts": 4872,
    "faces": 4578
   },
   "pillar": {
-   "sha": "397f96320d433044",
+   "sha": "af679e60383e0442",
    "verts": 1056,
    "faces": 936
   },
   "door_glass": {
-   "sha": "57f5ed0f68b1b7dc",
+   "sha": "1804420d166d9773",
    "verts": 3535,
    "faces": 3404
   },
   "rail_band": {
-   "sha": "852164e1dc1c1fc5",
-   "verts": 329,
+   "sha": "43914bf8251bf9fe",
+   "verts": 331,
    "faces": 289
   },
   "front_face": {
@@ -51,40 +51,60 @@
    "verts": 855,
    "faces": 792
   },
-  "rear_shoulder": {
-   "sha": "78a7746594d29161",
-   "verts": 3110,
-   "faces": 3016
-  },
   "glass": {
-   "sha": "f8a388fa534e6544",
+   "sha": "f54c26021f565dc3",
    "verts": 9331,
    "faces": 9125
   },
   "ridge_inner": {
-   "sha": "08d3cef2fd7bcc1b",
-   "verts": 1082,
+   "sha": "0e68fb5094ab11bc",
+   "verts": 1089,
    "faces": 952
   },
   "deck": {
-   "sha": "46a8eb61eba68516",
+   "sha": "d3fe9c68e3c5f6bb",
    "verts": 586,
    "faces": 556
   },
   "tail_upper": {
-   "sha": "89314a0f6b3c7718",
+   "sha": "cdc72792d02b593e",
    "verts": 780,
    "faces": 708
   },
   "tail_lower": {
-   "sha": "f5c427371deba6b1",
+   "sha": "8e3b489ced1d52eb",
    "verts": 2340,
    "faces": 2242
   },
   "facet": {
-   "sha": "780677415ead8955",
+   "sha": "4656f49bd3818d1d",
    "verts": 362,
    "faces": 328
+  },
+  "frs_low": {
+   "sha": "d8ebcd301c05c262",
+   "verts": 149,
+   "faces": 111
+  },
+  "frs_plat": {
+   "sha": "e365ee57741c8cef",
+   "verts": 3501,
+   "faces": 3400
+  },
+  "frs_bfwd": {
+   "sha": "4412b736b331208c",
+   "verts": 476,
+   "faces": 450
+  },
+  "frs_beam": {
+   "sha": "c3a219c1749df8cd",
+   "verts": 1876,
+   "faces": 1806
+  },
+  "frs_win": {
+   "sha": "58f61e4f6718a152",
+   "verts": 426,
+   "faces": 400
   }
  }
 }

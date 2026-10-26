@@ -926,3 +926,9 @@ R1b 的 Catmull-Clark 笼子在镜面检查里一直有褶皱（A 柱根、鼻�
 ## 第二轮 · 车身中段（2026-10-26，MID-2）
 
 - 门缝截面改成 L→l3 单一凸弧（sag 10 mm），后缝贴合到 1 mm；l3 的渐出从 0.8 延到 1.0，竖向明暗带不再在 x 0.25–0.8；L 在门段外移 8 mm（p013 与 DFJ 的冲突折中）；侧标上沿降到 p003 读数的直线。lock：wall / wall_black / shoulder；smooth 254 PASS，budget 5 PASS，clearance 4 PASS，npm test 通过。数据见 CALIB.md 末节。
+
+## 第二轮 · 车尾（2026-10-26，REAR-2）
+
+- 采用云端半成品 `QF_FRS`（耳朵分面）并补完：5 块面板注册进 `PANEL_LIST`（`rear_shoulder` 去掉）、`shoulder` 截到 I_F、锁文件删 1 加 5。r81 / high 的耳朵从圆滑拱加钩变成尖锥 + 直棱，h / v 斑马纹里是直块。
+- 新开关：`QF_FRS_RW`（顶梁内移 14.5 mm，x −0.2 → 0.15 渐入）；`QF_FRS_RAIL` 窗尖抬 7.6 mm；`QF_SEAM_PV` 默认 (−0.0046, 0.024)：尾缘 / 耳尖 1.0424 → 1.047，缝降 2.4 cm。
+- 没做：L 抬高（两个拐点）、后胯 / 车门段下部的 v 斑马纹岛（照片也有后胯高光；l3 内收到竖直的过程产生的岛没消掉）。数据见 CALIB.md 末节。

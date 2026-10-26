@@ -749,7 +749,25 @@ QF_EAR = float(os.environ.get('QF_EAR', '7.5'))      # q17 ear step (deg; 0 = of
 #   side): it is darker than the deck beside it on the shaded ear (166 / 191) and brighter on the lit one (197 / 178), with the same tone ahead of and behind the seam; r81 at the seam:
 #   R-1 4 px (1.7 cm) over the window's corner P3, P3 level with the centre.  The window and the deck sit that much under R-1 (the face ~7.5 deg, 1.75 cm at the seam, 0 at the glass
 #   corner and at E); the model had them flush (q13, "三角带与后窗玻璃共面").
-_spv_ = os.environ.get('QF_SEAM_PV', '0')
+# QF_FRS (2026-10-26, user: "两个耳朵……不就是把顶梁拉直、玻璃尺寸改一点、把窗下的面修直修平吗？为何要被旧规则束缚？" -> "推翻所有规则，按你建议的重构"): the faceted rear
+#   shoulder.  From the window tip back the shoulder is FLAT faces with straight crisp creases (the shell's 8 mm fillet), no soft arc:
+#   B  the beam face: the plane through R-1 (now exactly straight, C0 -> E) and the window tip T; it carries the window's aft edge and the triangle C0 - V0 - E behind the tip (r81's
+#      pyramid ear: the lit triangle from the apex to |y| 0.84, z 1.0 at x 1.2 and down to E);
+#   P  the platform: below the crease K, which is B's straight line from E through V0 (x 1.2, ~|y| 0.86) on forward to the fold station x_F (p013: the soft edge |y| 0.80 -> 0.61);
+#      P is the plane through K and the tail corner, and L aft of x 1.4 lies in it within 2 mm;
+#   T1 the sliver under it along L (x_F .. QF_FRS_XD), the door's shoulder face carried on (24 deg; L straight), meeting P on the crease D from K0 to L;
+#   W  under the window: ruled from the crease Q (K0 -> T) to the window's lower edge U, which now follows the photo U_win to the tip (the old fade-out at x 0.60 .. 0.874 is gone).
+#   K0 = where K meets the door shoulder's last straight ruling L -> U (at x_F): K, D, Q all start there, so every crease grows from nothing out of the straight ruling.
+#   The shell builds each face as its own panel (shell2 QF_FRS panels); this module straightens R-1, moves U / wl / the tip and keeps the geometry (frs_geom).
+QF_FRS = os.environ.get('QF_FRS', '1') == '1'
+QF_FRS_T = tuple(float(v) for v in os.environ.get('QF_FRS_T', '0.600,1.180').split(','))      # the window tip T at X_TIP (y, z; WT 0.604 / 1.179 at x 1.220)
+QF_FRS_XD = float(os.environ.get('QF_FRS_XD', '1.40'))                                         # where the crease D meets L (P contains L aft of it)
+QF_FRS_RAIL = tuple(float(v) for v in os.environ.get('QF_FRS_RAIL', '0.80,0.0076').split(','))  # R-1 straight: the roof rail bends into R-1's line from [0] (G2), the tip C0 moves [1] (m) in height
+QF_FRS_RW = tuple(float(v) for v in os.environ.get('QF_FRS_RW', '-0.0145,-0.20,0.15').split(','))      # the roof rail is narrower than the model by 1.2 - 1.9 cm over x -0.2 .. 1.6 (fit.json rail: p013 -4.5 .. -8.4 px; fit - model y -19 / -18 / -13 / -18 mm at x -0.2 / 0.8 / 1.2 / 1.6): the rail moves in by [0] (m) between x [1] and [2], held to the window tip, R-1 starts from there
+QF_FRS_WL = tuple(float(v) for v in os.environ.get('QF_FRS_WL', '0.80,0.95').split(','))      # wl takes the photo line's plan in over [0] .. [1] (it is on it at x 0.8)
+QF_FRS_LEAN = tuple(float(v) for v in os.environ.get('QF_FRS_LEAN', '0,0,1.20').split(','))    # the lower flank's lean handed over at x 0.8 (MID-2): l3's plan offset there (m, + inboard)
+#   and its x slope, carried on by a quintic to 0 at [2] (inside the rear wheel opening); 0,0 = l3 as it is (the door tuck ends at 0.8)
+_spv_ = os.environ.get('QF_SEAM_PV', '-0.0046,0.024' if QF_FRS else '0')
 QF_SEAM_PV = {'a': (0.015, 0.024), 'b': (0.028, 0.024)}.get(_spv_) or (tuple(float(v) for v in _spv_.split(',')) if ',' in _spv_ else None)
 # PREVIEW (2026-10-25, default off; for the user's decision, CALIB "后窗 / 尾翼交界与耳朵"): five photos put the rear window's lower edge (the seam to the wing) 2.2 - 2.8 cm under the model.
 #   (drop of the tail edge and the ear tip E, drop of the seam): the edge stays level at R-1's own end height (A plan) and R-1 stays straight to E, so R-1 turns down about the window tip
@@ -3854,7 +3872,7 @@ QF_P3_L3X = tuple(float(v) for v in os.environ.get('QF_P3_L3X', '-1.15,-1.03,1.1
 #   height unchanged.  The correction fades in from the A-pillar root and is gone by X_FOLD0 (QF_P3_UX): the rear shoulder aft of X_FOLD0 is built from U(X_FOLD0) and the tip T (the
 #   PANE plane), so moving one without the other turns that face (a fade to 1.18 left a whorl behind the tip).  U over x 0.87 .. 1.2 stays 3.4-4.7 cm inside the photos.
 QF_P3_U = os.environ.get('QF_P3_U', '1') == '1'
-QF_P3_UX = tuple(float(v) for v in os.environ.get('QF_P3_UX', '-1.37,-1.12,0.60,0.874').split(','))
+QF_P3_UX = tuple(float(v) for v in os.environ.get('QF_P3_UX', '-1.37,-1.12,1.30,1.31' if QF_FRS else '-1.37,-1.12,0.60,0.874').split(','))      # (QF_FRS: no fade-out, U_win to the tip)
 # QF_P3_LF: the shoulder crease L ahead of the front wheel is lower in the photos: 1.7 (x -2.4), 2.6 (-2.2), 3.2 (-2.0), 3.7 cm (-1.9) (L_front, sigma 0.8-1.5 cm; p018, p001, p016, p013).  The
 #   New L from the nose corner N (which stays) to QF_P3_LF_X1: one C2 spline through the measured heights QF_P3_LF_K (x:z) that rejoins the old L at X1 (value and slope; L_side agrees with
 #   the photos from x -1.2 on); over the front wheel opening it carries the measured slope across.  (The fitted line itself starts 1 cm above N and dips behind it: an end effect, not followed.)
@@ -3975,7 +3993,83 @@ def p3_apply():
         CURVES['L'] = PlanMod(oldw, oldw.x0, dyw, lambda x: 0.0 * np.asarray(x, float), 'L')
 
 
+_FRS = {}
+
+
+def frs_apply():
+    """QF_FRS (see the switch): R-1 exactly straight from the window tip C0 to the ear tip E (the roof rail bends into its line from QF_FRS_RAIL[0], G2, convex; the rear glass edge and the
+    centre line keep their heights under it, as with the R-1 raise); U ends at the tip T (QF_FRS_T), wl takes the photo line's plan and ends there too; the lower flank's lean
+    handed over at x 0.8 is carried into the rear wheel opening (QF_FRS_LEAN)"""
+    XT, e = X_TIP, 2e-3
+    E = np.asarray(_e_tail(), float)
+    R0 = CURVES['rail']
+    rz = lambda x: np.asarray(R0.at(x), float)[..., 2]
+    ry = lambda x: np.asarray(R0.at(x), float)[..., 1] + QF_FRS_RW[0] * sstep(QF_FRS_RW[1], QF_FRS_RW[2], x)
+    xa, dtip = QF_FRS_RAIL
+    q = (xa, float(rz(xa)), float(rz(xa + e) - rz(xa - e)) / (2 * e), float(rz(xa + e) - 2 * rz(xa) + rz(xa - e)) / e ** 2,
+         XT, float(rz(XT)) + dtip, (float(E[2]) - float(rz(XT)) - dtip) / (float(E[0]) - XT), 0.0)
+    y1, sy = float(ry(XT)), (float(E[1]) - float(ry(XT))) / (float(E[0]) - XT)
+
+    def dz(x, _q=q):
+        x = np.asarray(x, float)
+        return np.where(x < _q[0], 0.0, np.where(x <= _q[4], quint1(np.clip(x, _q[0], _q[4]), *_q), _q[5] + _q[6] * (x - _q[4])) - rz(x))
+    CURVES['rail'] = Fn(R0.x0, R0.x1, lambda x: np.where(np.asarray(x, float) <= XT, ry(x), y1 + sy * (np.asarray(x, float) - XT)), lambda x: rz(x) + dz(x), 'rail')
+    for k in ('gedge', 'top'):
+        c = CURVES[k]
+        CURVES[k] = Fn(c.x0, c.x1, lambda x, _c=c: np.asarray(_c.at(x), float)[..., 1], lambda x, _c=c: np.asarray(_c.at(x), float)[..., 2] + dz(x), k)
+    T = np.array([XT, QF_FRS_T[0], QF_FRS_T[1]])
+    # U: the photo line to the tip (QF_P3_UX), its last 0.2 m moved onto T
+    U0c = CURVES['U']
+    dT = T - np.asarray(U0c.at(XT), float)
+    CURVES['U'] = Fn(U0c.x0, U0c.x1, lambda x, _u=U0c: np.asarray(_u.at(x), float)[..., 1] + dT[1] * sstep(XT - 0.2, XT, x),
+                     lambda x, _u=U0c: np.asarray(_u.at(x), float)[..., 2] + dT[2] * sstep(XT - 0.2, XT, x), 'U')
+    # wl: the photo line's plan from QF_FRS_WL (the correction held beyond its end, x 1.15), then onto T over the last 0.15 m
+    W0 = CURVES['wl']
+    P = _p3_line('wl')
+    sp = Spline1D(P[:, 0], P[:, 1] - np.asarray(W0.at(P[:, 0]), float)[:, 1], 'natural')
+    cw = lambda x: sstep(QF_FRS_WL[0], QF_FRS_WL[1], x) * sp(np.clip(x, P[0, 0], P[-1, 0]))
+    wT = np.asarray(W0.at(XT), float) + np.array([0.0, float(cw(XT)), 0.0])
+    dW = T - wT
+    CURVES['wl'] = Fn(W0.x0, W0.x1, lambda x, _w=W0: np.asarray(_w.at(x), float)[..., 1] + cw(x) + dW[1] * sstep(XT - 0.15, XT, x),
+                      lambda x, _w=W0: np.asarray(_w.at(x), float)[..., 2] + dW[2] * sstep(XT - 0.15, XT, x), 'wl')
+    _Q16['tip'] = T
+    if QF_FRS_LEAN[0] != 0.0 or QF_FRS_LEAN[1] != 0.0:
+        l30 = CURVES['l3']
+        lq = (0.80, QF_FRS_LEAN[0], QF_FRS_LEAN[1], 0.0, QF_FRS_LEAN[2], 0.0, 0.0, 0.0)
+        CURVES['l3'] = Fn(l30.x0, l30.x1, lambda x, _l=l30, _q=lq: np.asarray(_l.at(x), float)[..., 1] - np.where((np.asarray(x, float) >= _q[0]) & (np.asarray(x, float) <= _q[4]), quint1(x, *_q), 0.0),
+                          lambda x, _l=l30: np.asarray(_l.at(x), float)[..., 2], 'l3')
+    _FRS.update(T=T, E=np.array([float(E[0]), y1 + sy * (float(E[0]) - XT), float(q[5]) + float(q[6]) * (float(E[0]) - XT)]), C0=np.asarray(CURVES['rail'].at(XT), float), on=True)
+
+
+def frs_geom(xF):
+    """the faceted rear shoulder's points for the fold station xF (a shell station near X_FOLD0): the beam plane's tip line C0 -> T carried down to V0 (x X_TIP), whose height puts
+    the crease K (the straight line V0 -> E) onto the door shoulder's last ruling L -> U at xF: K0.  Returns dict(C0, T, E, V0, K0, xF)"""
+    key = round(float(xF), 9)
+    if key in _FRS:
+        return _FRS[key]
+    C0, T, E = _FRS['C0'], _FRS['T'], _FRS['E']
+    Lf, Uf = np.asarray(CURVES['L'].at(xF), float), np.asarray(CURVES['U'].at(xF), float)
+    s = (C0[2] - T[2]) / (T[1] - C0[1])
+
+    def K0of(z):
+        V0 = np.array([X_TIP, C0[1] + (C0[2] - z) / s, z])
+        K = V0 + (xF - X_TIP) / (E[0] - X_TIP) * (E - V0)
+        t = (Lf[1] - K[1]) / (Lf[1] - Uf[1])
+        return V0, K, Lf + t * (Uf - Lf)
+    lo, hi = 0.90, 1.10
+    for _ in range(80):
+        m = 0.5 * (lo + hi)
+        V0, K, Kc = K0of(m)
+        lo, hi = (lo, m) if K[2] > Kc[2] else (m, hi)
+    V0, K, K0 = K0of(0.5 * (lo + hi))
+    g = dict(C0=C0, T=T, E=E, V0=V0, K0=K0, xF=float(xF), Lf=Lf, Uf=Uf)
+    _FRS[key] = g
+    return g
+
+
 p3_apply()
+if QF_FRS:
+    frs_apply()
 build_nose()
 
 if __name__ == '__main__':

@@ -1167,6 +1167,10 @@ def p_shoulder(R):
             P = (1.0 - w) * r + w * P
             P[0], P[-1] = a, b
         return P
+    if D.QF_FRS:
+        # QF_FRS: the door's shoulder face ends with its straight ruling at the fold station I_F (x 0.866, all rows ahead of it straight); the faceted rear shoulder takes over (p_frs_*)
+        pinN = np.vstack([R.edge('chord_lo'), R.edge('chord_up')[1:]])
+        return strip('shoulder', PAINT, A[:I_F + 1], B[:I_F + 1], HC['shoulder'], prof=prof, row_fn=rf, pinN=pinN, quads=True)
     return strip('shoulder', PAINT, A, B, HC['shoulder'], prof=prof, row_fn=rf, pinN=R.edge('tip_lo'), quads=True)
 
 
@@ -1560,6 +1564,104 @@ EDGES['b_rung'] = e_b_rung
 EDGES['tip_lo'] = e_tip_lo
 EDGES['tip_up'] = e_tip_up
 
+
+# ----------------------------------------------------------------------------- QF_FRS: the faceted rear shoulder (design2.QF_FRS): every face its own panel, every crease a panel boundary
+# (the shell's 8 mm fillet makes it crisp).  From the fold station I_F (the door shoulder's last straight ruling L -> U, K0 on it) back:
+#   frs_low   T1: L -> crease D (K0 -> L at I_XD), a sliver triangle along L, the door shoulder carried on
+#   frs_plat  P:  D (then L, aft of I_XD) -> crease K (K0 -> V0 -> E, straight), the platform to the tail edge
+#   frs_bfwd  B:  K -> crease Q (K0 -> window tip T), the beam face under the window's aft edge
+#   frs_beam  B:  K -> R-1 aft of the tip (its first row V0 -> T -> C0), the ear's triangle down to E
+#   frs_win   W:  Q -> U, the face under the window (ruled; U follows the photo)
+I_F = int(np.argmin(abs(XS - D.X_FOLD0)))
+I_XD = int(np.argmin(abs(XS - D.QF_FRS_XD)))
+
+
+def _frs(R):
+    if 'frs_g' not in R.cache:
+        R.cache['frs_g'] = D.frs_geom(float(XS[I_F]))
+    return R.cache['frs_g']
+
+
+def _line_at(A, B, xs):
+    P = A[None, :] + ((np.asarray(xs, float) - A[0]) / (B[0] - A[0]))[:, None] * (B - A)[None, :]
+    P[:, 0] = xs
+    return P
+
+
+def e_Kc(R):
+    """the crease K (stations I_F .. the tail, at the rail's x): K0 -> E, straight"""
+    g, rail = _frs(R), R._edge('rail')
+    P = _line_at(g['K0'], g['E'], rail[I_F - I_W:, 0])
+    P[0] = g['K0']
+    assert np.linalg.norm(P[-1] - rail[-1]) < 3e-3, ('frs K end', P[-1], rail[-1])
+    P[-1] = rail[-1]
+    return P
+
+
+def e_Dc(R):
+    """the crease D (stations I_F .. I_XD): K0 -> L"""
+    g, L = _frs(R), R._edge('L')
+    P = _line_at(g['K0'], L[I_XD], L[I_F:I_XD + 1, 0])
+    P[0], P[-1] = g['K0'], L[I_XD]
+    return P
+
+
+def e_Qc(R):
+    """the crease Q (stations I_F .. I_TIP): K0 -> the window tip T"""
+    g, U = _frs(R), R._edge('U')
+    P = _line_at(g['K0'], U[-1], U[I_F:, 0])
+    P[0], P[-1] = g['K0'], U[-1]
+    return P
+
+
+def _frs_chord_n(R):
+    L, U, K0 = R._edge('Lm')[I_F], R._edge('U')[I_F], _frs(R)['K0']
+    assert np.linalg.norm(L - R._edge('L')[I_F]) < 1e-9
+    n = max(2, int(round(np.linalg.norm(U[1:] - R._edge('L')[I_TIP][1:]) / HC['shoulder'])))      # (the division count of the old tip row: the shoulder's grid does not change)
+    n1 = min(n - 1, max(1, int(round(n * np.linalg.norm(K0 - L) / np.linalg.norm(U - L)))))
+    return L, K0, U, n1, n - n1
+
+
+def e_chord_lo(R):
+    L, K0, U, n1, n2 = _frs_chord_n(R)
+    return _lin(L, K0, n1)
+
+
+def e_chord_up(R):
+    L, K0, U, n1, n2 = _frs_chord_n(R)
+    return _lin(K0, U, n2)
+
+
+def e_tip_b(R):
+    """the beam face's row at the tip: V0 (on K) -> T"""
+    K, T = R._edge('Kc')[I_TIP - I_F], R._edge('U')[-1]
+    return _lin(K, T, max(1, int(round(np.linalg.norm(T - K) / HC['rear']))))
+
+
+EDGES.update(Kc=e_Kc, Dc=e_Dc, Qc=e_Qc, chord_lo=e_chord_lo, chord_up=e_chord_up, tip_b=e_tip_b)
+
+
+def p_frs_low(R):
+    return strip('frs_low', PAINT, R.edge('L')[I_F:I_XD + 1], R.edge('Dc'), HC['rear'], pin0=R.edge('chord_lo'))
+
+
+def p_frs_plat(R):
+    A = np.vstack([R.edge('Dc'), R.edge('L')[I_XD + 1:]])
+    return strip('frs_plat', PAINT, A, R.edge('Kc'), HC['rear'], pinN=R.edge('tail_a'))
+
+
+def p_frs_bfwd(R):
+    return strip('frs_bfwd', PAINT, R.edge('Kc')[:I_TIP - I_F + 1], R.edge('Qc'), HC['rear'], pinN=R.edge('tip_b'))
+
+
+def p_frs_beam(R):
+    pin0 = np.vstack([R.edge('tip_b'), R.edge('tip_up')[1:]])
+    return strip('frs_beam', PAINT, R.edge('Kc')[I_TIP - I_F:], R.edge('rail')[I_TIP - I_W:], HC['rear'], pin0=pin0)
+
+
+def p_frs_win(R):
+    return strip('frs_win', PAINT, R.edge('Qc'), R.edge('U')[I_F:], HC['rear'], pin0=R.edge('chord_up'))
+
 PANEL_LIST = [
     Panel('front_face', p_front_face, TRIM, ['LE_str', 'F_bot', 'F_cen', 'crease']),
     Panel('nose_corner_up', p_nose_corner_up, PAINT, ['cut_up', 'LE_ch', 'face_edge_up', 'E_up', 'l3', 'Lm']),
@@ -1567,7 +1669,7 @@ PANEL_LIST = [
     Panel('hood', p_hood, PAINT, ['LE', 'L5', 'cowl', 'hood_cen']),
     Panel('corner_tri', p_corner_tri, PAINT, ['L5', 'U', 'F_end'], hint=np.array([0.0, 0.0, 1.0])),
     Panel('fender_top', p_fender_top, PAINT, ['L5', 'U', 'F_end'], hint=np.array([0.0, 0.0, 1.0])),
-    Panel('shoulder', p_shoulder, PAINT, ['Lm', 'U', 'tip_lo']),
+    Panel('shoulder', p_shoulder, PAINT, ['Lm', 'U', 'chord_lo', 'chord_up'] if D.QF_FRS else ['Lm', 'U', 'tip_lo']),
     Panel('wall', p_wall, PAINT, ['l3', 'Lm', 'E_up', 'facet_edge']),
     Panel('facet', p_facet, PAINT, ['l3', 'L', 'facet_edge', 'tail_side_up']),
     Panel('wall_black', p_wall_black, TRIM, ['low', 'l3', 'E_low']),
@@ -1575,12 +1677,21 @@ PANEL_LIST = [
     Panel('pillar', p_pillar, PAINT, ['rail', 'wl', 'foot', 'b_rung']),
     Panel('rail_band', p_rail_band, PAINT, ['wl', 'rail', 'tip_up', 'b_rung']),
     Panel('rear_shoulder', p_rear_shoulder, PAINT, ['L', 'rail', 'tip_lo', 'tip_up', 'tail_a']),
+    Panel('frs_low', p_frs_low, PAINT, ['L', 'Dc', 'chord_lo']),
+    Panel('frs_plat', p_frs_plat, PAINT, ['Dc', 'L', 'Kc', 'tail_a']),
+    Panel('frs_bfwd', p_frs_bfwd, PAINT, ['Kc', 'Qc', 'tip_b']),
+    Panel('frs_beam', p_frs_beam, PAINT, ['Kc', 'rail', 'tip_b', 'tip_up']),
+    Panel('frs_win', p_frs_win, PAINT, ['Qc', 'U', 'chord_up']),
     Panel('glass', p_glass, GLASS, ['gedge', 'top', 'cowl', 'seam_row']),
     Panel('ridge_inner', p_ridge_inner, PAINT, ['rail', 'gedge'], hint=np.array([0.0, -0.6, 1.0])),
     Panel('deck', p_deck, PAINT, ['gedge', 'top', 'seam_row', 'tail_b']),
     Panel('tail_upper', p_tail_upper, PAINT, ['tail_split', 'tail_a', 'tail_b', 'tail_side_up']),
     Panel('tail_lower', p_tail_lower, TRIM, ['tail_bottom', 'tail_split', 'E_side']),
 ]
+if D.QF_FRS:
+    PANEL_LIST = [p for p in PANEL_LIST if p.name != 'rear_shoulder']
+else:
+    PANEL_LIST = [p for p in PANEL_LIST if not p.name.startswith('frs_')]
 if D.QF_CF_ON:          # c10b: no chamfer facets (the wall / wall_black start at the front face's end generator)
     PANEL_LIST = [p for p in PANEL_LIST if p.name not in ('nose_corner_up', 'nose_corner_low')]
 PANELS = {p.name: p for p in PANEL_LIST}
