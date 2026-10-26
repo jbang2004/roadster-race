@@ -1768,6 +1768,9 @@ def checksum(pm):
 QF_P3_HIP = os.environ.get('QF_P3_HIP', '1') == '1'
 QF_P3_HIP_A = tuple(tuple(float(u) for u in kv.split(':')) for kv in os.environ.get(
     'QF_P3_HIP_A', ('0.50:0,0.80:0,1.00:0.3,1.20:1.9,1.40:3.5,1.60:4.3,1.80:4.1,2.00:3.9,2.20:2.6,2.38:0.9,2.46:0' if D.QF_REAR_L3 else '1.00:0,1.20:1.6,1.40:3.9,1.60:4.4,1.80:4.3,2.00:3.9,2.20:2.6,2.38:0.9,2.46:0')).split(','))
+# QF_P3_HIP_G (REAR-3, user: the zebra of the hip must be clean): g's smoothstep (zero slope at Z0) is an S in z (concave low, convex high): on the wall (l3 at z 0.5 .. 0.7 aft of x 1.2) dy/dz ran -0.01 .. +0.04 .. -0.07, so
+#   the horizontal bands hooked into loops (p018 h, z 0.75, x 1.3 .. 1.9).  Now g = 1 - (1 - u)^2 (u = (z - Z0) / (L - Z0)): one convex curve, slope 0 at L (crease), 2/(L - Z0) at Z0 which lies below l3 aft of x 1.1.  0: the smoothstep.
+QF_P3_HIP_G = os.environ.get('QF_P3_HIP_G', '1') == '1'
 QF_P3_HIP_Z0 = float(os.environ.get('QF_P3_HIP_Z0', '0.40'))                 # bottom of the field (z, m)
 QF_P3_HIP_W = tuple(float(v) for v in os.environ.get('QF_P3_HIP_W', '0.30,0.50,2.30,2.46' if D.QF_REAR_L3 else '1.00,1.20,2.30,2.46').split(','))   # C2 window on A: in over [0..1], out over [2..3] (value, slope and
 #   curvature reach 0 at the ends; the spline alone ended with a curvature step of 1.1 / 4.7 1/m)
@@ -1872,7 +1875,10 @@ def _p3_hip_raw(x, z):
     z0 = QF_P3_HIP_Z0
     if z <= z0 or z >= zr:
         return 0.0
-    g = float(D.sstep(z0, zl, z)) if z <= zl else (zr - z) / max(zr - zl, 1e-6)
+    if z <= zl:
+        g = (1.0 - (1.0 - (z - z0) / (zl - z0)) ** 2) if QF_P3_HIP_G else float(D.sstep(z0, zl, z))
+    else:
+        g = (zr - z) / max(zr - zl, 1e-6)
     return A * g
 
 
