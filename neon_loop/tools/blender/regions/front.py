@@ -25,6 +25,7 @@ import os
 import bmesh
 from mathutils import Vector
 import common as S
+import design2 as _D2             # (the shell's design curves; already imported by the build)
 from common import Mesh, sstep
 
 NAME = 'front'
@@ -38,7 +39,7 @@ QF_FACE_LOW = os.environ.get('QF_FACE_LOW', '1') == '1'      # gloss panel / int
 QF_LIP_LOW = os.environ.get('QF_LIP_LOW', '1') == '1'        # the lip as a LOW blade under the intake + a flush black plate at the corners (0: the 2026-10-24 thin blade at z .262-.300 + deep chin)
 
 # ----------------------------------------------------------------------------- dimensions (m)
-YB = 0.667                      # the bar / panels stop this far from the centre line (the corner crease of the face is at |y| 0.67)
+YB = float(_D2.N[1]) - 0.003    # the bar / panels stop this far from the centre line (the corner crease of the face is at N's |y|: 0.67, 0.70 with design2.QF_NOSE_WIDE)
 BAR_H = 0.009                   # light bar height; FRONT r2: no thickening and no droop at the ends, the strip tapers instead (p014: it thins out and stops at the corner vertex).  2026-10-23: 16 -> 9 mm
                                 # (p016 column profiles: the white line is 4 px = 9 mm at every x, the model's bright band was 11 px)
 BAR_TAPER = 0.92                # the bar is this fraction thinner at the vertex (9 mm -> 0.7 mm) ...
