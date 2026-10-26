@@ -2,17 +2,17 @@
  "version": 1,
  "panels": {
   "shoulder": {
-   "sha": "9e1a0d74bd94ced8",
+   "sha": "dc4057fc75511fed",
    "verts": 4854,
    "faces": 4642
   },
   "wall": {
-   "sha": "326d3fa400c53662",
+   "sha": "0e61b0a850d1165c",
    "verts": 5497,
    "faces": 5212
   },
   "wall_black": {
-   "sha": "7da80fcd25a1ba62",
+   "sha": "85ae70becf471f2a",
    "verts": 4872,
    "faces": 4578
   },
@@ -22,12 +22,12 @@
    "faces": 936
   },
   "door_glass": {
-   "sha": "c72e740a9d784c03",
+   "sha": "bf0976e73e044d6e",
    "verts": 3650,
    "faces": 3519
   },
   "rail_band": {
-   "sha": "43914bf8251bf9fe",
+   "sha": "0cfe3f3b5dab62b3",
    "verts": 331,
    "faces": 289
   },
@@ -52,57 +52,57 @@
    "faces": 841
   },
   "glass": {
-   "sha": "e6c4e3679a1baa02",
+   "sha": "ab5f026cd60f05ed",
    "verts": 9331,
    "faces": 9125
   },
   "ridge_inner": {
-   "sha": "ceb3926172b64f42",
+   "sha": "0152b91f262e7376",
    "verts": 1089,
    "faces": 952
   },
   "deck": {
-   "sha": "7e94d3bfe2f81af7",
+   "sha": "c5c4ca19f7af1612",
    "verts": 586,
    "faces": 556
   },
   "tail_upper": {
-   "sha": "a5fe9417ff751a93",
+   "sha": "3baac6a5593c8ccf",
    "verts": 780,
    "faces": 708
   },
   "tail_lower": {
-   "sha": "8e3b489ced1d52eb",
+   "sha": "f40db739d9e23aeb",
    "verts": 2340,
    "faces": 2242
   },
   "facet": {
-   "sha": "4656f49bd3818d1d",
+   "sha": "fed2c256db0b5fb9",
    "verts": 362,
    "faces": 328
   },
   "frs_low": {
-   "sha": "50f4833ea8fe6585",
+   "sha": "a2512534a8ad3f39",
    "verts": 497,
    "faces": 465
   },
   "frs_plat": {
-   "sha": "1f4d581a5900b651",
+   "sha": "5d71f7ba7f95e5d9",
    "verts": 3291,
    "faces": 3196
   },
   "frs_bfwd": {
-   "sha": "d70aa1c25fdc3677",
+   "sha": "df7df1cc5a67ebd5",
    "verts": 248,
    "faces": 228
   },
   "frs_beam": {
-   "sha": "70b865fe1ceaf202",
+   "sha": "b51675946ce27f73",
    "verts": 1426,
    "faces": 1350
   },
   "frs_win": {
-   "sha": "243efb9fb0673ec0",
+   "sha": "0bbc2a6c726d2788",
    "verts": 153,
    "faces": 133
   }

@@ -4062,7 +4062,7 @@ QF_MID_L3_END = float(os.environ.get('QF_MID_L3_END', '1.00'))
 #   the door section; x <= 0.25 is untouched.  QF_REAR_L3=0: the smoothstep fade.
 QF_REAR_L3 = os.environ.get('QF_REAR_L3', '1') == '1'
 QF_REAR_L3_END = float(os.environ.get('QF_REAR_L3_END', '1.15'))
-QF_REAR_L3_P = tuple(float(v) for v in os.environ.get('QF_REAR_L3_P', '0.03,0.01').split(','))      # alpha, beta of the convex rise (m, t in m)
+QF_REAR_L3_P = tuple(float(v) for v in os.environ.get('QF_REAR_L3_P', '0.07316,-0.03324').split(','))      # a, b of the convex rise a t^3 + b t^4 (t = x - 0.25): zero curvature at its start (the first form, 0.03 t^2 + 0.01 t^3, had a curvature step of 0.06 1/m: check.py smooth FAIL); same value and slope at X1
 QF_REAR_L3_X = tuple(float(v) for v in os.environ.get('QF_REAR_L3_X', '1.20,0.30,1.60,2.05').split(','))        # x1 where the rise ends (the arch's front edge), lz the length of the slope's ease-out, the blend onto the old l3 (hidden: wheel opening) over [2] .. [3]
 
 
@@ -4133,12 +4133,12 @@ def p3_apply():
                 d = QF_MID_L3_END                  # (MID-2: the lean is handed to the rear quarter at x 1.0, not dropped by 0.8)
             x = np.asarray(x, float)
             if QF_REAR_L3:
-                # the line, plus a convex rise t^2 (alpha + beta t) from x c (t = x - c): the photos' l3 (fit.json) keeps flaring to the rear wheel opening; held to X1, blended onto the old l3 over X1 .. X2
+                # the line, plus a convex rise t^3 (a + b t) from x c (t = x - c): the photos' l3 (fit.json) keeps flaring to the rear wheel opening; held to X1, blended onto the old l3 over X1 .. X2
                 x1, lz, xb0, xb1 = QF_REAR_L3_X
                 t = np.clip(x - c, 0.0, x1 - c)
-                s1 = 2.0 * QF_REAR_L3_P[0] * (x1 - c) + 3.0 * QF_REAR_L3_P[1] * (x1 - c) ** 2          # the rise's slope at x1; aft of it the slope eases to 0 over lz (smoothstep): the slope has ONE maximum, at x1 (the arch edge)
+                s1 = 3.0 * QF_REAR_L3_P[0] * (x1 - c) ** 2 + 4.0 * QF_REAR_L3_P[1] * (x1 - c) ** 3          # the rise's slope at x1; aft of it the slope eases to 0 over lz (smoothstep): the slope has ONE maximum, at x1 (the arch edge)
                 v = np.clip((x - x1) / lz, 0.0, 1.0)
-                ln = ya + QF_P3_L3Y_D + m * (x - xa) + t * t * (QF_REAR_L3_P[0] + QF_REAR_L3_P[1] * t) + s1 * lz * (v - (v ** 6 - 3.0 * v ** 5 + 2.5 * v ** 4))
+                ln = ya + QF_P3_L3Y_D + m * (x - xa) + t ** 3 * (QF_REAR_L3_P[0] + QF_REAR_L3_P[1] * t) + s1 * lz * (v - (v ** 6 - 3.0 * v ** 5 + 2.5 * v ** 4))
                 wb = sstep(xb0, xb1, x)
                 of = np.asarray(old.fy(x), float)
                 return sstep(a, b, x) * ((1.0 - wb) * ln + wb * of - of)
